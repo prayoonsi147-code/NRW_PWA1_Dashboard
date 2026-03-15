@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>กองระบบจำหน่าย - การประปาส่วนภูมิภาคเขต 1</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700;800&display=swap');
+
+  :root {
+    --primary: #0d47a1;
+    --primary-dark: #062a64;
+    --primary-light: #1565c0;
+    --accent: #ff8f00;
+    --accent-light: #ffb300;
+    --bg: #eef2f7;
+    --card-bg: #ffffff;
+    --text: #1a2332;
+    --text-light: #5a6a7e;
+    --shadow: 0 8px 32px rgba(13,71,161,0.12);
+    --shadow-hover: 0 16px 48px rgba(13,71,161,0.22);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Sarabun', 'Segoe UI', Tahoma, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ========== HERO HEADER ========== */
+  .hero {
+    background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 40%, var(--primary-light) 100%);
+    color: white;
+    text-align: center;
+    padding: 50px 20px 60px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -10%;
+    width: 120%;
+    height: 200%;
+    background: radial-gradient(ellipse at 30% 50%, rgba(255,255,255,0.06) 0%, transparent 60%),
+                radial-gradient(ellipse at 70% 30%, rgba(255,143,0,0.08) 0%, transparent 50%);
+    pointer-events: none;
+  }
+  .hero-content { position: relative; z-index: 1; max-width: 800px; margin: 0 auto; }
+
+  .hero-logo {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 18px;
+    background: rgba(255,255,255,0.12);
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 42px;
+    border: 2px solid rgba(255,255,255,0.15);
+    backdrop-filter: blur(4px);
+  }
+
+  .hero h1 {
+    font-size: 30px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+  .hero h2 {
+    font-size: 19px;
+    font-weight: 400;
+    opacity: 0.9;
+    margin-bottom: 4px;
+  }
+  .hero .subtitle {
+    font-size: 14px;
+    opacity: 0.65;
+    font-weight: 300;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  /* Decorative wave */
+  .wave-divider {
+    position: relative;
+    margin-top: -2px;
+    height: 50px;
+    overflow: hidden;
+  }
+  .wave-divider svg {
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    height: 50px;
+  }
+
+  /* ========== MAIN CONTENT ========== */
+  .main-content {
+    max-width: 1100px;
+    margin: -20px auto 40px;
+    padding: 0 20px;
+    position: relative;
+    z-index: 2;
+  }
+
+  .section-title {
+    text-align: center;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-light);
+    margin-bottom: 28px;
+    letter-spacing: 1px;
+  }
+
+  /* ========== CARDS GRID ========== */
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+  }
+
+  .card {
+    background: var(--card-bg);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    padding: 0;
+    overflow: hidden;
+    transition: all 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    position: relative;
+    cursor: default;
+  }
+  .card.clickable {
+    cursor: pointer;
+  }
+  .card.clickable:hover {
+    transform: translateY(-6px);
+    box-shadow: var(--shadow-hover);
+  }
+
+  .card-header {
+    padding: 24px 24px 16px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .card-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  }
+
+  .card-header-text h3 {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 2px;
+  }
+  .card-header-text .card-sub {
+    font-size: 13px;
+    color: var(--text-light);
+    font-weight: 400;
+  }
+
+  .card-body {
+    padding: 0 24px 20px;
+  }
+  .card-body p {
+    font-size: 14px;
+    color: var(--text-light);
+    line-height: 1.7;
+  }
+
+  .card-footer {
+    padding: 14px 24px;
+    border-top: 1px solid #eef1f5;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .card-status {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 12px;
+    border-radius: 20px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .status-active {
+    background: #e8f5e9;
+    color: #2e7d32;
+  }
+  .status-coming {
+    background: #fff3e0;
+    color: #e65100;
+  }
+
+  .card-link {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--primary);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: gap 0.2s;
+  }
+  .card.clickable:hover .card-link {
+    gap: 8px;
+  }
+  .card-link .arrow {
+    font-size: 16px;
+    transition: transform 0.2s;
+  }
+  .card.clickable:hover .card-link .arrow {
+    transform: translateX(3px);
+  }
+
+  /* Card accent top-line colors */
+  .card-water-loss      { border-top: 4px solid #1565c0; }
+  .card-pipe-map        { border-top: 4px solid #00838f; }
+  .card-water-meter     { border-top: 4px solid #6a1b9a; }
+  .card-customer        { border-top: 4px solid #e65100; }
+
+  .card-water-loss .card-icon      { background: linear-gradient(135deg, #1565c0, #42a5f5); color: white; }
+  .card-pipe-map .card-icon        { background: linear-gradient(135deg, #00838f, #26c6da); color: white; }
+  .card-water-meter .card-icon     { background: linear-gradient(135deg, #6a1b9a, #ab47bc); color: white; }
+  .card-customer .card-icon        { background: linear-gradient(135deg, #e65100, #ffa726); color: white; }
+
+  /* Disabled overlay for coming soon */
+  .card.disabled {
+    opacity: 0.7;
+  }
+  .card.disabled .card-icon {
+    filter: grayscale(30%);
+  }
+
+  /* ========== FOOTER ========== */
+  .page-footer {
+    text-align: center;
+    padding: 20px;
+    font-size: 12px;
+    color: var(--text-light);
+    border-top: 1px solid #dce3ec;
+    margin-top: 20px;
+  }
+
+  /* ========== RESPONSIVE ========== */
+  @media (max-width: 768px) {
+    .hero { padding: 36px 16px 44px; }
+    .hero h1 { font-size: 22px; }
+    .hero h2 { font-size: 16px; }
+    .cards-grid { grid-template-columns: 1fr; gap: 16px; }
+    .main-content { padding: 0 12px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ========== HERO ========== -->
+<div class="hero">
+  <div class="hero-content">
+    <div class="hero-logo">&#x1F4A7;</div>
+    <h1>กองระบบจำหน่าย</h1>
+    <h2>การประปาส่วนภูมิภาคเขต 1</h2>
+    <div class="subtitle">Distribution System Division &bull; PWA Regional Office 1</div>
+  </div>
+</div>
+
+<div class="wave-divider">
+  <svg viewBox="0 0 1440 50" preserveAspectRatio="none">
+    <path d="M0,0 C360,50 1080,50 1440,0 L1440,50 L0,50 Z" fill="#eef2f7"/>
+  </svg>
+</div>
+
+<!-- ========== MAIN CONTENT ========== -->
+<div class="main-content">
+
+  <div class="section-title">&#9670; เลือกงานเพื่อเข้าสู่ Dashboard &#9670;</div>
+
+  <div class="cards-grid">
+
+    <!-- Card 1: น้ำสูญเสีย -->
+    <div class="card card-water-loss clickable" onclick="window.location.href='Dashboard_Leak/index.html'">
+      <div class="card-header">
+        <div class="card-icon">&#x1F4A7;</div>
+        <div class="card-header-text">
+          <h3>งานน้ำสูญเสีย</h3>
+          <div class="card-sub">Water Loss Management</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <p>ติดตามและวิเคราะห์ข้อมูลน้ำสูญเสียของ กปภ.สาขา ในเขต 1 ครอบคลุมข้อมูล OIS, Real Leak, MNF และดัชนี WSC-R</p>
+      </div>
+      <div class="card-footer">
+        <span class="card-status status-active">&#x25CF; พร้อมใช้งาน</span>
+        <span class="card-link">เข้าสู่ Dashboard <span class="arrow">&rarr;</span></span>
+      </div>
+    </div>
+
+    <!-- Card 2: แผนที่แนวท่อ -->
+    <div class="card card-pipe-map disabled">
+      <div class="card-header">
+        <div class="card-icon">&#x1F5FA;</div>
+        <div class="card-header-text">
+          <h3>งานแผนที่แนวท่อ</h3>
+          <div class="card-sub">Pipeline Mapping</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <p>ระบบแผนที่แนวท่อประปา แสดงตำแหน่งท่อจ่ายน้ำ ท่อส่งน้ำ และอุปกรณ์ในระบบจำหน่ายของ กปภ.สาขา ในเขต 1</p>
+      </div>
+      <div class="card-footer">
+        <span class="card-status status-coming">&#x25CB; เร็วๆนี้</span>
+        <span class="card-link" style="opacity:0.4;">เร็วๆนี้</span>
+      </div>
+    </div>
+
+    <!-- Card 3: มาตรวัดน้ำ -->
+    <div class="card card-water-meter disabled">
+      <div class="card-header">
+        <div class="card-icon">&#x23F1;</div>
+        <div class="card-header-text">
+          <h3>งานมาตรวัดน้ำ</h3>
+          <div class="card-sub">Water Meter Management</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <p>บริหารจัดการข้อมูลมาตรวัดน้ำ ติดตามอายุการใช้งาน แผนเปลี่ยนมาตร และวิเคราะห์ประสิทธิภาพมาตรวัดน้ำ</p>
+      </div>
+      <div class="card-footer">
+        <span class="card-status status-coming">&#x25CB; เร็วๆนี้</span>
+        <span class="card-link" style="opacity:0.4;">เร็วๆนี้</span>
+      </div>
+    </div>
+
+    <!-- Card 4: ลูกค้าสัมพันธ์ -->
+    <div class="card card-customer clickable" onclick="window.location.href='Dashboard_PR/index.html'">
+      <div class="card-header">
+        <div class="card-icon">&#x1F465;</div>
+        <div class="card-header-text">
+          <h3>งานลูกค้าสัมพันธ์</h3>
+          <div class="card-sub">Customer Relations</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <p>วิเคราะห์ข้อมูลข้อร้องเรียนจากลูกค้า จำแนกตามด้านการร้องเรียน ติดตามแนวโน้มรายเดือนของ กปภ.สาขา ในเขต 1</p>
+      </div>
+      <div class="card-footer">
+        <span class="card-status status-active">&#x25CF; พร้อมใช้งาน</span>
+        <span class="card-link">เข้าสู่ Dashboard <span class="arrow">&rarr;</span></span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="page-footer">
+  กองระบบจำหน่าย &bull; การประปาส่วนภูมิภาคเขต 1
+</div>
+
+</body>
+</html>

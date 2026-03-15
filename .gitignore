@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Video files (too large for GitHub)
+*.mp4
+
+# Temporary files
+*.tmp
+~$*
+
+# Unused assets
+hero-bg.svg
+
+# Prompt history
+prompt_history.txt
