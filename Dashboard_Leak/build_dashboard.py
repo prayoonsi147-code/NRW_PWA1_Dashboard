@@ -1243,6 +1243,232 @@ def build_kpi_embedded_data(kpi_data):
     return json.dumps(compact, ensure_ascii=False, separators=(',', ':'))
 
 
+# ============================================================
+# P3 (Pressure Data) - Parser
+# ============================================================
+
+import csv
+
+def clean_p3_name(name):
+    """Remove tree characters and whitespace from P3 point name"""
+    if not isinstance(name, str):
+        return name
+    # Remove tree characters: ├ └ │ ─
+    name = name.replace('├', '').replace('└', '').replace('│', '').replace('─', '')
+    return name.strip()
+
+
+def process_p3_files(p3_dir):
+    """Process all P3 pressure data files.
+    Returns: {year: {month_key: {branch: [list of P3 points]}}}
+    month_key format: "YY-MM" e.g. "69-03"
+    Each P3 point: {n: name, p: avgPrev, a: avgDay, h: [24 hourly values]}
+    """
+    result = {}
+
+    if not os.path.isdir(p3_dir):
+        return result
+
+    # Scan year subfolders
+    for year_folder in sorted(os.listdir(p3_dir)):
+        year_path = os.path.join(p3_dir, year_folder)
+        if not os.path.isdir(year_path):
+            continue
+
+        # Process all .xlsx and .csv files in year folder
+        files = sorted(glob.glob(os.path.join(year_path, '*.xlsx')) +
+                      glob.glob(os.path.join(year_path, '*.csv')))
+
+        for filepath in files:
+            fname = os.path.basename(filepath)
+
+            # Parse filename: {branch}_{YY}-{MM}.xlsx or .csv
+            # e.g. "ชลบุรี_69-03.xlsx" -> branch="ชลบุรี", month="69-03"
+            match = re.match(r'^(.+?)_((\d{2})-(\d{2}))\.(xlsx|csv)$', fname)
+            if not match:
+                continue
+
+            branch = match.group(1)
+            month_key = match.group(2)  # "69-03"
+            file_ext = match.group(5).lower()  # "xlsx" or "csv"
+
+            try:
+                if file_ext == 'xlsx':
+                    p3_points = _parse_p3_xlsx(filepath)
+                else:  # csv
+                    p3_points = _parse_p3_csv(filepath)
+
+                if p3_points:
+                    # Initialize nested structure
+                    if year_folder not in result:
+                        result[year_folder] = {}
+                    if month_key not in result[year_folder]:
+                        result[year_folder][month_key] = {}
+
+                    result[year_folder][month_key][branch] = p3_points
+            except Exception as e:
+                # Silently skip files with parsing errors
+                pass
+
+    return result
+
+
+def _parse_p3_xlsx(filepath):
+    """Parse P3 data from .xlsx file.
+    Returns: [list of P3 points with {n, p, a, h}]
+    """
+    parser = XLSXParser(filepath)
+    parser.parse()
+
+    p3_points = []
+
+    # Process first sheet (usually only one)
+    for si in range(parser.get_sheet_count()):
+        sdata = parser.get_sheet_data(si)
+        if not sdata:
+            continue
+
+        # Find header row: row with "พื้นที่", "เฉลี่ยเดือน ก.พ.", etc.
+        header_row = None
+        for r in sorted(sdata.keys()):
+            row = sdata[r]
+            if 0 in row and isinstance(row[0], str) and 'พื้นที่' in row[0]:
+                header_row = r
+                break
+
+        if header_row is None:
+            continue
+
+        # Extract P3 data rows (rows after header where col 0 contains "P3")
+        for r in sorted(sdata.keys()):
+            if r <= header_row:
+                continue
+
+            row = sdata[r]
+            if 0 not in row:
+                continue
+
+            name = row.get(0, '')
+            if not isinstance(name, str) or 'P3' not in name:
+                continue
+
+            # Clean name
+            name = clean_p3_name(name)
+
+            # Extract values
+            avg_prev = row.get(1)
+            avg_day = row.get(2)
+
+            # Convert "-" or non-numeric to None
+            avg_prev = _convert_p3_value(avg_prev)
+            avg_day = _convert_p3_value(avg_day)
+
+            # Extract 24 hourly values (columns 3-26)
+            hourly = []
+            for col in range(3, 27):
+                val = _convert_p3_value(row.get(col))
+                hourly.append(val)
+
+            p3_points.append({
+                'n': name,
+                'p': avg_prev,
+                'a': avg_day,
+                'h': hourly
+            })
+
+    return p3_points
+
+
+def _parse_p3_csv(filepath):
+    """Parse P3 data from .csv file.
+    Returns: [list of P3 points with {n, p, a, h}]
+    """
+    p3_points = []
+
+    try:
+        with open(filepath, 'r', encoding='utf-8-sig') as f:
+            reader = csv.reader(f)
+            rows = list(reader)
+
+        if not rows:
+            return p3_points
+
+        # First row is header (skip)
+        # Find P3 rows (where col 0 contains "P3")
+        for row in rows[1:]:
+            if not row or len(row) < 3:
+                continue
+
+            name = row[0].strip() if row[0] else ''
+            if 'P3' not in name:
+                continue
+
+            # Clean name
+            name = clean_p3_name(name)
+
+            # Extract values: col 1 = avg_prev, col 2 = avg_day, col 3-26 = hourly
+            avg_prev = _convert_p3_value(row[1] if len(row) > 1 else None)
+            avg_day = _convert_p3_value(row[2] if len(row) > 2 else None)
+
+            # Extract 24 hourly values
+            hourly = []
+            for col_idx in range(3, 27):
+                val = _convert_p3_value(row[col_idx] if len(row) > col_idx else None)
+                hourly.append(val)
+
+            p3_points.append({
+                'n': name,
+                'p': avg_prev,
+                'a': avg_day,
+                'h': hourly
+            })
+
+    except Exception:
+        pass
+
+    return p3_points
+
+
+def _convert_p3_value(val):
+    """Convert P3 value to float or None.
+    "-" or empty string -> None
+    numbers -> float
+    """
+    if val is None or val == '' or val == '-':
+        return None
+
+    if isinstance(val, (int, float)):
+        return float(val)
+
+    try:
+        return float(str(val).strip())
+    except (ValueError, AttributeError):
+        return None
+
+
+def build_p3_embedded_data(p3_data):
+    """Convert P3 data to compact JSON for embedding.
+    Returns JSON string for: const P3={...}
+    Input structure: {year: {month_key: {branch: [P3 points]}}}
+    Output: Compact JSON preserving the structure
+    """
+    if not p3_data:
+        return '{}'
+
+    compact = {}
+    for year_str in sorted(p3_data.keys()):
+        compact[year_str] = {}
+        months = p3_data[year_str]
+        for month_key in sorted(months.keys()):
+            compact[year_str][month_key] = {}
+            branches = months[month_key]
+            for branch, points in branches.items():
+                # Compact each point: {n, p, a, h}
+                compact[year_str][month_key][branch] = points
+
+    return json.dumps(compact, ensure_ascii=False, separators=(',', ':'))
+
+
 def process_xls_file(filepath):
     """Process one .xls file and return {sheet_name: {rows: [...]}}"""
     print(f"  กำลังอ่าน: {os.path.basename(filepath)} ...")
@@ -1314,7 +1540,7 @@ def build_embedded_data(all_data):
     return json.dumps(compact, ensure_ascii=False, separators=(',', ':'))
 
 
-def build_dashboard(all_data, template_path, output_path, rl_data=None, eu_data=None, mnf_data=None, kpi_data=None):
+def build_dashboard(all_data, template_path, output_path, rl_data=None, eu_data=None, mnf_data=None, kpi_data=None, p3_data=None):
     """Build index.html by replacing embedded data in template"""
     with open(template_path, 'r', encoding='utf-8') as f:
         lines = f.readlines()
@@ -1373,6 +1599,16 @@ def build_dashboard(all_data, template_path, output_path, rl_data=None, eu_data=
 
     kpi_json = build_kpi_embedded_data(kpi_data) if kpi_data else '{}'
     new_kpi_line = f'const KPI={kpi_json};\n'
+
+    # Build P3 data line
+    p3_line_idx = None
+    for i, line in enumerate(lines):
+        if line.strip().startswith('const P3='):
+            p3_line_idx = i
+            break
+
+    p3_json = build_p3_embedded_data(p3_data) if p3_data else '{}'
+    new_p3_line = f'const P3={p3_json};\n'
 
     # Also update YC (year colors) to include all years
     yc_start = None
@@ -1462,7 +1698,16 @@ def build_dashboard(all_data, template_path, output_path, rl_data=None, eu_data=
         # Insert KPI line right after MNF line
         new_lines.append(new_kpi_line)
 
-    # Lines between data/RL/EU/MNF/KPI and YC (or after data if no YC change needed)
+    # Handle P3 data line
+    if p3_line_idx is not None:
+        new_lines.extend(lines[remaining_start:p3_line_idx])
+        new_lines.append(new_p3_line)
+        remaining_start = p3_line_idx + 1
+    else:
+        # Insert P3 line right after KPI line
+        new_lines.append(new_p3_line)
+
+    # Lines between data/RL/EU/MNF/KPI/P3 and YC (or after data if no YC change needed)
     if yc_start is not None and yc_end is not None:
         new_lines.extend(lines[remaining_start:yc_start])
         new_lines.extend(yc_lines)
@@ -1668,6 +1913,30 @@ def main():
                     except Exception as e:
                         print(f"     ❌ {os.path.basename(kpi_file)}: เกิดข้อผิดพลาด - {e}")
 
+    # ============================================================
+    # Process P3 (Pressure Data) files
+    # ============================================================
+    p3_dir = os.path.join(script_dir, 'ข้อมูลดิบ', 'P3')
+    p3_data = {}
+    if os.path.isdir(p3_dir):
+        # Just process all files directly via process_p3_files
+        p3_data = process_p3_files(p3_dir)
+        if p3_data:
+            total_points = sum(sum(len(points) for points in branch_dict.values())
+                              for month_dict in p3_data.values()
+                              for branch_dict in month_dict.values())
+            print(f"\n📂 พบโฟลเดอร์ P3:")
+            for year_str in sorted(p3_data.keys()):
+                months = p3_data[year_str]
+                month_count = len(months)
+                points_count = sum(len(points) for month_dict in months.values()
+                                  for points in month_dict.values())
+                print(f"     ✅ ปี {year_str}: {month_count} เดือน, {points_count} จุด P3")
+        else:
+            print(f"\n📂 โฟลเดอร์ P3 ไม่มีไฟล์ที่สามารถอ่านได้")
+    else:
+        print(f"\n📂 ไม่พบโฟลเดอร์ P3 (ข้ามไป)")
+
     # Save data.json
     print(f"\n💾 บันทึก data.json...")
     full_data = {}
@@ -1680,7 +1949,7 @@ def main():
 
     # Build dashboard
     print(f"\n🏗️  สร้าง index.html...")
-    ok = build_dashboard(all_data, dashboard_path, dashboard_path, rl_data=rl_data, eu_data=eu_data, mnf_data=mnf_data, kpi_data=kpi_data)
+    ok = build_dashboard(all_data, dashboard_path, dashboard_path, rl_data=rl_data, eu_data=eu_data, mnf_data=mnf_data, kpi_data=kpi_data, p3_data=p3_data)
     if ok:
         fsize = os.path.getsize(dashboard_path)
         print(f"   ✅ index.html ({fsize:,} bytes)")
@@ -1699,6 +1968,8 @@ def main():
         print(f"  📅 ปีข้อมูล MNF: {', '.join(sorted(mnf_data.keys()))}")
     if kpi_data:
         print(f"  📅 ปีข้อมูล KPI Leak: {', '.join(sorted(kpi_data.keys()))}")
+    if p3_data:
+        print(f"  📅 ปีข้อมูล P3: {', '.join(sorted(p3_data.keys()))}")
     total_sheets = sum(len(s) for s in all_data.values())
     print(f"  📋 รวม {total_sheets} sheets จาก {len(all_data)} ปี")
     print(f"  📄 เปิด index.html ในเบราว์เซอร์เพื่อดูผลลัพธ์")
