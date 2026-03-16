@@ -225,22 +225,55 @@ Dashboard_Leak/
 ---
 
 ## Checkpoint ล่าสุด
-> **เซสชันที่ 11 — 2026-03-09**
-> - **คำสั่ง:** เพิ่มแหล่งข้อมูล EU (หน่วยไฟฟ้า) และ MNF (Minimum Night Flow) ให้ dashboard แสดงเป็นปัจจุบัน + สร้าง Tab MNF ใหม่พร้อมกราฟ 2 อัน
+> **เซสชันที่ 12 (ต่อ) — 2026-03-16**
+> - **คำสั่ง:** เปลี่ยน Hero Section เป็นตาราง Dataset Summary + Toggle แหล่งข้อมูล + นำไปใช้กับ Dashboard_PR
 > - **สิ่งที่ทำ:**
->   1. เพิ่มแหล่งข้อมูล EU ในส่วน "ข้อมูลที่โหลดแล้ว" + stats cards
->   2. เพิ่ม MNF reader ใน build_dashboard.py (process_mnf_file, build_mnf_embedded_data)
->   3. เพิ่ม Tab MNF ใน dashboard พร้อมกราฟ 2 อัน:
->     - กราฟที่ 1: MNF ภาพรวมเขต (ไม่มีตัวเลือกหน่วยงาน, ดูเฉพาะภาพรวมเขต)
->     - กราฟที่ 2: MNF รายสาขา (มี checkbox เลือกสาขา แบบ สาขาเดียว/บางสาขา/ทุกสาขา)
->     - ทั้ง 2 กราฟมี: เลือกรายการ, โหมดต่อเนื่อง/เปรียบเทียบ/ตาราง, รายเดือน/รายปี, ช่วงปี, ชนิดกราฟ, export
->   4. เพิ่ม MNF ในส่วน "ข้อมูลที่โหลดแล้ว" + stats cards
->   5. อัพเดท README เพิ่มเอกสาร MNF + EU
+>   1. เปลี่ยน Hero Section (stat-cards) เป็นตาราง Dataset Summary (OIS, RL, EU, MNF, P3) แสดงจำนวนเดือนที่มีข้อมูลต่อปี พร้อม dropdown ปีงบฯ/ปีปฏิทิน
+>   2. เพิ่ม P3 ใน file tags (สี #0891b2) และเป็นแถวที่ 5 ในตาราง
+>   3. จัดตารางและ file tags ให้อยู่ใน Card เดียวกัน (div.file-list)
+>   4. เปลี่ยนปุ่มข้อมูลจาก toggle เดี่ยว เป็น "แหล่งข้อมูล [แสดง|ซ่อน]" แบบ two-button toggle (.ymt/.ymb)
+>   5. นำ pattern เดียวกัน (toggle + file tags + dataset table) ไปใช้กับ Dashboard_PR/index.html
+>   6. แก้ bug initPRInfo() ถูกเรียกก่อนถูก define (ย้ายจาก script block แรกไปหลัง function definition)
 > - **งานค้าง:** ไม่มี
 
 ---
 
 ## บันทึกการทำงาน (Changelog)
+
+### 2026-03-16 — เซสชันที่ 12 (ต่อ: Hero Section → Dataset Table + แหล่งข้อมูล Toggle + Dashboard_PR)
+- เปลี่ยน Hero Section (stat-cards) เป็นตาราง Dataset Summary
+  - 5 แถว: OIS (น้ำเงิน), Real Leak (แดง), EU (ม่วง), MNF (ส้ม), P3 (เขียวเข้ม)
+  - คอลัมน์: ปี (แสดงเป็น "ปี xx") + dropdown ปีงบฯ/ปีปฏิทิน
+  - ค่า = จำนวนเดือนที่มีข้อมูล (12=เขียวหนา, 1-11=น้ำเงินหนา, 0="—"เทา)
+  - ฟังก์ชัน buildDatasetSummaryTable() + helper calMonths(), countFnDetail()
+- เพิ่ม P3 ใน file tags ส่วน "ข้อมูลที่โหลดแล้ว" สี #0891b2
+- จัด file tags + ตาราง Dataset Summary ให้อยู่ใน Card เดียวกัน (div.file-list)
+- เปลี่ยนปุ่มข้อมูลเป็น "แหล่งข้อมูล [แสดง|ซ่อน]" two-button toggle (.ymt/.ymb)
+  - toggleInfo(show) รับ boolean parameter
+  - ปุ่ม active มี background rgba(255,255,255,.4)
+- นำ pattern เดียวกันไปใช้กับ Dashboard_PR/index.html:
+  - เพิ่ม toggle buttons ใน header
+  - เพิ่ม info content card (file tags + year mode selector + stats table)
+  - เพิ่ม toggleInfo(), initPRInfo(), buildPRDatasetTable()
+  - แก้ bug: ย้าย initPRInfo() call จาก script block แรกไปหลัง function definition ใน script block ที่ถูกต้อง
+
+### 2026-03-16 — เซสชันที่ 12 (Tab P3 Card 2: ตารางสรุปแรงดันต่ำกว่าเกณฑ์)
+- สร้าง Card 2 "สรุปจุดวัดแรงดันต่ำกว่าเกณฑ์" ใน Tab P3
+  - Controls: Checkbox ซ่อนข้อมูลค่าศูนย์ (default: checked), Listbox จัดเรียงตาม (สาขา=default/แรงดันเฉลี่ยวัน), Listbox ลำดับ (น้อยไปมาก/มากไปน้อย)
+  - ใช้ controls จาก Card 1 (p3Month, p3Branch, p3Threshold) ผ่าน p3SummaryUpdate() เรียกจาก p3Update()
+- ตารางรายละเอียด 7 คอลัมน์:
+  - ลำดับ, จุดวัดแรงดัน (ชิดซ้าย), สาขา
+  - แรงดันเฉลี่ยเดือนก่อน (เขียวหนา ≥ เกณฑ์ / แดงหนา < เกณฑ์)
+  - แรงดันเฉลี่ยวัน (แดงหนา + ลูกศร ▲เขียว/▼แดง เทียบเดือนก่อน)
+  - แรงดันต่ำสุดของวัน, แรงดันสูงสุดของวัน (ดำปกติ)
+  - พื้นสีฟ้าอ่อน #e8f4fd สลับขาว #ffffff ทุก td
+- ตารางสรุปสาขา "สรุปจุดแรงดันอ่อน แต่ละสาขา" 7 คอลัมน์:
+  - ลำดับ, สาขา, จำนวนจุดวัดทั้งหมด, จำนวนจุดแรงดันอ่อน
+  - จำนวนจุดที่แรงดันอ่อนไม่น้อยกว่าเฉลี่ยเดือนก่อน (เขียว), น้อยกว่า (แดง)
+  - ช่วงแรงดัน (min-max ของ minH/maxH ในสาขา)
+  - แถวรวมพื้น navy #1e3a5f ตัวอักษรขาว
+- ปุ่ม Export Excel + getChartData('p3summary')
+- ฟังก์ชันใหม่: p3SummaryUpdate()
 
 ### 2026-03-09 — เซสชันที่ 11 (EU info + Tab MNF)
 - เพิ่ม EU (หน่วยไฟฟ้า/น้ำจำหน่าย) ในส่วน "ข้อมูลที่โหลดแล้ว" (สีม่วง) + stats cards

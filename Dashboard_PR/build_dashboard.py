@@ -49,7 +49,11 @@ def read_all_data():
         month = int(match.group(2))
         month_key = f"{year_be:02d}-{month:02d}"
 
-        wb = openpyxl.load_workbook(os.path.join(DATA_DIR, fname), data_only=True)
+        try:
+            wb = openpyxl.load_workbook(os.path.join(DATA_DIR, fname), data_only=True)
+        except Exception as e:
+            print(f"  [WARNING] ข้ามไฟล์เสีย: {fname} ({e})")
+            continue
         ws = wb[wb.sheetnames[0]]
         month_data = {}
 
