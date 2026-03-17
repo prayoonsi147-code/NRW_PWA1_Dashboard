@@ -81,6 +81,11 @@ body.dark .theme-switch::after{transform:translateX(22px);background:#4dd0e1}
 .ymb.active{background:var(--accent);color:#fff}
 .kpi-summary{text-align:center;padding:16px;margin-top:16px;background:linear-gradient(135deg,#004d40,#00838f);border-radius:12px;color:#fff;font-size:18px;font-weight:700}
 body.dark .kpi-summary{background:linear-gradient(135deg,#00363a,#005662)}
+/* Global hide controls */
+body.hide-controls .controls,
+body.hide-controls .control-group,
+body.hide-controls .export-bar{display:none!important}
+#globalCtrlToggle:hover{background:rgba(255,255,255,.35)!important}
 .main-tab-bar{display:flex;gap:4px;margin-bottom:24px;background:#004d40;border-radius:12px;padding:6px;flex-wrap:wrap}
 body.dark .main-tab-bar{background:#00363a}
 .main-tab-btn{padding:12px 28px;border:none;border-radius:8px;background:transparent;cursor:pointer;font-size:15px;font-weight:700;color:rgba(255,255,255,.6);transition:all .2s}
@@ -188,6 +193,7 @@ body.dark .main-tab-bar{background:#00363a}
 <!-- Main Tab Bar -->
 <div class="main-tab-bar" id="mainTabBar">
   <button class="main-tab-btn active" onclick="switchMainTab('kpi',this)">KPI จุดซ่อมท่อ</button>
+  <button id="globalCtrlToggle" onclick="toggleGlobalControls(this)" style="margin-left:auto;padding:8px 16px;border:none;border-radius:8px;background:rgba(255,255,255,.18);color:#fff;cursor:pointer;font-size:13px;font-weight:600;transition:all .2s" title="ซ่อนตัวเลือกทุก Card">&#x1F441; ซ่อนตัวเลือก</button>
 </div>
 
 <!-- Tab Content: KPI จุดซ่อมท่อ -->
@@ -354,6 +360,12 @@ function toggleCard(btn){
     } else {
         body.classList.add('collapsed');btn.innerHTML='&#9660;';
     }
+}
+
+function toggleGlobalControls(btn){
+    document.body.classList.toggle('hide-controls');
+    var hidden=document.body.classList.contains('hide-controls');
+    btn.innerHTML=hidden?'\u{1F441} แสดงตัวเลือก':'\u{1F441} ซ่อนตัวเลือก';
 }
 
 // ==================== FILE TAGS ====================

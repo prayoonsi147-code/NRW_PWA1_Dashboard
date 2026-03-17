@@ -29,10 +29,10 @@
 </script>
 <style>
   :root {
-    --primary: #e65100;
-    --primary-light: #ff9800;
-    --primary-dark: #bf360c;
-    --accent: #ff6d00;
+    --primary: #c43e00;
+    --primary-light: #e67c00;
+    --primary-dark: #8f2800;
+    --accent: #d45500;
     --bg: #fdf5ee;
     --card-bg: #ffffff;
     --card: #ffffff;
@@ -117,7 +117,7 @@
   .main-tab-content{display:none}.main-tab-content.active{display:block}
 
   /* Container */
-  .container{max-width:100%;margin:0 auto;padding:24px}
+  .container{max-width:1400px;margin:0 auto;padding:24px}
 
   /* Info section */
   .info-section{position:relative}
@@ -197,6 +197,11 @@
   }
   .checkbox-grid label:hover { background: #ffecd2; }
   .checkbox-grid input[type="checkbox"] { accent-color: var(--primary); }
+
+  /* Branch selector tabs (orange) */
+  .aon2-tab{padding:8px 20px;border:none;background:transparent;cursor:pointer;font-size:13px;font-weight:700;color:var(--text-light,#8d6e63);transition:all .2s;border-bottom:3px solid transparent}
+  .aon2-tab.active{background:var(--primary,#e65100);color:#fff;border-bottom:3px solid var(--primary-dark,#bf360c)}
+  .aon2-tab:hover:not(.active){background:var(--hover,#fff3e0);color:var(--primary,#e65100)}
 
   /* Chart container */
   .chart-wrapper {
@@ -345,6 +350,14 @@
   .card-header-row h3{font-size:16px;font-weight:700;color:var(--primary);margin:0;display:flex;align-items:center;gap:8px}
   .card-collapse-btn{background:none;border:1px solid var(--border);border-radius:6px;width:32px;height:32px;cursor:pointer;font-size:14px;color:var(--sub);display:flex;align-items:center;justify-content:center;transition:all .2s}
   .card-collapse-btn:hover{background:var(--hover);border-color:var(--primary);color:var(--primary)}
+
+  /* Global hide controls */
+  body.hide-controls .pr-controls,
+  body.hide-controls .pr-option,
+  body.hide-controls .export-bar,
+  body.hide-controls #aonStatsBox,
+  body.hide-controls .card fieldset{display:none!important}
+  #globalCtrlToggle:hover{background:rgba(255,255,255,.35)!important}
 </style>
 </head>
 <body>
@@ -389,6 +402,8 @@
   <div class="main-tab-bar" id="mainTabBar">
     <button class="main-tab-btn active" onclick="switchMainTab('tab-prdata',this)">ข้อมูลข้อร้องเรียน</button>
     <button class="main-tab-btn" onclick="switchMainTab('tab-complaints',this)">รายงานข้อร้องเรียน</button>
+    <button class="main-tab-btn" onclick="switchMainTab('tab-alwayson',this)">Always-On</button>
+    <button id="globalCtrlToggle" onclick="toggleGlobalControls(this)" style="margin-left:auto;padding:8px 16px;border:none;border-radius:8px;background:rgba(255,255,255,.18);color:#fff;cursor:pointer;font-size:13px;font-weight:600;transition:all .2s" title="ซ่อน/แสดงตัวเลือกทุก Card">&#x1F441; ซ่อนตัวเลือก</button>
   </div>
 
 <script>
@@ -437,20 +452,44 @@ const MONTH_FY=MONTHS.map(getFiscalYear);
 const ALL_FY_LIST=[...new Set(MONTH_FY)].sort();
 
 // Active months (filtered by FY selection)
-var ACTIVE_MONTHS=MONTHS.slice();
+var ACTIVE_MONTHS=ALL_MONTHS.slice();
 
-function getSelectedFY(){
-    var sel=document.getElementById('prFiscalYear');
-    return sel?sel.value:'__all__';
+function prMonthRangeUpdate(){
+    var mode=document.getElementById('prMonthRangeMode').value;
+    var fromSel=document.getElementById('prMonthFrom');
+    var toSel=document.getElementById('prMonthTo');
+    if(mode==='lastyear'){
+        // ซ่อน from select — คำนวณเดือนเดียวกันปีก่อนอัตโนมัติ
+        fromSel.style.display='none';
+        var toVal=toSel.value;
+        var p=toVal.split('-');
+        var toY=parseInt(p[0]);var toM=parseInt(p[1]);
+        var fromY=toY-1;
+        var fromKey=String(fromY).padStart(2,'0')+'-'+String(toM).padStart(2,'0');
+        // หาเดือนที่ใกล้เคียงที่สุดถ้าไม่มีตรง
+        var fi=ALL_MONTHS.indexOf(fromKey);
+        if(fi<0) fi=0; // ถ้าไม่มีเดือนเดียวกันปีก่อน ใช้เดือนแรกสุด
+        fromSel.value=ALL_MONTHS[fi];
+    }else{
+        // กำหนดเอง — แสดง from select
+        fromSel.style.display='';
+    }
+    prSharedUpdate();
 }
 
 function updateActiveMonths(){
-    var fy=getSelectedFY();
-    if(fy==='__all__'){
-        ACTIVE_MONTHS=MONTHS.slice();
+    var fromSel=document.getElementById('prMonthFrom');
+    var toSel=document.getElementById('prMonthTo');
+    if(fromSel&&toSel){
+        var fromVal=fromSel.value;
+        var toVal=toSel.value;
+        var fi=ALL_MONTHS.indexOf(fromVal);
+        var ti=ALL_MONTHS.indexOf(toVal);
+        if(fi<0)fi=0;if(ti<0)ti=ALL_MONTHS.length-1;
+        if(fi>ti){var tmp=fi;fi=ti;ti=tmp;}
+        ACTIVE_MONTHS=ALL_MONTHS.slice(fi,ti+1);
     }else{
-        var fyNum=parseInt(fy);
-        ACTIVE_MONTHS=MONTHS.filter(function(m){return getFiscalYear(m)===fyNum;});
+        ACTIVE_MONTHS=ALL_MONTHS.slice();
     }
 }
 
@@ -534,7 +573,6 @@ var MONTH_COLORS=getMonthColors(ACTIVE_MONTHS,FY_COLOR_OLD,FY_COLOR_NEW);
           </div>
         </div>
       </div>
-    </div>
 
     <!-- Chart Container -->
     <div class="chart-container" id="pr1CompChartContainer" style="position:relative;margin:16px 0;height:400px;">
@@ -557,6 +595,7 @@ var MONTH_COLORS=getMonthColors(ACTIVE_MONTHS,FY_COLOR_OLD,FY_COLOR_NEW);
       <button class="export-btn" onclick="pr1ExportExcel()"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button>
       <button class="export-btn" onclick="pr1ExportPPTX()"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#D04423"/><path d="M7 5v14h2v-5h3a4 4 0 000-8H7zm2 2h3a2 2 0 010 4H9V7z" fill="#fff"/></svg></button>
     </div>
+    </div><!-- /pr1ControlBody -->
   </div>
 
   <!-- Chart 2: Branch Comparison -->
@@ -636,7 +675,6 @@ var MONTH_COLORS=getMonthColors(ACTIVE_MONTHS,FY_COLOR_OLD,FY_COLOR_NEW);
           <!-- Branch checkboxes will be generated here -->
         </div>
       </fieldset>
-    </div>
 
     <!-- Chart Container -->
     <div class="chart-container" id="pr2ChartContainer" style="position:relative;margin:16px 0;height:400px;">
@@ -656,6 +694,7 @@ var MONTH_COLORS=getMonthColors(ACTIVE_MONTHS,FY_COLOR_OLD,FY_COLOR_NEW);
       <button class="export-btn" onclick="pr2ExportExcel()"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button>
       <button class="export-btn" onclick="pr2ExportPPTX()"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#D04423"/><path d="M7 5v14h2v-5h3a4 4 0 000-8H7zm2 2h3a2 2 0 010 4H9V7z" fill="#fff"/></svg></button>
     </div>
+    </div><!-- /pr2ControlBody -->
   </div>
 
   <script>
@@ -1953,9 +1992,18 @@ pr2Init();
           </select>
         </div>
         <div class="pr-control-group">
-          <label>ปีงบประมาณ</label>
-          <select id="prFiscalYear" onchange="prSharedUpdate()">
-          </select>
+          <label>เดือนที่แสดง</label>
+          <select id="prMonthTo" onchange="prMonthRangeUpdate()" style="padding:4px 8px;border-radius:4px;border:1px solid #ccc;font-size:13px"></select>
+        </div>
+        <div class="pr-control-group">
+          <label>ย้อนหลังถึง</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <select id="prMonthRangeMode" onchange="prMonthRangeUpdate()" style="padding:4px 8px;border-radius:4px;border:1px solid #ccc;font-size:13px">
+              <option value="lastyear">เดือนเดียวกันปีก่อน</option>
+              <option value="custom">กำหนดเอง</option>
+            </select>
+            <select id="prMonthFrom" onchange="prSharedUpdate()" style="padding:4px 8px;border-radius:4px;border:1px solid #ccc;font-size:13px;display:none"></select>
+          </div>
         </div>
         <div class="pr-control-group" style="margin-left:auto">
           <label>ซ่อนปุ่มตัวเลือก</label>
@@ -1970,10 +2018,11 @@ pr2Init();
 
   <!-- Card สรุป 5 ด้าน -->
   <div class="card" style="margin-bottom:24px">
-    <div class="card-title">
-      <span>&#x1F4CA;</span>
-      <span id="summaryChartTitle">รายงานสรุปข้อร้องเรียน 5 ด้าน (ร้อยละต่อจำนวนข้อร้องเรียน)</span>
+    <div class="card-header-row">
+      <h3><span>&#x1F4CA;</span> <span id="summaryChartTitle">รายงานสรุปข้อร้องเรียน 5 ด้าน (ร้อยละต่อจำนวนข้อร้องเรียน)</span></h3>
+      <button class="card-collapse-btn" onclick="prToggleBody(this)" title="ย่อ/ขยาย">&#9650;</button>
     </div>
+    <div class="pr-card-body">
     <!-- Display toggle -->
     <div style="display:flex;align-items:center;margin-bottom:10px" class="pr-option">
       <div class="ymt" style="margin-left:auto">
@@ -1985,13 +2034,15 @@ pr2Init();
     <div id="summaryTableWrap" style="display:none;overflow-x:auto"></div>
     <div class="export-bar pr-option"><button class="export-btn" onclick="resetChartSize(this)" title="รีเซ็ตขนาดกราฟ">&#8634; รีเซ็ต</button><button class="export-btn" onclick="openFontPopup(this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M9.93 2L4 22h3.2l1.67-5.5h6.26L16.8 22H20L14.07 2H9.93zm-.34 11.5L12 5.88l2.41 7.62H9.59z"/></svg></button><button class="export-btn" onclick="exportPNG('chart-summary5','PR-สรุป5ด้าน')"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></button><button class="export-btn" onclick="copyToClipboard('chart-summary5',this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M16 1H4a2 2 0 00-2 2v14h2V3h12V1zm3 4H8a2 2 0 00-2 2v14a2 2 0 002 2h11a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h11v14z"/></svg></button><button class="export-btn" onclick="exportPPTX('chart-summary5','PR-สรุป5ด้าน')"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#D04423"/><path d="M7 5v14h2v-5h3a4 4 0 000-8H7zm2 2h3a2 2 0 010 4H9V7z" fill="#fff"/></svg></button><button class="export-btn" onclick="exportExcel('summary5')"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button></div>
     <div class="data-info" id="info-summary5"></div>
+    </div><!-- /pr-card-body -->
   </div>
 
   <div class="card">
-    <div class="card-title">
-      <span>&#x1F4C8;</span>
-      <span id="prChartTitle">ร้อยละข้อร้องเรียนด้านปริมาณน้ำ ต่อจำนวนลูกค้า</span>
+    <div class="card-header-row">
+      <h3><span>&#x1F4C8;</span> <span id="prChartTitle">ร้อยละข้อร้องเรียนด้านปริมาณน้ำ ต่อจำนวนลูกค้า</span></h3>
+      <button class="card-collapse-btn" onclick="prToggleBody(this)" title="ย่อ/ขยาย">&#9650;</button>
     </div>
+    <div class="pr-card-body">
 
     <!-- Display toggle -->
     <div style="display:flex;align-items:center;margin-bottom:10px" class="pr-option">
@@ -2024,14 +2075,16 @@ pr2Init();
     </div><!-- /prChart2Section -->
 
     <div class="data-info" id="info-waterQty"></div>
+    </div><!-- /pr-card-body -->
   </div>
 
 <!-- ==================== ด้านท่อแตกรั่ว Card ==================== -->
 <div class="card" style="margin-top:24px">
-  <div class="card-title">
-    <span>📈</span>
-    <span id="pipeChartTitle">ร้อยละข้อร้องเรียนด้านท่อแตกรั่ว ต่อจำนวนลูกค้า</span>
+  <div class="card-header-row">
+    <h3><span>📈</span> <span id="pipeChartTitle">ร้อยละข้อร้องเรียนด้านท่อแตกรั่ว ต่อจำนวนลูกค้า</span></h3>
+    <button class="card-collapse-btn" onclick="prToggleBody(this)" title="ย่อ/ขยาย">&#9650;</button>
   </div>
+  <div class="pr-card-body">
 
   <!-- Display toggle 1 -->
   <div style="display:flex;align-items:center;margin-bottom:10px" class="pr-option">
@@ -2064,15 +2117,17 @@ pr2Init();
   </div><!-- /pipeChart2Section -->
 
   <div class="data-info" id="info-pipe"></div>
+  </div><!-- /pr-card-body -->
 </div>
 
 
 <!-- ==================== ด้านคุณภาพน้ำ Card ==================== -->
 <div class="card" style="margin-top:24px">
-  <div class="card-title">
-    <span>📈</span>
-    <span id="qualityChartTitle">ร้อยละข้อร้องเรียนด้านคุณภาพน้ำ ต่อจำนวนลูกค้า</span>
+  <div class="card-header-row">
+    <h3><span>📈</span> <span id="qualityChartTitle">ร้อยละข้อร้องเรียนด้านคุณภาพน้ำ ต่อจำนวนลูกค้า</span></h3>
+    <button class="card-collapse-btn" onclick="prToggleBody(this)" title="ย่อ/ขยาย">&#9650;</button>
   </div>
+  <div class="pr-card-body">
 
   <!-- Display toggle 1 -->
   <div style="display:flex;align-items:center;margin-bottom:10px" class="pr-option">
@@ -2105,15 +2160,17 @@ pr2Init();
   </div><!-- /qualityChart2Section -->
 
   <div class="data-info" id="info-quality"></div>
+  </div><!-- /pr-card-body -->
 </div>
 
 
 <!-- ==================== ด้านการบริการ Card ==================== -->
 <div class="card" style="margin-top:24px">
-  <div class="card-title">
-    <span>📈</span>
-    <span id="serviceChartTitle">ร้อยละข้อร้องเรียนด้านการบริการ ต่อจำนวนลูกค้า</span>
+  <div class="card-header-row">
+    <h3><span>📈</span> <span id="serviceChartTitle">ร้อยละข้อร้องเรียนด้านการบริการ ต่อจำนวนลูกค้า</span></h3>
+    <button class="card-collapse-btn" onclick="prToggleBody(this)" title="ย่อ/ขยาย">&#9650;</button>
   </div>
+  <div class="pr-card-body">
 
   <!-- Display toggle 1 -->
   <div style="display:flex;align-items:center;margin-bottom:10px" class="pr-option">
@@ -2146,15 +2203,17 @@ pr2Init();
   </div><!-- /serviceChart2Section -->
 
   <div class="data-info" id="info-service"></div>
+  </div><!-- /pr-card-body -->
 </div>
 
 
 <!-- ==================== ด้านบุคลากร Card ==================== -->
 <div class="card" style="margin-top:24px">
-  <div class="card-title">
-    <span>📈</span>
-    <span id="staffChartTitle">จำนวนข้อร้องเรียนด้านบุคลากร</span>
+  <div class="card-header-row">
+    <h3><span>📈</span> <span id="staffChartTitle">จำนวนข้อร้องเรียนด้านบุคลากร</span></h3>
+    <button class="card-collapse-btn" onclick="prToggleBody(this)" title="ย่อ/ขยาย">&#9650;</button>
   </div>
+  <div class="pr-card-body">
 
   <!-- Display toggle 1 -->
   <div style="display:flex;align-items:center;margin-bottom:10px" class="pr-option">
@@ -2187,10 +2246,124 @@ pr2Init();
   </div><!-- /staffChart2Section -->
 
   <div class="data-info" id="info-staff"></div>
+  </div><!-- /pr-card-body -->
 </div>
 
 
 </div>
+
+<!-- Tab: PWA Always-On -->
+<div class="main-tab-content" id="tab-alwayson">
+
+  <!-- Card 1: Always-On Bar Chart -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-header-row">
+      <h3><span>&#x1F4CA;</span> <span id="aonChartTitle">กราฟที่ 1 : PWA ALWAYS-ON ภาพรวมทั้งเขต</span></h3>
+      <button class="card-collapse-btn" onclick="aon1ToggleCard(this)" title="ย่อ/ขยาย">&#9650;</button>
+    </div>
+
+    <div id="aon1ControlBody">
+    <!-- Controls -->
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap" class="pr-option">
+      <label style="font-weight:600;font-size:13px">เดือน:</label>
+      <select id="aonMonthSelect" onchange="aonRender()" style="padding:4px 8px;border-radius:4px;border:1px solid #ccc;font-size:13px">
+        <option value="68-10">ต.ค. 2568</option>
+        <option value="68-11">พ.ย. 2568</option>
+        <option value="68-12">ธ.ค. 2568</option>
+        <option value="69-01" selected>ม.ค. 2569</option>
+      </select>
+      <label style="font-weight:600;font-size:13px;margin-left:12px">ตัวชี้วัด (%):</label>
+      <input type="number" id="aonThreshold" value="76.25" step="0.01" min="0" max="100" onchange="aonRender()" style="width:70px;padding:4px 6px;border-radius:4px;border:1px solid #ccc;font-size:13px">
+      <div class="ymt" style="margin-left:auto">
+        <button class="ymb active" onclick="aonSetDisplay('chart',this)">กราฟ</button>
+        <button class="ymb" onclick="aonSetDisplay('table',this)">ตาราง</button>
+      </div>
+    </div>
+
+    <!-- Stats box -->
+    <div id="aonStatsBox" style="display:flex;gap:16px;margin-bottom:12px;flex-wrap:wrap">
+      <div style="background:#e3f2fd;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600">
+        <span id="aonAvgLabel">สถิติ Always-on กปภ.ข.1</span>
+        <span id="aonAvgValue" style="color:#1565c0;margin-left:6px">ร้อยละ 0.00</span>
+      </div>
+      <div style="background:#e8f5e9;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600">
+        บรรลุตัวชี้วัด <span id="aonPassCount" style="color:#2e7d32">0</span> สาขา
+      </div>
+      <div style="background:#fce4ec;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600">
+        ไม่บรรลุตัวชี้วัด <span id="aonFailCount" style="color:#c62828">0</span> สาขา
+      </div>
+    </div>
+
+    <!-- Chart -->
+    <div id="aonChart1Wrap" class="chart-container" style="height:420px;margin-bottom:16px">
+      <canvas id="aonChart1"></canvas>
+    </div>
+    <div id="aonTable1Wrap" style="display:none;overflow-x:auto"></div>
+
+    <!-- Export bar -->
+    <div class="export-bar pr-option"><button class="export-btn" onclick="resetChartSize(this)" title="รีเซ็ตขนาดกราฟ">&#8634; รีเซ็ต</button><label class="export-btn" style="cursor:pointer"><input type="checkbox" onchange="toggleDataLabels(this)" style="margin-right:4px">แสดงค่า</label><button class="export-btn" onclick="openFontPopup(this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M9.93 2L4 22h3.2l1.67-5.5h6.26L16.8 22H20L14.07 2H9.93zm-.34 11.5L12 5.88l2.41 7.62H9.59z"/></svg></button><button class="export-btn" onclick="exportPNG('aonChart1','PWA-AlwaysOn')"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></button><button class="export-btn" onclick="copyToClipboard('aonChart1',this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M16 1H4a2 2 0 00-2 2v14h2V3h12V1zm3 4H8a2 2 0 00-2 2v14a2 2 0 002 2h11a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h11v14z"/></svg></button><button class="export-btn" onclick="exportPPTX('aonChart1','PWA-AlwaysOn')"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#D04423"/><path d="M7 5v14h2v-5h3a4 4 0 000-8H7zm2 2h3a2 2 0 010 4H9V7z" fill="#fff"/></svg></button><button class="export-btn" onclick="exportExcel('aon1')"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button></div>
+    </div><!-- /aon1ControlBody -->
+
+  </div><!-- /Card 1 -->
+
+  <!-- Card 2: เปรียบเทียบสาขา Always-On -->
+  <div class="card" style="margin-top:20px;">
+    <div class="card-header-row">
+      <h3><span>&#x1F4CB;</span> <span id="aon2ChartTitle">กราฟที่ 2 : PWA ALWAYS-ON</span></h3>
+      <button class="card-collapse-btn" onclick="aon2ToggleCard(this)" title="ย่อ/ขยาย">&#9650;</button>
+    </div>
+    <div id="aon2ControlBody">
+      <!-- Controls Row -->
+      <div class="pr-controls" style="display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;">
+        <div class="pr-control-group">
+          <label>ช่วงเวลา</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <select id="aon2From" onchange="aon2Render()" style="padding:4px 8px;border-radius:4px;border:1px solid #ccc;font-size:13px"></select>
+            <span style="font-size:13px">ถึง</span>
+            <select id="aon2To" onchange="aon2Render()" style="padding:4px 8px;border-radius:4px;border:1px solid #ccc;font-size:13px"></select>
+          </div>
+        </div>
+        <div class="pr-control-group">
+          <label>ประเภทกราฟ</label>
+          <select id="aon2ChartType" onchange="aon2Render()">
+            <option value="line">กราฟเส้นโค้ง</option>
+            <option value="straight">กราฟเส้นตรง</option>
+            <option value="bar">กราฟแท่ง</option>
+            <option value="area">กราฟพื้นที่</option>
+          </select>
+        </div>
+        <div class="pr-control-group">
+          <label>โหมด</label>
+          <div class="toggle-group">
+            <button class="toggle-btn active" onclick="aon2SwitchMode('chart',this)">กราฟ</button>
+            <button class="toggle-btn" onclick="aon2SwitchMode('table',this)">ตาราง</button>
+          </div>
+        </div>
+      </div>
+      <!-- เลือกสาขา -->
+      <fieldset style="border:1.5px solid var(--border,#ccc);border-radius:8px;padding:0;margin-top:10px;overflow:hidden;background:transparent">
+        <legend style="font-size:13px;font-weight:600;color:var(--heading);padding:0 8px;">เลือกสาขา</legend>
+        <div class="toggle-group" style="margin:8px 12px;">
+          <button class="toggle-btn active" onclick="aon2SetBranchMode('all',this)">ทุกสาขา</button>
+          <button class="toggle-btn" onclick="aon2SetBranchMode('single',this)">สาขาเดียว</button>
+          <button class="toggle-btn" onclick="aon2SetBranchMode('custom',this)">บางสาขา</button>
+        </div>
+        <div id="aon2BranchToggles" style="display:flex;flex-wrap:wrap;gap:4px 10px;padding:10px 16px;background:transparent"></div>
+      </fieldset>
+    </div>
+
+    <!-- Chart Container -->
+    <div class="chart-container" id="aon2ChartWrap" style="position:relative;margin:16px 0;height:420px;">
+      <canvas id="aonChart2"></canvas>
+    </div>
+    <div id="aon2TableWrap" style="margin:16px 0;display:none;overflow-x:auto;"></div>
+
+    <!-- Export Bar -->
+    <div class="export-bar pr-option"><button class="export-btn" onclick="resetChartSize(this)" title="รีเซ็ตขนาดกราฟ">&#8634; รีเซ็ต</button><label class="export-btn" style="cursor:pointer"><input type="checkbox" onchange="toggleDataLabels(this)" style="margin-right:4px">แสดงค่า</label><button class="export-btn" onclick="openFontPopup(this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M9.93 2L4 22h3.2l1.67-5.5h6.26L16.8 22H20L14.07 2H9.93zm-.34 11.5L12 5.88l2.41 7.62H9.59z"/></svg></button><button class="export-btn" onclick="exportPNG('aonChart2','PWA-AlwaysOn-Compare')"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></button><button class="export-btn" onclick="copyToClipboard('aonChart2',this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M16 1H4a2 2 0 00-2 2v14h2V3h12V1zm3 4H8a2 2 0 00-2 2v14a2 2 0 002 2h11a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h11v14z"/></svg></button><button class="export-btn" onclick="exportPPTX('aonChart2','PWA-AlwaysOn-Compare')"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#D04423"/><path d="M7 5v14h2v-5h3a4 4 0 000-8H7zm2 2h3a2 2 0 010 4H9V7z" fill="#fff"/></svg></button><button class="export-btn" onclick="exportExcel('aon2')"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button></div>
+  </div><!-- /Card 2 -->
+
+</div><!-- /tab-alwayson -->
+
 
 <script>
 // ==================== DATA ====================
@@ -2201,7 +2374,461 @@ function switchMainTab(tabId, btn){
     btn.classList.add('active');
     var el=document.getElementById(tabId);
     if(el)el.classList.add('active');
+    // จำ tab ที่เลือกไว้ใน sessionStorage
+    try{sessionStorage.setItem('pr_activeTab',tabId);}catch(e){}
+    // Resize กราฟใน tab ที่เพิ่งเปิด (แก้ปัญหากราฟเพี้ยนเมื่อ render ตอนซ่อน)
+    setTimeout(function(){
+        if(el){
+            el.querySelectorAll('canvas').forEach(function(c){
+                var chartInst=Chart.getChart(c);
+                if(chartInst)chartInst.resize();
+            });
+        }
+    },50);
 }
+
+// Session restore ย้ายไปอยู่ท้ายสุดของ script ทั้งหมด (หลังจาก chart hooks ติดตั้งเสร็จ)
+
+// ==================== PWA ALWAYS-ON DATA & CHART ====================
+var AON={
+  '68-10':{'ชลบุรี':85.95,'บ้านบึง':85.22,'พนัสนิคม':84.84,'ศรีราชา':84.01,'แหลมฉบัง':83.72,'พัทยา':86.94,'ฉะเชิงเทรา':79.36,'บางปะกง':80.98,'บางคล้า':82.81,'พนมสารคาม':80.13,'ระยอง':85.46,'บ้านฉาง':87.57,'ปากน้ำประแสร์':81.31,'จันทบุรี':75.01,'ขลุง':80.43,'ตราด':69.97,'คลองใหญ่':67.58,'สระแก้ว':68.59,'วัฒนานคร':62.20,'อรัญประเทศ':58.08,'ปราจีนบุรี':82.98,'กบินทร์บุรี':72.41},
+  '68-11':{'ชลบุรี':85.88,'บ้านบึง':85.43,'พนัสนิคม':84.80,'ศรีราชา':84.23,'แหลมฉบัง':84.06,'พัทยา':86.92,'ฉะเชิงเทรา':80.66,'บางปะกง':81.51,'บางคล้า':83.19,'พนมสารคาม':80.84,'ระยอง':85.57,'บ้านฉาง':87.65,'ปากน้ำประแสร์':81.62,'จันทบุรี':77.76,'ขลุง':80.44,'ตราด':70.41,'คลองใหญ่':67.41,'สระแก้ว':68.73,'วัฒนานคร':63.68,'อรัญประเทศ':60.32,'ปราจีนบุรี':83.11,'กบินทร์บุรี':72.70},
+  '68-12':{'ชลบุรี':86.19,'บ้านบึง':85.87,'พนัสนิคม':85.02,'ศรีราชา':84.80,'แหลมฉบัง':84.52,'พัทยา':87.38,'ฉะเชิงเทรา':81.02,'บางปะกง':82.02,'บางคล้า':83.54,'พนมสารคาม':81.37,'ระยอง':86.23,'บ้านฉาง':87.99,'ปากน้ำประแสร์':82.76,'จันทบุรี':80.18,'ขลุง':81.24,'ตราด':71.33,'คลองใหญ่':65.06,'สระแก้ว':69.32,'วัฒนานคร':64.13,'อรัญประเทศ':56.37,'ปราจีนบุรี':83.32,'กบินทร์บุรี':73.45},
+  '69-01':{'ชลบุรี':86.85,'บ้านบึง':86.24,'พนัสนิคม':85.61,'ศรีราชา':84.98,'แหลมฉบัง':84.78,'พัทยา':87.65,'ฉะเชิงเทรา':81.79,'บางปะกง':82.45,'บางคล้า':83.99,'พนมสารคาม':81.91,'ระยอง':86.41,'บ้านฉาง':88.30,'ปากน้ำประแสร์':82.62,'จันทบุรี':80.33,'ขลุง':81.46,'ตราด':72.70,'คลองใหญ่':67.22,'สระแก้ว':69.63,'วัฒนานคร':63.13,'อรัญประเทศ':53.72,'ปราจีนบุรี':83.61,'กบินทร์บุรี':74.52}
+};
+var AON_MONTH_LABELS=(function(){var map={};Object.keys(AON).forEach(function(k){var p=k.split('-');var yy=parseInt(p[0])+2500;var mm=parseInt(p[1]);map[k]=fmtMonthYear(mm,yy);});return map;})();
+var AON_BRANCH_ORDER=['ชลบุรี','บ้านบึง','พนัสนิคม','ศรีราชา','แหลมฉบัง','พัทยา','ฉะเชิงเทรา','บางปะกง','บางคล้า','พนมสารคาม','ระยอง','บ้านฉาง','ปากน้ำประแสร์','จันทบุรี','ขลุง','ตราด','คลองใหญ่','สระแก้ว','วัฒนานคร','อรัญประเทศ','ปราจีนบุรี','กบินทร์บุรี'];
+
+var aonChart1Inst=null;
+
+/* Threshold line plugin for AON chart */
+var aonThresholdPlugin={
+    id:'aonThreshold',
+    afterDraw:function(chart){
+        if(!chart.config._aonThreshold)return;
+        var thresh=chart.config._aonThreshold;
+        var yScale=chart.scales.y;if(!yScale)return;
+        var yPx=yScale.getPixelForValue(thresh);
+        var area=chart.chartArea;
+        var ctx=chart.ctx;
+        ctx.save();
+        ctx.strokeStyle='#d32f2f';
+        ctx.lineWidth=2;
+        ctx.setLineDash([8,4]);
+        ctx.beginPath();
+        ctx.moveTo(area.left,yPx);
+        ctx.lineTo(area.right,yPx);
+        ctx.stroke();
+        /* Label on right side */
+        ctx.fillStyle='#d32f2f';
+        ctx.font='bold 11px sans-serif';
+        ctx.textAlign='right';
+        ctx.textBaseline='bottom';
+        ctx.fillText('ตัวชี้วัด '+thresh.toFixed(2)+'%',area.right-4,yPx-4);
+        ctx.restore();
+    }
+};
+Chart.register(aonThresholdPlugin);
+
+function aonRender(){
+    var monthKey=document.getElementById('aonMonthSelect').value;
+    var threshold=parseFloat(document.getElementById('aonThreshold').value)||76.25;
+    var data=AON[monthKey];if(!data)return;
+    var monthLabel=AON_MONTH_LABELS[monthKey]||monthKey;
+
+    var labels=[];var values=[];var bgColors=[];var bdColors=[];
+    var passCount=0,failCount=0,total=0;
+
+    AON_BRANCH_ORDER.forEach(function(branch){
+        var v=data[branch];
+        if(v==null)return;
+        labels.push(branch);
+        values.push(v);
+        total+=v;
+        if(v>=threshold){
+            bgColors.push('rgba(33,150,243,0.75)');
+            bdColors.push('#1565c0');
+            passCount++;
+        }else{
+            bgColors.push('rgba(211,47,47,0.75)');
+            bdColors.push('#b71c1c');
+            failCount++;
+        }
+    });
+
+    var avg=labels.length>0?(total/labels.length):0;
+
+    /* Update title */
+    document.getElementById('aonChartTitle').textContent='กราฟที่ 1 : PWA ALWAYS-ON ภาพรวมทั้งเขต เดือน '+monthLabel;
+
+    /* Update stats */
+    document.getElementById('aonAvgLabel').textContent='สถิติ Always-on กปภ.ข.1 เดือน'+monthLabel;
+    document.getElementById('aonAvgValue').textContent='ได้ร้อยละ '+avg.toFixed(2);
+    document.getElementById('aonPassCount').textContent=passCount;
+    document.getElementById('aonFailCount').textContent=failCount;
+
+    /* Destroy old chart */
+    if(aonChart1Inst){aonChart1Inst.destroy();aonChart1Inst=null;}
+
+    var ctx=document.getElementById('aonChart1').getContext('2d');
+    aonChart1Inst=new Chart(ctx,{
+        type:'bar',
+        data:{
+            labels:labels,
+            datasets:[{
+                label:'Always-On (%)',
+                data:values,
+                backgroundColor:bgColors,
+                borderColor:bdColors,
+                borderWidth:1,
+                categoryPercentage:0.56,
+                barPercentage:1.0,
+                datalabels:{
+                    display:true,
+                    anchor:'end',
+                    align:'end',
+                    offset:2,
+                    rotation:-90,
+                    color:function(ctx2){return ctx2.dataset.borderColor[ctx2.dataIndex];},
+                    font:{size:10,weight:'bold'},
+                    formatter:function(v){return v!=null?v.toFixed(2):'';},
+                    clamp:true
+                }
+            }]
+        },
+        options:{
+            responsive:true,
+            maintainAspectRatio:false,
+            layout:{padding:{top:30,right:10}},
+            plugins:{
+                legend:{display:false},
+                tooltip:{
+                    callbacks:{
+                        title:function(items){if(!items.length)return'';return 'สาขา'+items[0].label;},
+                        label:function(ctx2){
+                            var v=ctx2.parsed.y;
+                            return 'Always-On: '+v.toFixed(2)+'%'+(v>=threshold?' ✓ บรรลุ':' ✗ ไม่บรรลุ');
+                        }
+                    }
+                },
+                chartAreaBg:{color:null}
+            },
+            scales:{
+                x:{
+                    ticks:{font:{size:12},maxRotation:45,minRotation:45},
+                    grid:{display:true,color:'rgba(0,0,0,0.1)',drawOnChartArea:true,drawTicks:true},
+                    offset:true
+                },
+                y:{
+                    title:{display:true,text:'ร้อยละ (%)',font:{size:12,weight:'bold'}},
+                    ticks:{
+                        font:{size:11},
+                        callback:function(v){
+                            if(Math.abs(v)<100){return v.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});}
+                            return v.toLocaleString('th-TH');
+                        }
+                    },
+                    min:0,
+                    max:100,
+                    grid:{color:'rgba(0,0,0,0.06)'}
+                }
+            }
+        }
+    });
+
+    /* Store threshold on config for plugin */
+    aonChart1Inst.config._aonThreshold=threshold;
+    aonChart1Inst.update();
+}
+
+/* Initialize on load */
+(function(){
+    var tab=document.getElementById('tab-alwayson');
+    if(tab){
+        /* Render when tab becomes visible or on first load */
+        var origSwitch=window.switchMainTab;
+        window.switchMainTab=function(tabId,btn){
+            origSwitch(tabId,btn);
+            if(tabId==='tab-alwayson'&&!aonChart1Inst)aonRender();
+        };
+        /* If already active, render */
+        if(tab.classList.contains('active'))aonRender();
+    }
+})();
+
+// ==================== AON DISPLAY TOGGLE (กราฟ / ตาราง) ====================
+var aonDisplay='chart';
+
+function aonSetDisplay(mode,btn){
+    btn.parentElement.querySelectorAll('.ymb').forEach(function(b){b.classList.remove('active');});
+    btn.classList.add('active');
+    aonDisplay=mode;
+    aonUpdateDisplay();
+}
+
+function aonUpdateDisplay(){
+    var chartWrap=document.getElementById('aonChart1Wrap');
+    var tableWrap=document.getElementById('aonTable1Wrap');
+    var exportBar=chartWrap.nextElementSibling;
+    while(exportBar&&!exportBar.classList.contains('export-bar'))exportBar=exportBar.nextElementSibling;
+    if(aonDisplay==='table'){
+        chartWrap.style.display='none';
+        tableWrap.style.display='block';
+        if(exportBar)exportBar.style.display='none';
+        aonBuildTable();
+    }else{
+        chartWrap.style.display='block';
+        tableWrap.style.display='none';
+        if(exportBar)exportBar.style.display='';
+        if(!aonChart1Inst)aonRender();
+    }
+}
+
+function aonBuildTable(){
+    var monthKey=document.getElementById('aonMonthSelect').value;
+    var threshold=parseFloat(document.getElementById('aonThreshold').value)||76.25;
+    var data=AON[monthKey];if(!data)return;
+    var wrap=document.getElementById('aonTable1Wrap');
+    var fv=function(v){if(v==null)return'-';return v.toFixed(2)+'%';};
+
+    var h='<table class="data-table"><thead><tr><th style="text-align:left;min-width:40px">#</th><th style="text-align:left;min-width:120px">สาขา</th>';
+    var months=Object.keys(AON);
+    months.forEach(function(m){h+='<th>'+(AON_MONTH_LABELS[m]||m)+'</th>';});
+    h+='<th>สถานะ</th></tr></thead><tbody>';
+
+    AON_BRANCH_ORDER.forEach(function(branch,idx){
+        var latestVal=data[branch];
+        var pass=latestVal!=null&&latestVal>=threshold;
+        var rowStyle=pass?'':'background:#fff3f3';
+        h+='<tr style="'+rowStyle+'"><td>'+(idx+1)+'</td><td>'+branch+'</td>';
+        months.forEach(function(m){
+            var v=AON[m]?AON[m][branch]:null;
+            var style='';
+            if(v!=null&&v<threshold)style='color:#c62828;font-weight:600';
+            h+='<td style="'+style+'">'+fv(v)+'</td>';
+        });
+        h+='<td style="font-weight:600;color:'+(pass?'#2e7d32':'#c62828')+'">'+(pass?'บรรลุ':'ไม่บรรลุ')+'</td>';
+        h+='</tr>';
+    });
+    h+='</tbody></table>';
+    wrap.innerHTML=h;
+}
+
+// ==================== AON CHART 2: เปรียบเทียบสาขา ====================
+var AON2_COLORS=['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc9c','#e67e22','#34495e','#f1c40f','#95a5a6','#d35400','#8e44ad','#27ae60','#c0392b','#2980b9','#16a085','#7f8c8d','#2c3e50','#e84393','#00b894','#6c5ce7','#fd79a8'];
+var AON_ALL_MONTHS=Object.keys(AON); // ['68-10','68-11','68-12','69-01']
+var aonChart2Inst=null;
+var aon2Mode='chart';
+var aon2BranchMode='all';
+
+/* Populate time range selects */
+(function initAon2TimeSelects(){
+    var fromSel=document.getElementById('aon2From');
+    var toSel=document.getElementById('aon2To');
+    if(!fromSel||!toSel)return;
+    AON_ALL_MONTHS.forEach(function(mk,i){
+        var lbl=AON_MONTH_LABELS[mk]||mk;
+        var o1=document.createElement('option');o1.value=mk;o1.textContent=lbl;
+        var o2=document.createElement('option');o2.value=mk;o2.textContent=lbl;
+        fromSel.appendChild(o1);toSel.appendChild(o2);
+    });
+    fromSel.value=AON_ALL_MONTHS[0];
+    toSel.value=AON_ALL_MONTHS[AON_ALL_MONTHS.length-1];
+})();
+
+/* Populate branch checkboxes */
+(function initAon2Branches(){
+    var wrap=document.getElementById('aon2BranchToggles');if(!wrap)return;
+    AON_BRANCH_ORDER.forEach(function(branch,i){
+        var color=AON2_COLORS[i%AON2_COLORS.length];
+        var lbl=document.createElement('label');
+        lbl.style.cssText='font-size:12.5px;font-weight:600;color:'+color;
+        var cb=document.createElement('input');
+        cb.type='checkbox';cb.checked=true;cb.value=branch;
+        cb.style.cssText='accent-color:'+color;
+        cb.onchange=function(){
+            if(aon2BranchMode==='single'){
+                document.querySelectorAll('#aon2BranchToggles input[type="checkbox"]').forEach(function(c){if(c!==cb)c.checked=false;});
+                cb.checked=true;
+            }
+            aon2Render();
+        };
+        lbl.appendChild(cb);
+        lbl.appendChild(document.createTextNode(' '+branch));
+        wrap.appendChild(lbl);
+    });
+})();
+
+function aon2GetFilteredMonths(){
+    var fromVal=document.getElementById('aon2From').value;
+    var toVal=document.getElementById('aon2To').value;
+    var fi=AON_ALL_MONTHS.indexOf(fromVal);
+    var ti=AON_ALL_MONTHS.indexOf(toVal);
+    if(fi<0)fi=0;if(ti<0)ti=AON_ALL_MONTHS.length-1;
+    if(fi>ti){var tmp=fi;fi=ti;ti=tmp;}
+    return AON_ALL_MONTHS.slice(fi,ti+1);
+}
+
+function aon2SetBranchMode(mode,btn){
+    aon2BranchMode=mode;
+    btn.parentElement.querySelectorAll('.toggle-btn').forEach(function(b){b.classList.remove('active');});
+    btn.classList.add('active');
+    var cbs=document.querySelectorAll('#aon2BranchToggles input[type="checkbox"]');
+    if(mode==='all'){
+        cbs.forEach(function(cb){cb.checked=true;cb.parentElement.style.display='';});
+    }else if(mode==='single'){
+        cbs.forEach(function(cb,i){cb.checked=(i===0);cb.parentElement.style.display='';});
+    }else{
+        cbs.forEach(function(cb){cb.parentElement.style.display='';});
+    }
+    aon2Render();
+}
+
+function aon2SwitchMode(mode,btn){
+    aon2Mode=mode;
+    btn.parentElement.querySelectorAll('.toggle-btn').forEach(function(b){b.classList.remove('active');});
+    btn.classList.add('active');
+    var chartWrap=document.getElementById('aon2ChartWrap');
+    var tableWrap=document.getElementById('aon2TableWrap');
+    var exportBar=chartWrap.parentElement.querySelector('.export-bar');
+    if(mode==='table'){
+        chartWrap.style.display='none';tableWrap.style.display='block';
+        if(exportBar)exportBar.style.display='none';
+        aon2BuildTable();
+    }else{
+        chartWrap.style.display='block';tableWrap.style.display='none';
+        if(exportBar)exportBar.style.display='';
+        aon2Render();
+    }
+}
+
+function aon2GetSelectedBranches(){
+    var selected=[];
+    document.querySelectorAll('#aon2BranchToggles input[type="checkbox"]:checked').forEach(function(cb){
+        selected.push(cb.value);
+    });
+    return selected;
+}
+
+function aon2UpdateTitle(){
+    var monthKeys=aon2GetFilteredMonths();
+    var fromLabel=AON_MONTH_LABELS[monthKeys[0]]||monthKeys[0];
+    var toLabel=AON_MONTH_LABELS[monthKeys[monthKeys.length-1]]||monthKeys[monthKeys.length-1];
+    var el=document.getElementById('aon2ChartTitle');
+    if(el) el.textContent='กราฟที่ 2 : PWA ALWAYS-ON ช่วง เดือน'+fromLabel+' ถึง '+toLabel;
+}
+
+function aon2Render(){
+    aon2UpdateTitle();
+    if(aon2Mode==='table'){aon2BuildTable();return;}
+    var branches=aon2GetSelectedBranches();
+    var chartType=document.getElementById('aon2ChartType').value;
+    var monthKeys=aon2GetFilteredMonths();
+    var labels=monthKeys.map(function(k){return AON_MONTH_LABELS[k]||k;});
+
+    var datasets=[];
+    branches.forEach(function(branch){
+        var idx=AON_BRANCH_ORDER.indexOf(branch);
+        var color=AON2_COLORS[idx%AON2_COLORS.length];
+        var data=monthKeys.map(function(mk){return AON[mk]?AON[mk][branch]:null;});
+        var dsType=(chartType==='bar')?'bar':'line';
+        var tension=(chartType==='straight')?0:(chartType==='line'||chartType==='area')?0.3:0;
+        var isFill=(chartType==='area');
+        var bgColor=(chartType==='bar')?color+'B0':isFill?color+'30':color;
+        datasets.push({
+            label:branch,
+            data:data,
+            borderColor:color,
+            backgroundColor:bgColor,
+            borderWidth:2,
+            pointRadius:3,
+            pointHoverRadius:5,
+            tension:tension,
+            fill:isFill,
+            type:dsType,
+            datalabels:{display:false}
+        });
+    });
+
+    if(aonChart2Inst){aonChart2Inst.destroy();aonChart2Inst=null;}
+    var ctx=document.getElementById('aonChart2').getContext('2d');
+    aonChart2Inst=new Chart(ctx,{
+        type:'line',
+        data:{labels:labels,datasets:datasets},
+        options:{
+            responsive:true,
+            maintainAspectRatio:false,
+            interaction:{mode:'nearest',intersect:true},
+            plugins:{
+                legend:{
+                    display:true,
+                    position:'bottom',
+                    labels:{usePointStyle:true,padding:12,font:{size:11}}
+                },
+                tooltip:{
+                    mode:'nearest',intersect:true,
+                    callbacks:{
+                        title:function(items){if(!items.length)return'';return items[0].label;},
+                        label:function(ctx2){return ctx2.dataset.label+': '+ctx2.parsed.y.toFixed(2)+'%';}
+                    }
+                },
+                chartAreaBg:{color:null}
+            },
+            scales:{
+                x:{
+                    ticks:{font:{size:12},maxRotation:45,minRotation:45},
+                    grid:{display:true,color:'rgba(0,0,0,0.1)',drawOnChartArea:true,drawTicks:true},
+                    offset:(chartType==='bar')
+                },
+                y:{
+                    title:{display:true,text:'ร้อยละ (%)',font:{size:12,weight:'bold'}},
+                    ticks:{
+                        font:{size:11},
+                        callback:function(v){
+                            if(Math.abs(v)<100){return v.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});}
+                            return v.toLocaleString('th-TH');
+                        }
+                    },
+                    min:0,
+                    max:100,
+                    grid:{color:'rgba(0,0,0,0.06)'}
+                }
+            }
+        }
+    });
+}
+
+function aon2BuildTable(){
+    var branches=aon2GetSelectedBranches();
+    var monthKeys=aon2GetFilteredMonths();
+    var wrap=document.getElementById('aon2TableWrap');
+    var fv=function(v){if(v==null)return'-';return v.toFixed(2)+'%';};
+    var h='<table class="data-table"><thead><tr><th style="text-align:left;min-width:40px">#</th><th style="text-align:left;min-width:120px">สาขา</th>';
+    monthKeys.forEach(function(m){h+='<th>'+(AON_MONTH_LABELS[m]||m)+'</th>';});
+    h+='</tr></thead><tbody>';
+    branches.forEach(function(branch,idx){
+        h+='<tr><td>'+(idx+1)+'</td><td>'+branch+'</td>';
+        monthKeys.forEach(function(m){
+            var v=AON[m]?AON[m][branch]:null;
+            h+='<td>'+fv(v)+'</td>';
+        });
+        h+='</tr>';
+    });
+    h+='</tbody></table>';
+    wrap.innerHTML=h;
+}
+
+/* Auto-render aon2 when tab switches */
+(function(){
+    var origSwitch2=window.switchMainTab;
+    window.switchMainTab=function(tabId,btn){
+        origSwitch2(tabId,btn);
+        if(tabId==='tab-alwayson'&&!aonChart2Inst&&aon2Mode==='chart')aon2Render();
+    };
+    /* ถ้า tab-alwayson active อยู่แล้ว (จาก session restore) ให้ render chart 2 ด้วย */
+    var tab3=document.getElementById('tab-alwayson');
+    if(tab3&&tab3.classList.contains('active')&&!aonChart2Inst&&aon2Mode==='chart')aon2Render();
+})();
 
 // ==================== THEME TOGGLE ====================
 function toggleTheme(){
@@ -2253,8 +2880,31 @@ function initPRInfo(){
     var fyKeys=Object.keys(fyMap).map(Number).sort();
     fyKeys.forEach(function(fy){
         var t=document.createElement('span');
-        t.style.cssText='display:inline-block;padding:4px 12px;margin:3px 4px;border:2px solid #2563eb;border-radius:20px;font-size:12px;font-weight:600;color:#2563eb';
+        t.style.cssText='display:inline-block;padding:4px 12px;margin:3px 4px;border:2px solid var(--primary,#e65100);border-radius:20px;font-size:12px;font-weight:600;color:var(--primary,#e65100)';
         t.textContent='ปีงบ '+fy+' ('+BRANCHES.length+' สาขา, '+fyMap[fy]+' เดือน)';
+        fl.appendChild(t);
+    });
+
+    // AlwayON file tags
+    var aonLabel=document.createElement('div');
+    aonLabel.style.cssText='font-weight:600;font-size:13px;color:var(--heading,#bf360c);margin-bottom:4px;margin-top:12px';
+    aonLabel.textContent='PWA Always-On:';
+    fl.appendChild(aonLabel);
+
+    var aonMonths=Object.keys(AON);
+    var aonFyMap={};
+    aonMonths.forEach(function(mk){
+        var parts=mk.split('-');
+        var yy=parseInt(parts[0],10);var mm=parseInt(parts[1],10);
+        var fy=(mm>=10)?(2500+yy+1):(2500+yy);
+        if(!aonFyMap[fy])aonFyMap[fy]=0;
+        aonFyMap[fy]++;
+    });
+    var aonFyKeys=Object.keys(aonFyMap).map(Number).sort();
+    aonFyKeys.forEach(function(fy){
+        var t=document.createElement('span');
+        t.style.cssText='display:inline-block;padding:4px 12px;margin:3px 4px;border:2px solid var(--accent,#ff6d00);border-radius:20px;font-size:12px;font-weight:600;color:var(--accent,#ff6d00)';
+        t.textContent='ปีงบ '+fy+' ('+AON_BRANCH_ORDER.length+' สาขา, '+aonFyMap[fy]+' เดือน)';
         fl.appendChild(t);
     });
 
@@ -2264,7 +2914,10 @@ function initPRInfo(){
 function buildPRDatasetTable(){
     var isFiscal=document.getElementById('prDatasetYearMode').value==='fiscal';
 
-    // Group months by year
+    // Collect all year keys from both PR and AON
+    var allYearSet={};
+
+    // PR months
     var yearMonthCount={};
     ALL_MONTHS.forEach(function(mk){
         var parts=mk.split('-');
@@ -2276,13 +2929,42 @@ function buildPRDatasetTable(){
             yr=2500+yy;
         }
         yearMonthCount[yr]=(yearMonthCount[yr]||0)+1;
+        allYearSet[yr]=true;
     });
 
-    var yearList=Object.keys(yearMonthCount).map(Number).sort();
+    // AON months
+    var aonYearMonthCount={};
+    Object.keys(AON).forEach(function(mk){
+        var parts=mk.split('-');
+        var yy=parseInt(parts[0],10);var mm=parseInt(parts[1],10);
+        var yr;
+        if(isFiscal){
+            yr=(mm>=10)?(2500+yy+1):(2500+yy);
+        } else {
+            yr=2500+yy;
+        }
+        aonYearMonthCount[yr]=(aonYearMonthCount[yr]||0)+1;
+        allYearSet[yr]=true;
+    });
 
-    var thStyle='padding:8px 10px;background:#1e3a5f;color:#fff;font-weight:700;font-size:13px;border:1px solid #2c5282;white-space:nowrap';
-    var tdBase='padding:6px 10px;border:1px solid #d1d5db;font-size:13px;';
-    var html='<table style="width:100%;border-collapse:collapse;border:2px solid #2c5282;margin-bottom:8px">';
+    var yearList=Object.keys(allYearSet).map(Number).sort();
+
+    var isDark=document.body.classList.contains('dark');
+    var thBg=isDark?'#4a2800':'#bf360c';
+    var thBorder=isDark?'#6b3a00':'#e65100';
+    var tblBorder=isDark?'#6b3a00':'#e65100';
+    var tdBorderColor=isDark?'#4a3520':'#eddcd2';
+    var prRowBg=isDark?'rgba(255,152,0,.1)':'#fff3e0';
+    var prLabelColor=isDark?'#ffb74d':'#e65100';
+    var aonRowBg=isDark?'rgba(255,111,0,.08)':'#fff8f0';
+    var aonLabelColor=isDark?'#ff9800':'#ff6d00';
+    var fullColor=isDark?'#66bb6a':'#16a34a';
+    var partialColor=isDark?'#ffb74d':'#e65100';
+    var emptyColor=isDark?'#666':'#9ca3af';
+
+    var thStyle='padding:8px 10px;background:'+thBg+';color:#fff;font-weight:700;font-size:13px;border:1px solid '+thBorder+';white-space:nowrap';
+    var tdBase='padding:6px 10px;border:1px solid '+tdBorderColor+';font-size:13px;';
+    var html='<table style="width:100%;border-collapse:collapse;border:2px solid '+tblBorder+';margin-bottom:8px;border-radius:8px;overflow:hidden">';
     html+='<thead><tr>';
     html+='<th style="'+thStyle+';text-align:left">ชุดข้อมูล</th>';
     for(var i=0;i<yearList.length;i++){
@@ -2290,17 +2972,32 @@ function buildPRDatasetTable(){
     }
     html+='</tr></thead><tbody>';
 
+    // Row 1: PR
     html+='<tr>';
-    html+='<td style="'+tdBase+'background:#e8f4fd;font-weight:700;color:#2563eb;white-space:nowrap">ข้อร้องเรียน (PR)</td>';
+    html+='<td style="'+tdBase+'background:'+prRowBg+';font-weight:700;color:'+prLabelColor+';white-space:nowrap">ข้อร้องเรียน (PR)</td>';
     for(var i=0;i<yearList.length;i++){
-        var mc=yearMonthCount[yearList[i]];
+        var mc=yearMonthCount[yearList[i]]||0;
         var cellColor='',cellWeight='';
-        if(mc===12){cellColor='color:#16a34a;';cellWeight='font-weight:700;';}
-        else if(mc>0){cellColor='color:#2563eb;';cellWeight='font-weight:700;';}
-        else{cellColor='color:#9ca3af;';}
-        html+='<td style="'+tdBase+'background:#e8f4fd;text-align:center;'+cellColor+cellWeight+'">'+(mc>0?mc:'—')+'</td>';
+        if(mc===12){cellColor='color:'+fullColor+';';cellWeight='font-weight:700;';}
+        else if(mc>0){cellColor='color:'+partialColor+';';cellWeight='font-weight:700;';}
+        else{cellColor='color:'+emptyColor+';';}
+        html+='<td style="'+tdBase+'background:'+prRowBg+';text-align:center;'+cellColor+cellWeight+'">'+(mc>0?mc:'—')+'</td>';
     }
     html+='</tr>';
+
+    // Row 2: AON
+    html+='<tr>';
+    html+='<td style="'+tdBase+'background:'+aonRowBg+';font-weight:700;color:'+aonLabelColor+';white-space:nowrap">PWA Always-On</td>';
+    for(var i=0;i<yearList.length;i++){
+        var mc=aonYearMonthCount[yearList[i]]||0;
+        var cellColor='',cellWeight='';
+        if(mc===12){cellColor='color:'+fullColor+';';cellWeight='font-weight:700;';}
+        else if(mc>0){cellColor='color:'+partialColor+';';cellWeight='font-weight:700;';}
+        else{cellColor='color:'+emptyColor+';';}
+        html+='<td style="'+tdBase+'background:'+aonRowBg+';text-align:center;'+cellColor+cellWeight+'">'+(mc>0?mc:'—')+'</td>';
+    }
+    html+='</tr>';
+
     html+='</tbody></table>';
 
     document.getElementById('prStatsRow').innerHTML=html;
@@ -2672,7 +3369,9 @@ function getChartObj(canvasId){
         'chart-service1':serviceChart1,
         'chart-service2':serviceChart2,
         'chart-staff1':staffChart1,
-        'chart-staff2':staffChart2
+        'chart-staff2':staffChart2,
+        'aonChart1':aonChart1Inst,
+        'aonChart2':aonChart2Inst
     };
     return map[canvasId]||null;
 }
@@ -3185,13 +3884,21 @@ buildSummary5('รวม เขต 1');
 
 // ==================== CONTROL CARD ====================
 function prInitControls(){
-    // Populate fiscal year selector
-    var fySel=document.getElementById('prFiscalYear');
-    if(fySel){
-        fySel.innerHTML='<option value="__all__">ทั้งหมด</option>';
-        ALL_FY_LIST.forEach(function(fy){
-            fySel.innerHTML+='<option value="'+fy+'">'+fy+'</option>';
+    // Populate month selectors
+    var fromSel=document.getElementById('prMonthFrom');
+    var toSel=document.getElementById('prMonthTo');
+    if(fromSel&&toSel){
+        fromSel.innerHTML='';toSel.innerHTML='';
+        ALL_MONTHS.forEach(function(mk){
+            var lbl=monthLabel(mk);
+            var o1=document.createElement('option');o1.value=mk;o1.textContent=lbl;
+            var o2=document.createElement('option');o2.value=mk;o2.textContent=lbl;
+            fromSel.appendChild(o1);toSel.appendChild(o2);
         });
+        // Default: เดือนล่าสุด
+        toSel.value=ALL_MONTHS[ALL_MONTHS.length-1];
+        // Apply "เดือนเดียวกันปีก่อน" mode
+        prMonthRangeUpdate();
     }
     // Populate branch selector
     var sel=document.getElementById('prBranch');
@@ -3260,6 +3967,46 @@ function prToggleControlCard(btn){
         body.style.display='none';
         btn.innerHTML='&#9660;';
     }
+}
+
+function aon1ToggleCard(btn){
+    var body=document.getElementById('aon1ControlBody');
+    if(body.style.display==='none'){
+        body.style.display='';
+        btn.innerHTML='&#9650;';
+    }else{
+        body.style.display='none';
+        btn.innerHTML='&#9660;';
+    }
+}
+
+function aon2ToggleCard(btn){
+    var body=document.getElementById('aon2ControlBody');
+    if(body.style.display==='none'){
+        body.style.display='';
+        btn.innerHTML='&#9650;';
+    }else{
+        body.style.display='none';
+        btn.innerHTML='&#9660;';
+    }
+}
+
+function prToggleBody(btn){
+    var body=btn.closest('.card').querySelector('.pr-card-body');
+    if(!body)return;
+    if(body.style.display==='none'){
+        body.style.display='';
+        btn.innerHTML='&#9650;';
+    }else{
+        body.style.display='none';
+        btn.innerHTML='&#9660;';
+    }
+}
+
+function toggleGlobalControls(btn){
+    document.body.classList.toggle('hide-controls');
+    var hidden=document.body.classList.contains('hide-controls');
+    btn.innerHTML=hidden?'\u{1F441} แสดงตัวเลือก':'\u{1F441} ซ่อนตัวเลือก';
 }
 
 var prOptionsVisible=true;
@@ -4597,6 +5344,26 @@ function showAxisDialog(canvasId,scaleKey,axisLabel,isNumeric){
     });
     document.addEventListener('mousemove',handleMouseMove);
     document.addEventListener('mouseup',handleMouseUp);
+})();
+
+// ==================== SESSION RESTORE (ท้ายสุด — หลัง hooks ทั้งหมด) ====================
+(function(){
+    try{
+        var saved=sessionStorage.getItem('pr_activeTab');
+        if(saved&&saved!=='tab-prdata'&&document.getElementById(saved)){
+            var tabMap={
+                'tab-prdata':'ข้อมูลข้อร้องเรียน',
+                'tab-complaints':'รายงานข้อร้องเรียน',
+                'tab-alwayson':'Always-On'
+            };
+            var btns=document.querySelectorAll('.main-tab-btn');
+            btns.forEach(function(b){
+                if(b.textContent.trim()===tabMap[saved]){
+                    switchMainTab(saved,b);
+                }
+            });
+        }
+    }catch(e){}
 })();
 </script>
 

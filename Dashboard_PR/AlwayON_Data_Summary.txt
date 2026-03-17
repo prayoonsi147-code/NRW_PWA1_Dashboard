@@ -1,0 +1,135 @@
+================================================================================
+EXTRACTION SUMMARY: AlwayON Data for กปภ.ข.1 (District 1) Branches
+================================================================================
+
+SOURCE FILES:
+- File: 11.ข้อมูล PWA Always-on สะสม เดือนมกราคม 2569 โดย กลส..xls
+- Contains 4 monthly sheets (October 2568 - January 2569)
+- Located at: /sessions/serene-quirky-wozniak/mnt/Claude Test Cowork/Dashboard_PR/ข้อมูลดิบ/AlwayON/
+
+================================================================================
+DATA STRUCTURE
+================================================================================
+
+SHEETS ANALYZED:
+1. ต.ค.68 (October 2568) - 16 columns, 242 rows
+2. พ.ย.68 (November 2568) - 16 columns, 242 rows
+3. ธ.ค.68 (December 2568) - 16 columns, 242 rows
+4. ม.ค.69 (January 2569) - 23 columns, 242 rows (EXPANDED with Always-On data)
+
+KEY FINDING:
+- Always-On data is ONLY available in the January 2569 (ม.ค.69) sheet
+- Location: Column 16 with header "always on ม.ค.69"
+- October-December sheets contain only water bill payment data (no Always-On column)
+
+================================================================================
+BRANCHES EXTRACTED (22 total from เขต 1)
+================================================================================
+
+1. สาขาชลบุรี (Chonburi)
+2. สาขาบ้านบึง (Ban Bueng)
+3. สาขาพนัสนิคม (Phanat Nikhom)
+4. สาขาศรีราชา (Si Racha)
+5. สาขาแหลมฉบัง (Laem Chabang)
+6. สาขาพัทยา (Pattaya)
+7. สาขาฉะเชิงเทรา (Chachoengsao)
+8. สาขาบางปะกง (Bang Pakong)
+9. สาขาบางคล้า (Bang Khla)
+10. สาขาพนมสารคาม (Phanom Sarakham)
+11. สาขาระยอง (Rayong)
+12. สาขาบ้านฉาง (Ban Chang)
+13. สาขาปากน้ำประแสร์ (Pak Nam Pra Sae)
+14. สาขาจันทบุรี (Chanthaburi)
+15. สาขาขลุง (Khlung)
+16. สาขาตราด (Trat)
+17. สาขาคลองใหญ่ (Khlong Yai)
+18. สาขาสระแก้ว (Sa Kaew)
+19. สาขาวัฒนานคร (Watthananakorn)
+20. สาขาอรัญประเทศ (Aranyaprathet)
+21. สาขาปราจีนบุรี (Prachuap Khiri Khan) - Note: Listed as Prachuap in branch data
+22. สาขากบินทร์บุรี (Kabin Buri)
+
+================================================================================
+ALWAYS-ON RANKINGS (January 2569 - Highest to Lowest)
+================================================================================
+
+RANK | BRANCH NAME              | ALWAYS-ON % | RANK ORDER
+-----|--------------------------|-------------|------------
+  1  | สาขาบ้านฉาง             | 88.30%      | (Highest)
+  2  | สาขาพัทยา               | 87.65%      |
+  3  | สาขาชลบุรี               | 86.85%      |
+  4  | สาขาระยอง               | 86.41%      |
+  5  | สาขาบ้านบึง             | 86.24%      |
+  6  | สาขาปราจีนบุรี          | 83.61%      |
+  7  | สาขาบางคล้า             | 83.99%      |
+  8  | สาขาศรีราชา             | 84.98%      |
+  9  | สาขาแหลมฉบัง           | 84.78%      |
+ 10  | สาขาพนัสนิคม            | 85.61%      |
+ 11  | สาขาปากน้ำประแสร์     | 82.62%      |
+ 12  | สาขาฉะเชิงเทรา         | 81.79%      |
+ 13  | สาขาพนมสารคาม          | 81.91%      |
+ 14  | สาขาบางปะกง             | 82.45%      |
+ 15  | สาขาขลุง                 | 81.46%      |
+ 16  | สาขาจันทบุรี            | 80.33%      |
+ 17  | สาขาตราด               | 72.70%      |
+ 18  | สาขากบินทร์บุรี         | 74.52%      |
+ 19  | สาขาสระแก้ว            | 69.63%      |
+ 20  | สาขาคลองใหญ่           | 67.22%      |
+ 21  | สาขาวัฒนานคร           | 63.13%      |
+ 22  | สาขาอรัญประเทศ         | 53.72%      | (Lowest)
+
+STATISTICS:
+- Highest: สาขาบ้านฉาง (88.30%)
+- Lowest: สาขาอรัญประเทศ (53.72%)
+- Average: 78.78%
+- Median: 82.62%
+
+================================================================================
+DATA FORMAT IN JS FILE
+================================================================================
+
+Structure: alwayONData[monthCode].branches[branchName]
+Example:
+  alwayONData["ม.ค.69"].branches["สาขาชลบุรี"] = {
+    always_on: 0.8685404964337493,
+    water_bill: 95725503.7,
+    payment_total: 137259.0
+  }
+
+Month Codes:
+- "ต.ค.68" = October 2568
+- "พ.ย.68" = November 2568
+- "ธ.ค.68" = December 2568
+- "ม.ค.69" = January 2569
+
+Helper Functions in JS file:
+- getAlwaysOnValue(monthCode, branchName) - Get Always-On % for specific branch
+- getJanuaryAlwaysOnRanking() - Get all January branches sorted by Always-On
+
+================================================================================
+NOTES & OBSERVATIONS
+================================================================================
+
+1. DATA AVAILABILITY:
+   - October-December sheets: No Always-On data (water bill payment data only)
+   - January sheet: Complete with Always-On percentages
+
+2. ALWAYS-ON VALUES:
+   - Expressed as decimal (0-1 scale), not percentage (0-100)
+   - To convert to percentage: multiply by 100
+   - Range: 0.5372 (53.72%) to 0.8830 (88.30%)
+
+3. ACCOMPANY DATA FIELDS:
+   - water_bill: Total water bill amount for the month
+   - payment_total: Total payment received for the month
+
+4. MISSING DATA:
+   - No Always-On data for October, November, December
+   - Data only appears when January 2569 files were generated with expanded sheet
+
+5. FILE LOCATION:
+   - JavaScript file: AlwayON_Data_District1.js
+   - Summary: AlwayON_Data_Summary.txt
+   - Both saved in: /sessions/serene-quirky-wozniak/mnt/Claude Test Cowork/Dashboard_PR/
+
+================================================================================

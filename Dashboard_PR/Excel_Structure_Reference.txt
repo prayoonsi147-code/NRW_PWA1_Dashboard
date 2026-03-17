@@ -1,0 +1,151 @@
+================================================================================
+EXCEL STRUCTURE REFERENCE - AlwayON Data Files
+================================================================================
+
+SOURCE FILE:
+11.ข้อมูล PWA Always-on สะสม เดือนมกราคม 2569 โดย กลส..xls
+
+================================================================================
+SHEET: ต.ค.68 (October 2568)
+================================================================================
+
+Header Row Structure (Row 3):
+  Col 0: ลำดับ (Sequence/Order)
+  Col 1: เขต (District)
+  Col 2: กปภ.สาขา (GWA Branch Code)
+  Col 3: BA (Business Area Code)
+  Col 4: หน่วยงาน (Unit/Branch Name)
+  Col 5: จังหวัด (Province)
+  Col 6: ค่าน้ำประปา (Water Bill Amount)
+  Col 7: จำนวนราย (Number of Bills)
+  Col 8-11: Payment data (broken into sub-columns in Row 4)
+  Col 12-15: Percentage calculations
+
+Sub-headers (Row 4):
+  Col 7: ชำระผ่านเคาน์เตอร์สำนักงาน กปภ. (Counter Payment)
+  Col 8: ชำระช่องทางอื่นๆ (Other Payment Channel)
+  Col 9: รวม (ชำระแล้ว) (Total Paid)
+  Col 10: ค้างชำระ (Unpaid)
+  Col 11: จัดพิมพ์ใบแจ้งค่าน้ำประปา (Bills Printed)
+  Col 12: ชำระผ่านเคาน์เตอร์สำนักงาน กปภ. (%) (Counter Payment %)
+  Col 13: ชำระช่องทางอื่นๆ (%) (Other Channel %)
+  Col 14: ค้างชำระ (%) (Unpaid %)
+  Col 15: (Empty or Additional Percentage)
+
+================================================================================
+SHEET: พ.ย.68 (November 2568)
+================================================================================
+
+Same structure as October 2568 sheet.
+16 columns total, 242 rows total.
+
+================================================================================
+SHEET: ธ.ค.68 (December 2568)
+================================================================================
+
+Same structure as October and November sheets.
+16 columns total, 242 rows total.
+
+================================================================================
+SHEET: ม.ค.69 (January 2569) - EXPANDED WITH ALWAYS-ON DATA
+================================================================================
+
+Header Row Structure (Row 3):
+  Col 0: ลำดับ (Sequence/Order)
+  Col 1: เขต (District)
+  Col 2: กปภ.สาขา (GWA Branch Code)
+  Col 3: BA (Business Area Code)
+  Col 4: หน่วยงาน (Unit/Branch Name)
+  Col 5: จังหวัด (Province)
+  Col 6: ค่าน้ำประปา (Water Bill Amount)
+  Col 7: จำนวนราย (Number of Bills)
+  Col 8-15: Payment data and percentages (same as other months)
+  Col 16: ** ALWAYS-ON DATA **
+  Col 17-22: Additional comparison data
+
+Sub-headers (Row 4):
+  Col 7: ชำระผ่านเคาน์เตอร์สำนักงาน กปภ. (Counter Payment)
+  Col 8: ชำระช่องทางอื่นๆ (Other Payment Channel)
+  Col 9: รวม (ชำระแล้ว) (Total Paid)
+  Col 10: ค้างชำระ (Unpaid)
+  Col 11: จัดพิมพ์ใบแจ้งค่าน้ำประปา (Bills Printed)
+  Col 12: ชำระผ่านเคาน์เตอร์สำนักงาน กปภ. (%) (Counter Payment %)
+  Col 13: ชำระช่องทางอื่นๆ (%) (Other Channel %)
+  Col 14: ค้างชำระ (%) (Unpaid %)
+  Col 15: จัดพิมพ์ใบแจ้งค่าน้ำประปา (%) (Bills Printed %)
+  Col 16: ** always on ม.ค.69 ** (Always-On for January 2569) [DECIMAL 0-1]
+  Col 17: ลำดับ (Rank/Sequence)
+  Col 18: (Empty)
+  Col 19: always on ธ.ค.68 (Always-On for December 2568) [DECIMAL 0-1]
+  Col 20: always on ม.ค.69 (Always-On for January 2569) [DECIMAL 0-1] DUPLICATE
+  Col 21: % เพิ่มขึ้น (% Increase from Dec to Jan)
+  Col 22: ลำดับ (Rank/Sequence)
+
+Total: 23 columns, 242 rows
+
+KEY COLUMNS FOR ALWAYS-ON DATA:
+- Column 16: January Always-On (PRIMARY SOURCE)
+- Column 19: December Always-On (for comparison)
+- Column 20: January Always-On (duplicate of Col 16)
+- Column 21: Percentage change (Dec to Jan)
+
+================================================================================
+SAMPLE DATA ROW (สาขาชลบุรี / Chonburi Branch - January 2569)
+================================================================================
+
+Col 0:  1.0 (Sequence)
+Col 1:  1.0 (District 1)
+Col 2:  5531011.0 (Branch Code)
+Col 3:  1102.0 (BA Code)
+Col 4:  สาขาชลบุรี (Branch Name)
+Col 5:  ชลบุรี (Province)
+Col 6:  95725503.7 (Water Bill Amount in THB)
+Col 7:  18044.0 (Number of Bills)
+Col 8:  119215.0 (Counter Payment)
+Col 9:  137259.0 (Other Channel Payment)
+Col 10: 137259.0 (Total Paid)
+Col 11: 454.0 (Unpaid)
+Col 12: 137713.0 (Bills Printed)
+Col 13: 13.102611953846042 (Counter Payment %)
+Col 14: 86.56771691851894 (Other Channel %)
+Col 15: 0.32967112763500905 (Unpaid %)
+Col 16: 0.8685404964337493 (** ALWAYS-ON JANUARY 2569 **)
+Col 17: 11.0 (Rank)
+Col 18: (Empty)
+Col 19: 0.8618752280189712 (Always-On December 2568)
+Col 20: 0.8685404964337493 (Always-On January 2569 - Duplicate)
+Col 21: 0.00773344934173162 (% Increase: 0.77%)
+Col 22: 74.0 (Rank)
+
+================================================================================
+ALWAYS-ON DATA CONVERSION
+================================================================================
+
+Excel Value: 0.8685404964337493
+Percentage: 86.85% (multiply by 100)
+Context: Represents 86.85% uptime/availability for Always-On service
+
+================================================================================
+SHEETS NOT USED
+================================================================================
+
+Sheet: Sheet2 (Pivot table format - similar summary data)
+Sheet: รวมไฟล์ (Combined file - consolidated data from all months)
+Sheet: สะสม 4 เดือน (4-month accumulation - does not contain Always-On data)
+
+These sheets contain summary or aggregate data but were not needed for the
+district 1 branch-level Always-On extraction.
+
+================================================================================
+DATA EXTRACTION NOTES
+================================================================================
+
+1. All 22 District 1 branches start at Row 5 (after 4-row header)
+2. Rows 5-26 contain the 22 individual branches
+3. Always-On data in Column 16 is only available in ม.ค.69 sheet
+4. Data values are raw decimals (0-1 scale) - multiply by 100 for percentage
+5. Water bill amounts are in Thai Baht (THB)
+6. Payment totals represent customers who paid during the month
+7. Each branch appears as a separate row with all monthly data
+
+================================================================================
