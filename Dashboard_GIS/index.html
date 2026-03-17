@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard แผนที่แนวท่อ - กปภ.เขต 1</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+<script>
+(function(){
+    var urls=[
+        'https://cdn.jsdelivr.net/gh/gitbrent/PptxGenJS@3.12.0/dist/pptxgen.bundle.js',
+        'https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js',
+        'https://unpkg.com/pptxgenjs@3.12.0/dist/pptxgen.bundle.js'
+    ];
+    var idx=0;
+    function tryLoad(){
+        if(idx>=urls.length){console.warn('PptxGenJS: all CDN sources failed');return;}
+        var s=document.createElement('script');
+        s.src=urls[idx];
+        s.onload=function(){console.log('PptxGenJS loaded from',urls[idx]);};
+        s.onerror=function(){console.warn('PptxGenJS failed:',urls[idx]);idx++;tryLoad();};
+        document.head.appendChild(s);
+    }
+    tryLoad();
+})();
+</script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:var(--bg);color:var(--text);transition:background .3s,color .3s}
+:root{
+  --bg:#f0f2f5;--text:#333;--card:#fff;--card-shadow:rgba(0,0,0,.08);--border:#ddd;
+  --input-bg:#f8f9fa;--heading:#004d40;--sub:#555;--sub2:#888;--hover:#e0f2f1;
+  --th-bg:#f8f9fa;--table-border:#eee;--tag-bg:#e0f2f1;--tag-color:#00695c;
+  --tab-hover:#f0f2f5;--info-btn-bg:#e0f2f1;--info-btn-color:#00838f;
+  --accent:#00838f;--total-bg:#e0f2f1
+}
+body.dark{
+  --bg:#1a1a2e;--text:#e0e0e0;--card:#16213e;--card-shadow:rgba(0,0,0,.3);--border:#2a2a4a;
+  --input-bg:#0f3460;--heading:#4dd0e1;--sub:#aaa;--sub2:#888;--hover:rgba(0,131,143,.15);
+  --th-bg:#0f3460;--table-border:#2a2a4a;--tag-bg:rgba(0,131,143,.15);--tag-color:#4dd0e1;
+  --tab-hover:rgba(255,255,255,.05);--info-btn-bg:rgba(0,131,143,.2);--info-btn-color:#4dd0e1;
+  --accent:#26c6da;--total-bg:rgba(0,131,143,.15)
+}
+.header{background:linear-gradient(135deg,#004d40,#00838f);color:#fff;padding:24px 32px;text-align:center;position:relative}
+.header h1{font-size:24px;margin-bottom:8px}
+.header p{opacity:.85;font-size:14px}
+.container{max-width:1400px;margin:0 auto;padding:24px}
+.info-section{position:relative}
+.info-content{transition:max-height .3s ease,opacity .3s ease,margin .3s ease;overflow:hidden}
+.info-content.collapsed{max-height:0!important;opacity:0;margin-bottom:0!important}
+.file-list{background:var(--card);border-radius:12px;padding:20px 24px;margin-bottom:24px;box-shadow:0 2px 8px var(--card-shadow);transition:background .3s}
+.file-list h3{margin-bottom:12px;color:var(--heading);font-size:16px}
+.chart-card{background:var(--card);border-radius:12px;padding:24px;box-shadow:0 2px 8px var(--card-shadow);transition:background .3s;margin-bottom:24px}
+.chart-card h3{margin-bottom:16px;color:var(--heading);font-size:16px}
+.card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.card-header h3{margin-bottom:0}
+.card-toggle{background:none;border:1px solid var(--border);border-radius:6px;padding:2px 10px;cursor:pointer;font-size:16px;color:var(--sub);transition:all .15s;line-height:1}
+.card-toggle:hover{border-color:var(--accent);color:var(--accent)}
+.card-body.collapsed{display:none}
+.controls{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;margin-bottom:16px;padding:12px 0}
+.control-group{display:flex;flex-direction:column;gap:6px}
+.control-group label{font-size:13px;font-weight:600;color:var(--sub)}
+.control-group select,.control-group input{padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--input-bg);color:var(--text);transition:background .3s,color .3s}
+.chart-container{position:relative;width:100%;min-height:200px;height:450px;resize:both;overflow:hidden;border:1px dashed transparent;transition:border-color .2s;cursor:default}
+.chart-container:hover{border-color:var(--border)}
+.chart-container canvas{width:100%!important;height:100%!important;cursor:grab}
+.chart-container canvas:active{cursor:grabbing}
+.export-bar{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;margin-top:12px}
+.export-btn{display:inline-flex;align-items:center;gap:4px;padding:6px 14px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--sub);cursor:pointer;font-size:13px;transition:all .15s}
+.export-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--hover)}
+.theme-toggle{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
+.theme-toggle span{font-size:13px;color:rgba(255,255,255,.7);font-weight:600}
+.theme-switch{width:48px;height:26px;background:rgba(255,255,255,.25);border-radius:13px;position:relative;transition:background .3s}
+.theme-switch::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;background:#fff;border-radius:50%;transition:transform .3s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+body.dark .theme-switch{background:rgba(77,208,225,.4)}
+body.dark .theme-switch::after{transform:translateX(22px);background:#4dd0e1}
+.ymt{display:inline-flex;border:2px solid var(--border);border-radius:8px;overflow:hidden}
+.ymb{border:none;padding:6px 16px;cursor:pointer;font-size:13px;font-weight:600;transition:all .15s;background:var(--card);color:var(--sub)}
+.ymb.active{background:var(--accent);color:#fff}
+.kpi-summary{text-align:center;padding:16px;margin-top:16px;background:linear-gradient(135deg,#004d40,#00838f);border-radius:12px;color:#fff;font-size:18px;font-weight:700}
+body.dark .kpi-summary{background:linear-gradient(135deg,#00363a,#005662)}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <a href="../index.html" style="position:absolute;left:18px;top:50%;transform:translateY(-50%);text-decoration:none;color:white;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;transition:background 0.2s" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">&larr; หน้าหลัก</a>
+  <h1>Dashboard แผนที่แนวท่อ</h1>
+  <p>งานแผนที่แนวท่อ กองระบบจำหน่าย กปภ.ข.1</p>
+  <div style="position:absolute;top:50%;right:32px;transform:translateY(-50%);display:flex;align-items:center;gap:12px">
+    <div style="display:flex;align-items:center;gap:8px">
+      <label style="font-size:13px;font-weight:600;color:#fff">แหล่งข้อมูล</label>
+      <div class="ymt" style="border-color:rgba(255,255,255,.5)">
+        <button class="ymb" id="headerInfoShow" onclick="toggleInfo(true)" style="background:rgba(255,255,255,.15);color:#fff;padding:5px 14px;font-size:12px">แสดง</button>
+        <button class="ymb active" id="headerInfoHide" onclick="toggleInfo(false)" style="background:rgba(255,255,255,.4);color:#fff;padding:5px 14px;font-size:12px">ซ่อน</button>
+      </div>
+    </div>
+    <div class="theme-toggle" onclick="toggleTheme()" style="position:static;transform:none">
+      <span id="themeIcon">&#9788;</span>
+      <div class="theme-switch" id="themeSwitch"></div>
+      <span id="themeIcon2">&#9790;</span>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- Info Section -->
+<div class="info-section">
+  <div class="info-content collapsed" id="infoContent" style="max-height:0">
+    <div class="file-list">
+      <h3 style="color:var(--heading)">ข้อมูลที่โหลดแล้ว</h3>
+      <div id="fileList"></div>
+      <div style="margin-top:16px;margin-bottom:8px;display:flex;align-items:center;gap:8px">
+        <label style="font-size:13px;font-weight:600;color:var(--heading)">สรุปข้อมูลที่มี</label>
+        <select id="datasetYearMode" onchange="buildDatasetTable()" style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--card);color:var(--text)">
+          <option value="fiscal">ปีงบประมาณ</option>
+          <option value="calendar">ปีปฏิทิน</option>
+        </select>
+        <span style="font-size:12px;color:var(--sub2)">(ตัวเลข = จำนวนเดือนที่มีข้อมูล)</span>
+      </div>
+      <div id="statsRow"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Tab: KPI จุดซ่อมท่อ -->
+<div class="chart-card">
+  <div class="card-header">
+    <h3 style="color:var(--heading)">&#x1F5FA; KPI จุดซ่อมท่อ ในระบบ PWA SMART 1662</h3>
+    <button class="card-toggle" onclick="toggleCard(this)">&#9650;</button>
+  </div>
+  <div class="card-body">
+    <div class="controls">
+      <div class="control-group">
+        <label>เลือกเดือน</label>
+        <select id="gisMonth" onchange="gisRender()"></select>
+      </div>
+      <div class="control-group">
+        <label>เกณฑ์วัด กปภ.</label>
+        <select id="gisThreshold1" onchange="gisRender()">
+          <option value="70">70%</option>
+          <option value="80" selected>80%</option>
+          <option value="90">90%</option>
+          <option value="100">100%</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label>เกณฑ์ติดตาม</label>
+        <select id="gisThreshold2" onchange="gisRender()">
+          <option value="70">70%</option>
+          <option value="80">80%</option>
+          <option value="90">90%</option>
+          <option value="100" selected>100%</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label>ประเภทกราฟ (แท่ง)</label>
+        <select id="gisBarType" onchange="gisRender()">
+          <option value="bar">กราฟแท่ง</option>
+          <option value="line">กราฟเส้นโค้ง</option>
+          <option value="straight">กราฟเส้นตรง</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="chart-container" id="gisChartWrap">
+      <canvas id="gisChart"></canvas>
+    </div>
+
+    <div class="export-bar">
+      <button class="export-btn" onclick="gisResetChart()" title="รีเซ็ตขนาดกราฟ">&#8634; รีเซ็ต</button>
+      <label class="export-btn" style="cursor:pointer"><input type="checkbox" id="gisShowValues" onchange="gisRender()" style="margin-right:4px">แสดงค่า</label>
+      <button class="export-btn" onclick="gisExportPNG()"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></button>
+      <button class="export-btn" onclick="gisCopyChart()"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M16 1H4a2 2 0 00-2 2v14h2V3h12V1zm3 4H8a2 2 0 00-2 2v14a2 2 0 002 2h11a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h11v14z"/></svg></button>
+      <button class="export-btn" onclick="gisExportExcel()"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button>
+      <button class="export-btn" onclick="gisExportPPTX()"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#D04423"/><path d="M7 5v14h2v-5h3a4 4 0 000-8H7zm2 2h3a2 2 0 010 4H9V7z" fill="#fff"/></svg></button>
+    </div>
+
+    <!-- Data Table -->
+    <div id="gisTableContainer" style="margin-top:24px;overflow-x:auto"></div>
+
+    <!-- KPI Summary -->
+    <div id="gisSummary" class="kpi-summary"></div>
+
+    <div class="export-bar" style="margin-top:8px">
+      <button class="export-btn" onclick="gisExportTableExcel()"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg> ส่งออกตาราง</button>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script>
+const DATA = {"months": ["68-10", "68-11", "68-12", "69-01", "69-02"], "branches": ["ชลบุรี", "พัทยา", "บ้านบึง", "พนัสนิคม", "ศรีราชา", "แหลมฉบัง", "ฉะเชิงเทรา", "บางปะกง", "บางคล้า", "พนมสารคาม", "ระยอง", "บ้านฉาง", "ปากน้ำประแสร์", "จันทบุรี", "ขลุง", "ตราด", "คลองใหญ่", "สระแก้ว", "วัฒนานคร", "อรัญประเทศ", "ปราจีนบุรี", "กบินทร์บุรี"], "data": {"68-10": {"ชลบุรี": {"closed": 587, "complete": 99, "score": 16.87}, "พัทยา": {"closed": 449, "complete": 0, "score": 0}, "บ้านบึง": {"closed": 298, "complete": 215, "score": 72.15}, "พนัสนิคม": {"closed": 409, "complete": 143, "score": 34.96}, "ศรีราชา": {"closed": 263, "complete": 0, "score": 0}, "แหลมฉบัง": {"closed": 483, "complete": 45, "score": 9.32}, "ฉะเชิงเทรา": {"closed": 0, "complete": 0, "score": 0}, "บางปะกง": {"closed": 22, "complete": 0, "score": 0}, "บางคล้า": {"closed": 177, "complete": 58, "score": 32.77}, "พนมสารคาม": {"closed": 252, "complete": 124, "score": 49.21}, "ระยอง": {"closed": 24, "complete": 0, "score": 0}, "บ้านฉาง": {"closed": 497, "complete": 0, "score": 0}, "ปากน้ำประแสร์": {"closed": 136, "complete": 119, "score": 87.5}, "จันทบุรี": {"closed": 816, "complete": 638, "score": 78.19}, "ขลุง": {"closed": 122, "complete": 63, "score": 51.64}, "ตราด": {"closed": 538, "complete": 519, "score": 96.47}, "คลองใหญ่": {"closed": 47, "complete": 42, "score": 89.36}, "สระแก้ว": {"closed": 62, "complete": 60, "score": 96.77}, "วัฒนานคร": {"closed": 63, "complete": 60, "score": 95.24}, "อรัญประเทศ": {"closed": 92, "complete": 79, "score": 85.87}, "ปราจีนบุรี": {"closed": 161, "complete": 74, "score": 45.96}, "กบินทร์บุรี": {"closed": 0, "complete": 0, "score": 0}}, "68-11": {"ชลบุรี": {"closed": 1302, "complete": 575, "score": 44.16}, "พัทยา": {"closed": 1369, "complete": 0, "score": 0}, "บ้านบึง": {"closed": 593, "complete": 522, "score": 88.03}, "พนัสนิคม": {"closed": 799, "complete": 632, "score": 79.1}, "ศรีราชา": {"closed": 611, "complete": 25, "score": 4.09}, "แหลมฉบัง": {"closed": 884, "complete": 332, "score": 37.56}, "ฉะเชิงเทรา": {"closed": 12, "complete": 0, "score": 0}, "บางปะกง": {"closed": 48, "complete": 0, "score": 0}, "บางคล้า": {"closed": 401, "complete": 180, "score": 44.89}, "พนมสารคาม": {"closed": 548, "complete": 358, "score": 65.33}, "ระยอง": {"closed": 63, "complete": 29, "score": 46.03}, "บ้านฉาง": {"closed": 1254, "complete": 437, "score": 34.85}, "ปากน้ำประแสร์": {"closed": 230, "complete": 210, "score": 91.3}, "จันทบุรี": {"closed": 2386, "complete": 1874, "score": 78.54}, "ขลุง": {"closed": 668, "complete": 370, "score": 55.39}, "ตราด": {"closed": 1110, "complete": 1063, "score": 95.77}, "คลองใหญ่": {"closed": 143, "complete": 136, "score": 95.1}, "สระแก้ว": {"closed": 103, "complete": 101, "score": 98.06}, "วัฒนานคร": {"closed": 114, "complete": 109, "score": 95.61}, "อรัญประเทศ": {"closed": 192, "complete": 161, "score": 83.85}, "ปราจีนบุรี": {"closed": 416, "complete": 354, "score": 85.1}, "กบินทร์บุรี": {"closed": 26, "complete": 25, "score": 96.15}}, "68-12": {"ชลบุรี": {"closed": 2015, "complete": 1300, "score": 64.52}, "พัทยา": {"closed": 2343, "complete": 764, "score": 32.61}, "บ้านบึง": {"closed": 802, "complete": 699, "score": 87.16}, "พนัสนิคม": {"closed": 1214, "complete": 978, "score": 80.56}, "ศรีราชา": {"closed": 939, "complete": 174, "score": 18.53}, "แหลมฉบัง": {"closed": 1415, "complete": 514, "score": 36.33}, "ฉะเชิงเทรา": {"closed": 70, "complete": 65, "score": 92.86}, "บางปะกง": {"closed": 82, "complete": 49, "score": 59.76}, "บางคล้า": {"closed": 623, "complete": 388, "score": 62.28}, "พนมสารคาม": {"closed": 849, "complete": 560, "score": 65.96}, "ระยอง": {"closed": 72, "complete": 63, "score": 87.5}, "บ้านฉาง": {"closed": 2073, "complete": 1013, "score": 48.87}, "ปากน้ำประแสร์": {"closed": 420, "complete": 359, "score": 85.48}, "จันทบุรี": {"closed": 3461, "complete": 3065, "score": 88.56}, "ขลุง": {"closed": 987, "complete": 672, "score": 68.09}, "ตราด": {"closed": 1469, "complete": 1419, "score": 96.6}, "คลองใหญ่": {"closed": 144, "complete": 139, "score": 96.53}, "สระแก้ว": {"closed": 194, "complete": 194, "score": 100}, "วัฒนานคร": {"closed": 170, "complete": 170, "score": 100}, "อรัญประเทศ": {"closed": 268, "complete": 259, "score": 96.64}, "ปราจีนบุรี": {"closed": 656, "complete": 582, "score": 88.72}, "กบินทร์บุรี": {"closed": 167, "complete": 164, "score": 98.2}}, "69-01": {"ชลบุรี": {"closed": 2949, "complete": 2369, "score": 80.33}, "พัทยา": {"closed": 3326, "complete": 1968, "score": 59.17}, "บ้านบึง": {"closed": 1135, "complete": 1015, "score": 89.43}, "พนัสนิคม": {"closed": 1700, "complete": 1446, "score": 85.06}, "ศรีราชา": {"closed": 1383, "complete": 505, "score": 36.51}, "แหลมฉบัง": {"closed": 2088, "complete": 821, "score": 39.32}, "ฉะเชิงเทรา": {"closed": 90, "complete": 87, "score": 96.67}, "บางปะกง": {"closed": 113, "complete": 103, "score": 91.15}, "บางคล้า": {"closed": 872, "complete": 784, "score": 89.91}, "พนมสารคาม": {"closed": 1206, "complete": 1045, "score": 86.65}, "ระยอง": {"closed": 83, "complete": 72, "score": 86.75}, "บ้านฉาง": {"closed": 3048, "complete": 1759, "score": 57.71}, "ปากน้ำประแสร์": {"closed": 563, "complete": 524, "score": 93.07}, "จันทบุรี": {"closed": 5066, "complete": 4793, "score": 94.61}, "ขลุง": {"closed": 1330, "complete": 1279, "score": 96.17}, "ตราด": {"closed": 2119, "complete": 2057, "score": 97.07}, "คลองใหญ่": {"closed": 218, "complete": 211, "score": 96.79}, "สระแก้ว": {"closed": 309, "complete": 308, "score": 99.68}, "วัฒนานคร": {"closed": 211, "complete": 211, "score": 100}, "อรัญประเทศ": {"closed": 402, "complete": 359, "score": 89.3}, "ปราจีนบุรี": {"closed": 891, "complete": 840, "score": 94.28}, "กบินทร์บุรี": {"closed": 478, "complete": 464, "score": 97.07}}, "69-02": {"ชลบุรี": {"closed": 3525, "complete": 2992, "score": 84.88}, "พัทยา": {"closed": 3946, "complete": 3193, "score": 80.92}, "บ้านบึง": {"closed": 1440, "complete": 1342, "score": 93.19}, "พนัสนิคม": {"closed": 1941, "complete": 1749, "score": 90.11}, "ศรีราชา": {"closed": 1658, "complete": 1414, "score": 85.28}, "แหลมฉบัง": {"closed": 1980, "complete": 1194, "score": 60.3}, "ฉะเชิงเทรา": {"closed": 90, "complete": 90, "score": 100}, "บางปะกง": {"closed": 131, "complete": 125, "score": 95.42}, "บางคล้า": {"closed": 1038, "complete": 985, "score": 94.89}, "พนมสารคาม": {"closed": 1491, "complete": 1236, "score": 82.9}, "ระยอง": {"closed": 120, "complete": 93, "score": 77.5}, "บ้านฉาง": {"closed": 3512, "complete": 2823, "score": 80.38}, "ปากน้ำประแสร์": {"closed": 684, "complete": 634, "score": 92.69}, "จันทบุรี": {"closed": 6089, "complete": 6058, "score": 99.49}, "ขลุง": {"closed": 1715, "complete": 1645, "score": 95.92}, "ตราด": {"closed": 2545, "complete": 2483, "score": 97.56}, "คลองใหญ่": {"closed": 245, "complete": 240, "score": 97.96}, "สระแก้ว": {"closed": 379, "complete": 378, "score": 99.74}, "วัฒนานคร": {"closed": 281, "complete": 281, "score": 100}, "อรัญประเทศ": {"closed": 478, "complete": 428, "score": 89.54}, "ปราจีนบุรี": {"closed": 1131, "complete": 1046, "score": 92.48}, "กบินทร์บุรี": {"closed": 521, "complete": 507, "score": 97.31}}}, "month_names": {"01": "ม.ค.", "02": "ก.พ.", "03": "มี.ค.", "04": "เม.ย.", "05": "พ.ค.", "06": "มิ.ย.", "07": "ก.ค.", "08": "ส.ค.", "09": "ก.ย.", "10": "ต.ค.", "11": "พ.ย.", "12": "ธ.ค."}};
+const MONTHS = DATA.months;
+const BRANCHES = DATA.branches;
+const MONTH_NAMES = DATA.month_names;
+
+// ==================== THEME ====================
+function toggleTheme(){
+    document.body.classList.toggle('dark');
+    localStorage.setItem('gis_theme',document.body.classList.contains('dark')?'dark':'light');
+}
+(function(){
+    if(localStorage.getItem('gis_theme')==='dark') document.body.classList.add('dark');
+})();
+
+// ==================== INFO TOGGLE ====================
+function toggleInfo(show){
+    var c=document.getElementById('infoContent');
+    if(!c)return;
+    var btnShow=document.getElementById('headerInfoShow');
+    var btnHide=document.getElementById('headerInfoHide');
+    if(show){
+        c.classList.remove('collapsed');
+        c.style.maxHeight=c.scrollHeight+'px';
+        btnShow.classList.add('active');btnShow.style.background='rgba(255,255,255,.4)';
+        btnHide.classList.remove('active');btnHide.style.background='rgba(255,255,255,.15)';
+    } else {
+        c.style.maxHeight=c.scrollHeight+'px';
+        requestAnimationFrame(function(){c.classList.add('collapsed');});
+        btnHide.classList.add('active');btnHide.style.background='rgba(255,255,255,.4)';
+        btnShow.classList.remove('active');btnShow.style.background='rgba(255,255,255,.15)';
+    }
+}
+
+// ==================== CARD TOGGLE ====================
+function toggleCard(btn){
+    var body=btn.closest('.chart-card').querySelector('.card-body');
+    if(body.classList.contains('collapsed')){
+        body.classList.remove('collapsed');btn.innerHTML='&#9650;';
+    } else {
+        body.classList.add('collapsed');btn.innerHTML='&#9660;';
+    }
+}
+
+// ==================== FILE TAGS ====================
+function initInfo(){
+    var fl=document.getElementById('fileList');
+    if(!fl)return;
+    var label=document.createElement('div');
+    label.style.cssText='font-weight:600;font-size:13px;color:var(--heading);margin-bottom:4px';
+    label.textContent='ข้อมูลจุดซ่อมท่อ (GIS):';
+    fl.appendChild(label);
+
+    // Group months by fiscal year
+    var fyMap={};
+    MONTHS.forEach(function(mk){
+        var parts=mk.split('-');
+        var yy=parseInt(parts[0],10);var mm=parseInt(parts[1],10);
+        var fy=(mm>=10)?(2500+yy+1):(2500+yy);
+        if(!fyMap[fy])fyMap[fy]=0;
+        fyMap[fy]++;
+    });
+    var fyKeys=Object.keys(fyMap).map(Number).sort();
+    fyKeys.forEach(function(fy){
+        var t=document.createElement('span');
+        t.style.cssText='display:inline-block;padding:4px 12px;margin:3px 4px;border:2px solid #00838f;border-radius:20px;font-size:12px;font-weight:600;color:#00838f';
+        t.textContent='ปีงบ '+fy+' ('+BRANCHES.length+' สาขา, '+fyMap[fy]+' เดือน)';
+        fl.appendChild(t);
+    });
+
+    buildDatasetTable();
+}
+
+function buildDatasetTable(){
+    var isFiscal=document.getElementById('datasetYearMode').value==='fiscal';
+    var yearMonthCount={};
+    MONTHS.forEach(function(mk){
+        var parts=mk.split('-');
+        var yy=parseInt(parts[0],10);var mm=parseInt(parts[1],10);
+        var yr;
+        if(isFiscal) yr=(mm>=10)?(2500+yy+1):(2500+yy);
+        else yr=2500+yy;
+        yearMonthCount[yr]=(yearMonthCount[yr]||0)+1;
+    });
+    var yearList=Object.keys(yearMonthCount).map(Number).sort();
+
+    var thStyle='padding:8px 10px;background:#004d40;color:#fff;font-weight:700;font-size:13px;border:1px solid #00695c;white-space:nowrap';
+    var tdBase='padding:6px 10px;border:1px solid #d1d5db;font-size:13px;';
+    var html='<table style="width:100%;border-collapse:collapse;border:2px solid #00695c;margin-bottom:8px">';
+    html+='<thead><tr>';
+    html+='<th style="'+thStyle+';text-align:left">ชุดข้อมูล</th>';
+    for(var i=0;i<yearList.length;i++){
+        html+='<th style="'+thStyle+';text-align:center">ปี '+(yearList[i]%100)+'</th>';
+    }
+    html+='</tr></thead><tbody>';
+    html+='<tr>';
+    html+='<td style="'+tdBase+'background:#e0f2f1;font-weight:700;color:#00695c;white-space:nowrap">จุดซ่อมท่อ (GIS)</td>';
+    for(var i=0;i<yearList.length;i++){
+        var mc=yearMonthCount[yearList[i]];
+        var cellColor='',cellWeight='';
+        if(mc===12){cellColor='color:#16a34a;';cellWeight='font-weight:700;';}
+        else if(mc>0){cellColor='color:#00838f;';cellWeight='font-weight:700;';}
+        else{cellColor='color:#9ca3af;';}
+        html+='<td style="'+tdBase+'background:#e0f2f1;text-align:center;'+cellColor+cellWeight+'">'+(mc>0?mc:'—')+'</td>';
+    }
+    html+='</tr>';
+    html+='</tbody></table>';
+    document.getElementById('statsRow').innerHTML=html;
+}
+
+// ==================== MONTH SELECTOR ====================
+function initMonthSelect(){
+    var sel=document.getElementById('gisMonth');
+    for(var i=MONTHS.length-1;i>=0;i--){
+        var mk=MONTHS[i];
+        var parts=mk.split('-');
+        var yy=parseInt(parts[0],10);var mm=parseInt(parts[1],10);
+        var opt=document.createElement('option');
+        opt.value=mk;
+        opt.textContent=MONTH_NAMES[mm<10?'0'+mm:''+mm]+' '+( 2500+yy);
+        sel.appendChild(opt);
+    }
+}
+
+// ==================== CHART ====================
+var gisChartObj=null;
+
+function gisRender(){
+    var mk=document.getElementById('gisMonth').value;
+    var th1=parseFloat(document.getElementById('gisThreshold1').value);
+    var th2=parseFloat(document.getElementById('gisThreshold2').value);
+    var barType=document.getElementById('gisBarType').value;
+    var showVals=document.getElementById('gisShowValues').checked;
+
+    var monthData=DATA.data[mk]||{};
+    var labels=[];
+    var closedArr=[];
+    var completeArr=[];
+    var scoreArr=[];
+
+    BRANCHES.forEach(function(b){
+        labels.push(b);
+        var d=monthData[b]||{closed:0,complete:0,score:0};
+        closedArr.push(d.closed);
+        completeArr.push(d.complete);
+        scoreArr.push(d.score);
+    });
+
+    // Parse month label
+    var parts=mk.split('-');
+    var yy=parseInt(parts[0],10);var mm=parseInt(parts[1],10);
+    var titleMonth=MONTH_NAMES[mm<10?'0'+mm:''+mm]+' พ.ศ.'+(2500+yy);
+
+    if(gisChartObj){gisChartObj.destroy();gisChartObj=null;}
+    var ctx=document.getElementById('gisChart').getContext('2d');
+
+    var barDatasets=[];
+    var isLine=(barType==='line'||barType==='straight');
+    var tension=barType==='line'?0.3:0;
+
+    if(isLine){
+        barDatasets.push({
+            label:'รวมปิดงานซ่อม',data:closedArr,
+            borderColor:'#00838f',backgroundColor:'rgba(0,131,143,0.15)',
+            type:'line',yAxisID:'y',tension:tension,fill:true,pointRadius:4,order:2
+        });
+        barDatasets.push({
+            label:'รวมงานซ่อมที่ครบถ้วน',data:completeArr,
+            borderColor:'#26c6da',backgroundColor:'rgba(38,198,218,0.15)',
+            type:'line',yAxisID:'y',tension:tension,fill:true,pointRadius:4,order:3
+        });
+    } else {
+        barDatasets.push({
+            label:'รวมปิดงานซ่อม',data:closedArr,
+            backgroundColor:'#00838f',borderColor:'#004d40',borderWidth:1,
+            type:'bar',yAxisID:'y',order:2,barPercentage:0.8,categoryPercentage:0.85
+        });
+        barDatasets.push({
+            label:'รวมงานซ่อมที่ครบถ้วน',data:completeArr,
+            backgroundColor:'#4dd0e1',borderColor:'#00838f',borderWidth:1,
+            type:'bar',yAxisID:'y',order:3,barPercentage:0.8,categoryPercentage:0.85
+        });
+    }
+
+    // KPI line on right axis
+    barDatasets.push({
+        label:'คะแนน KPI',data:scoreArr,
+        borderColor:'#e53935',backgroundColor:'rgba(229,57,53,0.1)',
+        type:'line',yAxisID:'y1',tension:0.3,fill:false,
+        pointRadius:5,pointBackgroundColor:function(ctx2){
+            var v=ctx2.raw;
+            if(v>=th2) return '#4caf50';
+            if(v>=th1) return '#ff9800';
+            return '#e53935';
+        },
+        pointBorderColor:'#fff',pointBorderWidth:2,
+        borderWidth:3,order:1
+    });
+
+    gisChartObj=new Chart(ctx,{
+        type:'bar',
+        data:{labels:labels,datasets:barDatasets},
+        options:{
+            responsive:true,
+            maintainAspectRatio:false,
+            plugins:{
+                title:{display:true,text:'คะแนน KPI จุดซ่อมท่อ ในระบบ PWA SMART 1662 กปภ.ข.1 — ข้อมูล ณ '+titleMonth,font:{size:16,weight:'bold'},color:getComputedStyle(document.body).getPropertyValue('--heading').trim()},
+                legend:{display:true,position:'bottom',labels:{font:{size:12},boxWidth:14,usePointStyle:false}},
+                tooltip:{callbacks:{label:function(c){var v=c.parsed.y;if(v==null)return 'ไม่มีข้อมูล';var suffix=c.dataset.yAxisID==='y1'?'%':'';return (c.dataset.label||'')+': '+v.toLocaleString('th-TH',{maximumFractionDigits:2})+suffix;}}},
+                datalabels:{display:showVals,color:function(ctx2){return ctx2.dataset.yAxisID==='y1'?'#e53935':'#004d40';},font:{size:11,weight:'bold'},anchor:'end',align:'top',formatter:function(v,ctx2){if(v==null||v===0)return '';return ctx2.dataset.yAxisID==='y1'?v.toFixed(1)+'%':v.toLocaleString();}}
+            },
+            scales:{
+                x:{ticks:{maxRotation:60,font:{size:12}},grid:{display:false}},
+                y:{type:'linear',position:'left',beginAtZero:true,title:{display:true,text:'จำนวนงาน',font:{size:13}},ticks:{callback:function(v){return v.toLocaleString('th-TH');}}},
+                y1:{type:'linear',position:'right',min:0,max:110,title:{display:true,text:'คะแนน KPI (%)',font:{size:13},color:'#e53935'},ticks:{callback:function(v){return v+'%';},color:'#e53935'},grid:{drawOnChartArea:false}}
+            },
+            annotation:undefined
+        },
+        plugins:[{
+            id:'thresholdLines',
+            afterDraw:function(chart){
+                var yScale=chart.scales.y1;
+                var ctx2=chart.ctx;
+                // Threshold 1 (กปภ. กำหนด)
+                var y1=yScale.getPixelForValue(th1);
+                ctx2.save();
+                ctx2.setLineDash([8,4]);
+                ctx2.strokeStyle='#e53935';ctx2.lineWidth=2;
+                ctx2.beginPath();ctx2.moveTo(chart.chartArea.left,y1);ctx2.lineTo(chart.chartArea.right,y1);ctx2.stroke();
+                ctx2.fillStyle='#e53935';ctx2.font='bold 12px sans-serif';ctx2.textAlign='right';
+                ctx2.fillText('เกณฑ์ กปภ. กำหนด '+th1+'%',chart.chartArea.right-5,y1-5);
+                // Threshold 2 (ติดตาม)
+                var y2=yScale.getPixelForValue(th2);
+                ctx2.strokeStyle='#1565c0';ctx2.lineWidth=2;
+                ctx2.beginPath();ctx2.moveTo(chart.chartArea.left,y2);ctx2.lineTo(chart.chartArea.right,y2);ctx2.stroke();
+                ctx2.fillStyle='#1565c0';ctx2.font='bold 12px sans-serif';
+                ctx2.fillText('เกณฑ์ กปภ.ข.1 ติดตาม '+th2+'%',chart.chartArea.right-5,y2-5);
+                ctx2.restore();
+            }
+        }]
+    });
+
+    // Render table
+    gisRenderTable(labels,closedArr,completeArr,scoreArr,th1,th2);
+
+    // Render KPI summary
+    var totalClosed=0,totalComplete=0;
+    closedArr.forEach(function(v){totalClosed+=v;});
+    completeArr.forEach(function(v){totalComplete+=v;});
+    var kpiTotal=totalClosed>0?((totalComplete/totalClosed)*100):0;
+    document.getElementById('gisSummary').innerHTML='คะแนน KPI กปภ.ข.1 : <span style="font-size:28px">'+kpiTotal.toFixed(2)+'</span> %';
+}
+
+function gisRenderTable(labels,closed,complete,score,th1,th2){
+    var thStyle='padding:8px 6px;background:#004d40;color:#fff;font-weight:700;font-size:12px;border:1px solid #00695c;text-align:center;white-space:nowrap';
+    var tdBase='padding:6px 8px;border:1px solid #d1d5db;font-size:12px;text-align:center;';
+
+    var html='<table style="width:100%;border-collapse:collapse;border:2px solid #00695c">';
+    html+='<thead><tr>';
+    html+='<th style="'+thStyle+';text-align:left;width:120px"></th>';
+    for(var i=0;i<labels.length;i++){
+        html+='<th style="'+thStyle+'">'+labels[i]+'</th>';
+    }
+    html+='</tr></thead><tbody>';
+
+    // Row 1: รวมปิดงานซ่อม
+    html+='<tr>';
+    html+='<td style="'+tdBase+'text-align:left;font-weight:700;color:#00838f;background:#e0f2f1"><span style="display:inline-block;width:10px;height:10px;background:#00838f;border-radius:50%;margin-right:4px"></span>รวมปิดงานซ่อม</td>';
+    for(var i=0;i<closed.length;i++){
+        html+='<td style="'+tdBase+'background:#e0f2f1;font-weight:600">'+closed[i].toLocaleString()+'</td>';
+    }
+    html+='</tr>';
+
+    // Row 2: รวมงานซ่อมที่ครบถ้วน
+    html+='<tr>';
+    html+='<td style="'+tdBase+'text-align:left;font-weight:700;color:#00838f;background:#e0f2f1"><span style="display:inline-block;width:10px;height:10px;background:#4dd0e1;border-radius:50%;margin-right:4px"></span>รวมงานซ่อมที่ครบถ้วน</td>';
+    for(var i=0;i<complete.length;i++){
+        html+='<td style="'+tdBase+'background:#e0f2f1;font-weight:600">'+complete[i].toLocaleString()+'</td>';
+    }
+    html+='</tr>';
+
+    // Row 3: คะแนน KPI
+    html+='<tr>';
+    html+='<td style="'+tdBase+'text-align:left;font-weight:700;color:#e53935;background:#fff0f0"><span style="display:inline-block;width:10px;height:10px;background:#e53935;border-radius:50%;margin-right:4px"></span>คะแนน KPI</td>';
+    for(var i=0;i<score.length;i++){
+        var s=score[i];
+        var bgColor,txtColor;
+        if(s>=th2){bgColor='#e8f5e9';txtColor='#2e7d32';}
+        else if(s>=th1){bgColor='#fff3e0';txtColor='#e65100';}
+        else{bgColor='#ffebee';txtColor='#c62828';}
+        html+='<td style="'+tdBase+'background:'+bgColor+';color:'+txtColor+';font-weight:700">'+s.toFixed(2)+'</td>';
+    }
+    html+='</tr>';
+
+    html+='</tbody></table>';
+    document.getElementById('gisTableContainer').innerHTML=html;
+}
+
+// ==================== EXPORT FUNCTIONS ====================
+function gisResetChart(){
+    var wrap=document.getElementById('gisChartWrap');
+    wrap.style.width='100%';wrap.style.height='450px';
+    gisRender();
+}
+
+function gisExportPNG(){
+    var canvas=document.getElementById('gisChart');
+    var link=document.createElement('a');
+    link.download='KPI_จุดซ่อมท่อ.png';
+    link.href=canvas.toDataURL('image/png');
+    link.click();
+}
+
+function gisCopyChart(){
+    var canvas=document.getElementById('gisChart');
+    canvas.toBlob(function(blob){
+        navigator.clipboard.write([new ClipboardItem({'image/png':blob})]).then(function(){
+            alert('คัดลอกกราฟแล้ว');
+        });
+    });
+}
+
+function gisExportExcel(){
+    var mk=document.getElementById('gisMonth').value;
+    var monthData=DATA.data[mk]||{};
+    var wb=new ExcelJS.Workbook();
+    var ws=wb.addWorksheet('KPI จุดซ่อมท่อ');
+    ws.addRow(['สาขา','รวมปิดงานซ่อม','รวมงานซ่อมที่ครบถ้วน','คะแนน KPI (%)']);
+    BRANCHES.forEach(function(b){
+        var d=monthData[b]||{closed:0,complete:0,score:0};
+        ws.addRow([b,d.closed,d.complete,d.score]);
+    });
+    ws.getRow(1).font={bold:true};
+    ws.columns.forEach(function(c){c.width=20;});
+    wb.xlsx.writeBuffer().then(function(buf){
+        var blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+        var link=document.createElement('a');
+        link.download='KPI_จุดซ่อมท่อ_'+mk+'.xlsx';
+        link.href=URL.createObjectURL(blob);
+        link.click();
+    });
+}
+
+function gisExportTableExcel(){
+    gisExportExcel();
+}
+
+function gisExportPPTX(){
+    if(typeof PptxGenJS==='undefined'){alert('PptxGenJS ยังโหลดไม่เสร็จ');return;}
+    var canvas=document.getElementById('gisChart');
+    var imgData=canvas.toDataURL('image/png');
+    var pptx=new PptxGenJS();
+    var slide=pptx.addSlide();
+    slide.addImage({data:imgData,x:0.5,y:0.5,w:9,h:5});
+    pptx.writeFile({fileName:'KPI_จุดซ่อมท่อ.pptx'});
+}
+
+// ==================== INIT ====================
+if(typeof Chart!=='undefined'&&typeof ChartDataLabels!=='undefined'){
+    Chart.register(ChartDataLabels);
+    Chart.defaults.plugins.datalabels={display:false};
+}
+
+initInfo();
+initMonthSelect();
+gisRender();
+</script>
+
+</body>
+</html>

@@ -1,4 +1,5 @@
 @echo off
+setlocal enabledelayedexpansion
 chcp 65001 >nul
 echo ============================================================
 echo   Update All Dashboards
@@ -24,36 +25,31 @@ if not errorlevel 1 (
     )
 )
 
-echo [1/2] Updating Dashboard Water Loss ...
+set /a COUNT=0
+set /a TOTAL=0
 for /d %%D in (Dashboard_*) do (
     if exist "%%D\build_dashboard.py" (
-        if /i not "%%D"=="Dashboard_PR" (
-            echo   Found: %%D
-            cd "%%D"
-            %PYCMD% build_dashboard.py
-            cd ..
-            if errorlevel 1 (
-                echo   [ERROR] %%D update failed!
-            ) else (
-                echo   [OK] %%D updated.
-            )
-        )
+        set /a TOTAL+=1
     )
 )
-echo.
 
-echo [2/2] Updating Dashboard PR ...
-cd Dashboard_PR
-%PYCMD% build_dashboard.py
-cd ..
-if errorlevel 1 (
-    echo   [ERROR] Dashboard PR update failed!
-) else (
-    echo   [OK] Dashboard PR updated.
+for /d %%D in (Dashboard_*) do (
+    if exist "%%D\build_dashboard.py" (
+        set /a COUNT+=1
+        echo [!COUNT!/%TOTAL%] Updating %%D ...
+        cd "%%D"
+        %PYCMD% build_dashboard.py
+        cd ..
+        if errorlevel 1 (
+            echo   [ERROR] %%D update failed!
+        ) else (
+            echo   [OK] %%D updated.
+        )
+        echo.
+    )
 )
-echo.
 
 echo ============================================================
-echo   Done!
+echo   All %TOTAL% dashboards updated!
 echo ============================================================
 pause
