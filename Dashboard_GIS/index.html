@@ -81,6 +81,65 @@ body.dark .theme-switch::after{transform:translateX(22px);background:#4dd0e1}
 .ymb.active{background:var(--accent);color:#fff}
 .kpi-summary{text-align:center;padding:16px;margin-top:16px;background:linear-gradient(135deg,#004d40,#00838f);border-radius:12px;color:#fff;font-size:18px;font-weight:700}
 body.dark .kpi-summary{background:linear-gradient(135deg,#00363a,#005662)}
+.main-tab-bar{display:flex;gap:4px;margin-bottom:24px;background:#004d40;border-radius:12px;padding:6px;flex-wrap:wrap}
+body.dark .main-tab-bar{background:#00363a}
+.main-tab-btn{padding:12px 28px;border:none;border-radius:8px;background:transparent;cursor:pointer;font-size:15px;font-weight:700;color:rgba(255,255,255,.6);transition:all .2s}
+.main-tab-btn.active{background:var(--card);color:var(--heading)}
+.main-tab-btn:hover:not(.active){background:rgba(255,255,255,.15);color:#fff}
+.main-tab-content{display:none}.main-tab-content.active{display:block}
+.font-popup-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.35);z-index:9998;justify-content:center;align-items:center}
+.font-popup-overlay.show{display:flex}
+.font-popup{background:var(--card);border-radius:14px;padding:24px 28px;box-shadow:0 8px 32px rgba(0,0,0,.25);min-width:340px;max-width:420px;position:relative;z-index:9999}
+.font-popup h4{margin:0 0 18px;color:var(--heading);font-size:15px;text-align:center}
+.font-popup .fp-close{position:absolute;top:10px;right:14px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--sub);line-height:1}
+.font-popup .fp-close:hover{color:var(--accent)}
+.fp-row{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.fp-row:last-child{margin-bottom:0}
+.fp-label{min-width:90px;font-size:13px;font-weight:600;color:var(--sub)}
+.fp-row input[type=range]{flex:1;accent-color:var(--accent);height:6px;cursor:pointer}
+.fp-val{min-width:38px;text-align:center;font-size:13px;font-weight:700;color:var(--heading);background:var(--input-bg);padding:3px 6px;border-radius:6px}
+.fp-section{margin-bottom:16px}.fp-section:last-child{margin-bottom:0}
+.fp-section-title{font-size:12px;color:var(--sub);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border);font-weight:600}
+.fp-rot-group{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.fp-rot-group:last-child{margin-bottom:0}
+.fp-rot-label{min-width:90px;font-size:13px;font-weight:600;color:var(--sub)}
+.fp-rot-btns{display:flex;gap:4px}
+.fp-rot-btn{padding:4px 10px;font-size:18px;border:1px solid var(--border);border-radius:6px;background:var(--input-bg);cursor:pointer;color:var(--text);line-height:1;transition:all .15s}
+.fp-rot-btn:hover{border-color:var(--accent)}
+.fp-rot-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.axis-dlg-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:9999;display:flex;align-items:center;justify-content:center}
+.axis-dlg{background:var(--card);border-radius:10px;padding:20px 24px;min-width:280px;box-shadow:0 8px 32px rgba(0,0,0,0.25);font-size:14px;color:var(--text)}
+.axis-dlg h4{margin:0 0 14px;font-size:15px;color:var(--heading)}
+.axis-dlg .row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.axis-dlg .row label{width:70px;text-align:right;font-size:13px;color:var(--sub)}
+.axis-dlg .row input{flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-size:13px;text-align:center;background:var(--input-bg);color:var(--text)}
+.axis-dlg .row input:focus{border-color:var(--accent);outline:none}
+.axis-dlg .row input:disabled{background:var(--th-bg);color:var(--sub2)}
+.axis-dlg .hint{font-size:11px;color:var(--sub2);margin-bottom:12px}
+.axis-dlg .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+.axis-dlg .btns button{padding:6px 16px;border:none;border-radius:6px;cursor:pointer;font-size:13px}
+.axis-dlg .btn-ok{background:var(--accent);color:#fff}
+.axis-dlg .btn-ok:hover{background:#006064}
+.axis-dlg .btn-reset{background:#e74c3c;color:#fff}
+.axis-dlg .btn-reset:hover{background:#c0392b}
+.axis-dlg .btn-cancel{background:var(--input-bg);color:var(--text)}
+.axis-dlg .btn-cancel:hover{background:var(--hover)}
+.ctx-menu{display:none;position:fixed;z-index:10000;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.25);padding:14px 16px;min-width:260px}
+.ctx-menu.show{display:block}
+.ctx-menu h5{margin:0 0 10px;font-size:13px;color:var(--heading);border-bottom:1px solid var(--border);padding-bottom:8px}
+.ctx-menu-section{margin-bottom:12px}
+.ctx-menu-section:last-child{margin-bottom:0}
+.ctx-menu-label{font-size:12px;font-weight:600;color:var(--sub);margin-bottom:6px}
+.ctx-color-grid{display:flex;flex-wrap:wrap;gap:5px}
+.ctx-color-swatch{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:border-color .15s,transform .15s}
+.ctx-color-swatch:hover{transform:scale(1.2)}
+.ctx-color-swatch.sel{border-color:var(--heading);transform:scale(1.15)}
+.ctx-dash-row{display:flex;gap:6px;flex-wrap:wrap}
+.ctx-dash-btn{padding:5px 10px;border:1px solid var(--border);border-radius:6px;background:var(--input-bg);color:var(--text);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s}
+.ctx-dash-btn:hover,.ctx-dash-btn.sel{background:var(--accent);color:#fff;border-color:var(--accent)}
+.ctx-width-row{display:flex;align-items:center;gap:8px}
+.ctx-width-row input[type=range]{flex:1;accent-color:var(--accent)}
+.ctx-width-val{font-size:12px;font-weight:700;color:var(--heading);min-width:24px;text-align:center}
 </style>
 </head>
 <body>
@@ -126,7 +185,13 @@ body.dark .kpi-summary{background:linear-gradient(135deg,#00363a,#005662)}
   </div>
 </div>
 
-<!-- Tab: KPI จุดซ่อมท่อ -->
+<!-- Main Tab Bar -->
+<div class="main-tab-bar" id="mainTabBar">
+  <button class="main-tab-btn active" onclick="switchMainTab('kpi',this)">KPI จุดซ่อมท่อ</button>
+</div>
+
+<!-- Tab Content: KPI จุดซ่อมท่อ -->
+<div class="main-tab-content active" id="mainTab-kpi">
 <div class="chart-card">
   <div class="card-header">
     <h3 style="color:var(--heading)">&#x1F5FA; KPI จุดซ่อมท่อ ในระบบ PWA SMART 1662</h3>
@@ -140,7 +205,7 @@ body.dark .kpi-summary{background:linear-gradient(135deg,#00363a,#005662)}
       </div>
       <div class="control-group">
         <label>เกณฑ์วัด กปภ.</label>
-        <select id="gisThreshold1" onchange="gisRender()">
+        <select id="gisThreshold1" onchange="gisRender();if(sumInitialized)sumRender()">
           <option value="70">70%</option>
           <option value="80" selected>80%</option>
           <option value="90">90%</option>
@@ -149,7 +214,7 @@ body.dark .kpi-summary{background:linear-gradient(135deg,#00363a,#005662)}
       </div>
       <div class="control-group">
         <label>เกณฑ์ติดตาม</label>
-        <select id="gisThreshold2" onchange="gisRender()">
+        <select id="gisThreshold2" onchange="gisRender();if(sumInitialized)sumRender()">
           <option value="70">70%</option>
           <option value="80">80%</option>
           <option value="90">90%</option>
@@ -173,6 +238,7 @@ body.dark .kpi-summary{background:linear-gradient(135deg,#00363a,#005662)}
     <div class="export-bar">
       <button class="export-btn" onclick="gisResetChart()" title="รีเซ็ตขนาดกราฟ">&#8634; รีเซ็ต</button>
       <label class="export-btn" style="cursor:pointer"><input type="checkbox" id="gisShowValues" onchange="gisRender()" style="margin-right:4px">แสดงค่า</label>
+      <button class="export-btn" onclick="openFontPopup(this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M9.93 2L4 22h3.2l1.67-5.5h6.26L16.8 22H20L14.07 2H9.93zm-.34 11.5L12 5.88l2.41 7.62H9.59z"/></svg></button>
       <button class="export-btn" onclick="gisExportPNG()"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></button>
       <button class="export-btn" onclick="gisCopyChart()"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M16 1H4a2 2 0 00-2 2v14h2V3h12V1zm3 4H8a2 2 0 00-2 2v14a2 2 0 002 2h11a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h11v14z"/></svg></button>
       <button class="export-btn" onclick="gisExportExcel()"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button>
@@ -190,6 +256,41 @@ body.dark .kpi-summary{background:linear-gradient(135deg,#00363a,#005662)}
     </div>
   </div>
 </div>
+<!-- Card 1 end -->
+
+<!-- Card 2: สรุปภาพรวม KPI (same tab) -->
+<div class="chart-card">
+  <div class="card-header">
+    <h3 style="color:var(--heading)">&#x1F4CA; สรุปข้อมูลคะแนน KPI จุดซ่อมท่อ ในระบบ PWA SMART 1662 กปภ.ข.1</h3>
+    <button class="card-toggle" onclick="toggleCard(this)">&#9650;</button>
+  </div>
+  <div class="card-body">
+    <div id="sumSubtitle" style="text-align:center;color:var(--sub);font-size:14px;margin-bottom:8px"></div>
+
+    <!-- Chart Row 1: branches 1-11 -->
+    <div class="chart-container" style="height:380px;margin-bottom:16px">
+      <canvas id="sumChart1"></canvas>
+    </div>
+
+    <!-- Chart Row 2: branches 12-22 -->
+    <div class="chart-container" style="height:380px;margin-bottom:16px">
+      <canvas id="sumChart2"></canvas>
+    </div>
+
+    <div class="export-bar">
+      <label class="export-btn" style="cursor:pointer"><input type="checkbox" id="sumShowValues" onchange="sumRender()" style="margin-right:4px">แสดงค่า</label>
+      <button class="export-btn" onclick="openFontPopup(this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M9.93 2L4 22h3.2l1.67-5.5h6.26L16.8 22H20L14.07 2H9.93zm-.34 11.5L12 5.88l2.41 7.62H9.59z"/></svg></button>
+      <button class="export-btn" onclick="sumExportPNG()"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></button>
+      <button class="export-btn" onclick="sumExportExcel()"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button>
+      <button class="export-btn" onclick="sumExportPPTX()"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#D04423"/><path d="M7 5v14h2v-5h3a4 4 0 000-8H7zm2 2h3a2 2 0 010 4H9V7z" fill="#fff"/></svg></button>
+    </div>
+
+    <!-- Summary Section -->
+    <div id="sumBottomSection" style="margin-top:24px"></div>
+
+  </div>
+</div>
+</div><!-- /mainTab-kpi end -->
 
 </div>
 
@@ -198,6 +299,24 @@ const DATA = {"months": ["68-10", "68-11", "68-12", "69-01", "69-02"], "branches
 const MONTHS = DATA.months;
 const BRANCHES = DATA.branches;
 const MONTH_NAMES = DATA.month_names;
+
+// ==================== MAIN TAB SWITCH ====================
+function switchMainTab(tabId,btn){
+    document.querySelectorAll('.main-tab-btn').forEach(function(b){b.classList.remove('active');});
+    document.querySelectorAll('.main-tab-content').forEach(function(c){c.classList.remove('active');});
+    if(btn)btn.classList.add('active');
+    var el=document.getElementById('mainTab-'+tabId);
+    if(el)el.classList.add('active');
+    try{localStorage.setItem('gis_activeTab',tabId);}catch(e){}
+    // Init/resize charts after tab switch
+    setTimeout(function(){
+        if(tabId==='kpi'&&gisChartObj)gisChartObj.resize();
+        if(tabId==='summary'){
+            if(!sumInitialized)sumInit();
+            else{if(sumChart1Obj)sumChart1Obj.resize();if(sumChart2Obj)sumChart2Obj.resize();}
+        }
+    },50);
+}
 
 // ==================== THEME ====================
 function toggleTheme(){
@@ -368,12 +487,12 @@ function gisRender(){
         barDatasets.push({
             label:'รวมปิดงานซ่อม',data:closedArr,
             backgroundColor:'#00838f',borderColor:'#004d40',borderWidth:1,
-            type:'bar',yAxisID:'y',order:2,barPercentage:0.8,categoryPercentage:0.85
+            type:'bar',yAxisID:'y',order:2,barPercentage:1.0,categoryPercentage:0.5
         });
         barDatasets.push({
             label:'รวมงานซ่อมที่ครบถ้วน',data:completeArr,
             backgroundColor:'#4dd0e1',borderColor:'#00838f',borderWidth:1,
-            type:'bar',yAxisID:'y',order:3,barPercentage:0.8,categoryPercentage:0.85
+            type:'bar',yAxisID:'y',order:3,barPercentage:1.0,categoryPercentage:0.5
         });
     }
 
@@ -402,12 +521,12 @@ function gisRender(){
                 title:{display:true,text:'คะแนน KPI จุดซ่อมท่อ ในระบบ PWA SMART 1662 กปภ.ข.1 — ข้อมูล ณ '+titleMonth,font:{size:16,weight:'bold'},color:getComputedStyle(document.body).getPropertyValue('--heading').trim()},
                 legend:{display:true,position:'bottom',labels:{font:{size:12},boxWidth:14,usePointStyle:false}},
                 tooltip:{callbacks:{label:function(c){var v=c.parsed.y;if(v==null)return 'ไม่มีข้อมูล';var suffix=c.dataset.yAxisID==='y1'?'%':'';return (c.dataset.label||'')+': '+v.toLocaleString('th-TH',{maximumFractionDigits:2})+suffix;}}},
-                datalabels:{display:showVals,color:function(ctx2){return ctx2.dataset.yAxisID==='y1'?'#e53935':'#004d40';},font:{size:11,weight:'bold'},anchor:'end',align:'top',formatter:function(v,ctx2){if(v==null||v===0)return '';return ctx2.dataset.yAxisID==='y1'?v.toFixed(1)+'%':v.toLocaleString();}}
+                datalabels:{display:showVals,color:function(ctx2){return ctx2.dataset.yAxisID==='y1'?'#e53935':'#004d40';},font:{size:11,weight:'bold'},anchor:'end',align:'top',formatter:function(v,ctx2){if(v==null||v===0)return '';if(ctx2.dataset.yAxisID==='y1')return v.toLocaleString('th-TH',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';var d=Math.abs(v)<100?2:0;return v.toLocaleString('th-TH',{minimumFractionDigits:d,maximumFractionDigits:d});}}
             },
             scales:{
-                x:{ticks:{maxRotation:60,font:{size:12}},grid:{display:false}},
-                y:{type:'linear',position:'left',beginAtZero:true,title:{display:true,text:'จำนวนงาน',font:{size:13}},ticks:{callback:function(v){return v.toLocaleString('th-TH');}}},
-                y1:{type:'linear',position:'right',min:0,max:110,title:{display:true,text:'คะแนน KPI (%)',font:{size:13},color:'#e53935'},ticks:{callback:function(v){return v+'%';},color:'#e53935'},grid:{drawOnChartArea:false}}
+                x:{ticks:{maxRotation:60,font:{size:12}},grid:{display:true,color:'rgba(0,0,0,0.1)',drawOnChartArea:true,drawTicks:true},offset:true},
+                y:{type:'linear',position:'left',beginAtZero:true,title:{display:true,text:'จำนวนงาน',font:{size:13}},ticks:{callback:function(v){var d=Math.abs(v)<100?2:0;return v.toLocaleString('th-TH',{minimumFractionDigits:d,maximumFractionDigits:d});}}},
+                y1:{type:'linear',position:'right',min:0,max:110,title:{display:true,text:'คะแนน KPI (%)',font:{size:13},color:'#e53935'},ticks:{callback:function(v){return v.toLocaleString('th-TH',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';},color:'#e53935'},grid:{drawOnChartArea:false}}
             },
             annotation:undefined
         },
@@ -447,43 +566,43 @@ function gisRender(){
 }
 
 function gisRenderTable(labels,closed,complete,score,th1,th2){
-    var thStyle='padding:8px 6px;background:#004d40;color:#fff;font-weight:700;font-size:12px;border:1px solid #00695c;text-align:center;white-space:nowrap';
-    var tdBase='padding:6px 8px;border:1px solid #d1d5db;font-size:12px;text-align:center;';
+    var thStyle='padding:4px 2px;background:#004d40;color:#fff;font-weight:700;font-size:10px;border:1px solid #00695c;text-align:center';
+    var tdBase='padding:3px 2px;border:1px solid #d1d5db;font-size:10px;text-align:center;overflow:hidden;';
 
-    var html='<table style="width:100%;border-collapse:collapse;border:2px solid #00695c">';
+    var html='<table style="width:100%;border-collapse:collapse;border:2px solid #00695c;table-layout:fixed">';
     html+='<thead><tr>';
-    html+='<th style="'+thStyle+';text-align:left;width:120px"></th>';
+    html+='<th style="'+thStyle+';text-align:left;width:70px;font-size:9px"></th>';
     for(var i=0;i<labels.length;i++){
-        html+='<th style="'+thStyle+'">'+labels[i]+'</th>';
+        html+='<th style="'+thStyle+';word-wrap:break-word;overflow-wrap:break-word;white-space:normal;font-size:9px;line-height:1.2;padding:3px 1px">'+labels[i]+'</th>';
     }
     html+='</tr></thead><tbody>';
 
     // Row 1: รวมปิดงานซ่อม
     html+='<tr>';
-    html+='<td style="'+tdBase+'text-align:left;font-weight:700;color:#00838f;background:#e0f2f1"><span style="display:inline-block;width:10px;height:10px;background:#00838f;border-radius:50%;margin-right:4px"></span>รวมปิดงานซ่อม</td>';
+    html+='<td style="'+tdBase+'text-align:left;font-weight:700;color:#00838f;background:#e0f2f1;font-size:9px;line-height:1.2"><span style="display:inline-block;width:8px;height:8px;background:#00838f;border-radius:50%;margin-right:2px;vertical-align:middle"></span>รวมปิด<br>งานซ่อม</td>';
     for(var i=0;i<closed.length;i++){
-        html+='<td style="'+tdBase+'background:#e0f2f1;font-weight:600">'+closed[i].toLocaleString()+'</td>';
+        html+='<td style="'+tdBase+'background:#e0f2f1;font-weight:600;font-size:9px">'+closed[i].toLocaleString()+'</td>';
     }
     html+='</tr>';
 
     // Row 2: รวมงานซ่อมที่ครบถ้วน
     html+='<tr>';
-    html+='<td style="'+tdBase+'text-align:left;font-weight:700;color:#00838f;background:#e0f2f1"><span style="display:inline-block;width:10px;height:10px;background:#4dd0e1;border-radius:50%;margin-right:4px"></span>รวมงานซ่อมที่ครบถ้วน</td>';
+    html+='<td style="'+tdBase+'text-align:left;font-weight:700;color:#00838f;background:#e0f2f1;font-size:9px;line-height:1.2"><span style="display:inline-block;width:8px;height:8px;background:#4dd0e1;border-radius:50%;margin-right:2px;vertical-align:middle"></span>งานซ่อม<br>ที่ครบถ้วน</td>';
     for(var i=0;i<complete.length;i++){
-        html+='<td style="'+tdBase+'background:#e0f2f1;font-weight:600">'+complete[i].toLocaleString()+'</td>';
+        html+='<td style="'+tdBase+'background:#e0f2f1;font-weight:600;font-size:9px">'+complete[i].toLocaleString()+'</td>';
     }
     html+='</tr>';
 
     // Row 3: คะแนน KPI
     html+='<tr>';
-    html+='<td style="'+tdBase+'text-align:left;font-weight:700;color:#e53935;background:#fff0f0"><span style="display:inline-block;width:10px;height:10px;background:#e53935;border-radius:50%;margin-right:4px"></span>คะแนน KPI</td>';
+    html+='<td style="'+tdBase+'text-align:left;font-weight:700;color:#e53935;background:#fff0f0;font-size:9px;line-height:1.2"><span style="display:inline-block;width:8px;height:8px;background:#e53935;border-radius:50%;margin-right:2px;vertical-align:middle"></span>คะแนน<br>KPI</td>';
     for(var i=0;i<score.length;i++){
         var s=score[i];
         var bgColor,txtColor;
         if(s>=th2){bgColor='#e8f5e9';txtColor='#2e7d32';}
         else if(s>=th1){bgColor='#fff3e0';txtColor='#e65100';}
         else{bgColor='#ffebee';txtColor='#c62828';}
-        html+='<td style="'+tdBase+'background:'+bgColor+';color:'+txtColor+';font-weight:700">'+s.toFixed(2)+'</td>';
+        html+='<td style="'+tdBase+'background:'+bgColor+';color:'+txtColor+';font-weight:700;font-size:9px">'+s.toFixed(2)+'</td>';
     }
     html+='</tr>';
 
@@ -550,6 +669,278 @@ function gisExportPPTX(){
     pptx.writeFile({fileName:'KPI_จุดซ่อมท่อ.pptx'});
 }
 
+// ==================== SUMMARY TAB (Card 2) ====================
+var sumChart1Obj=null, sumChart2Obj=null;
+var sumInitialized=false;
+
+// Month bar colors matching reference image
+var MONTH_COLORS=[
+    {bg:'#003d33',border:'#002a23'},  // ต.ค. deep teal
+    {bg:'#00695c',border:'#004d40'},  // พ.ย. dark teal
+    {bg:'#00897b',border:'#00695c'},  // ธ.ค. teal
+    {bg:'#26a69a',border:'#00897b'},  // ม.ค. medium teal
+    {bg:'#4dd0e1',border:'#26c6da'},  // ก.พ. cyan
+    {bg:'#80deea',border:'#4dd0e1'}   // (reserve for future months)
+];
+
+function sumInit(){
+    sumInitialized=true;
+    // Set subtitle with latest data date
+    var lastMk=MONTHS[MONTHS.length-1];
+    var lp=lastMk.split('-');
+    var lyy=parseInt(lp[0],10);var lmm=parseInt(lp[1],10);
+    document.getElementById('sumSubtitle').textContent='ข้อมูล ณ '+MONTH_NAMES[lmm<10?'0'+lmm:''+lmm]+' พ.ศ.'+(2500+lyy);
+    sumRender();
+}
+
+function sumRender(){
+    var th1=parseFloat(document.getElementById('gisThreshold1').value);
+    var th2=parseFloat(document.getElementById('gisThreshold2').value);
+    var showVals=document.getElementById('sumShowValues').checked;
+
+    // Build month labels for legend
+    var monthLabels=[];
+    MONTHS.forEach(function(mk){
+        var p=mk.split('-');var yy=parseInt(p[0],10);var mm=parseInt(p[1],10);
+        monthLabels.push(MONTH_NAMES[mm<10?'0'+mm:''+mm]+' '+(2500+yy));
+    });
+
+    // Pre-compute overall KPI per month (ภาพรวม กปภ.ข.1)
+    var overallScores={};
+    MONTHS.forEach(function(mk){
+        var md=DATA.data[mk]||{};
+        var tc=0,tco=0;
+        BRANCHES.forEach(function(b){
+            var d=md[b]||{closed:0,complete:0};
+            tc+=d.closed;tco+=d.complete;
+        });
+        overallScores[mk]=tc>0?parseFloat(((tco/tc)*100).toFixed(2)):0;
+    });
+
+    // Prepend "ภาพรวม กปภ.ข.1" as first item in row 1
+    var allWithOverall=['ภาพรวม กปภ.ข.1'].concat(BRANCHES);
+    var half=Math.ceil(allWithOverall.length/2);
+    var row1Labels=allWithOverall.slice(0,half);
+    var row2Labels=allWithOverall.slice(half);
+
+    // Build datasets: one dataset per month, with overall as first value
+    function buildDatasets(labelList){
+        var datasets=[];
+        for(var mi=0;mi<MONTHS.length;mi++){
+            var mk=MONTHS[mi];
+            var monthData=DATA.data[mk]||{};
+            var scores=[];
+            labelList.forEach(function(b){
+                if(b==='ภาพรวม กปภ.ข.1'){
+                    scores.push(overallScores[mk]);
+                } else {
+                    var d=monthData[b]||{score:0};
+                    scores.push(d.score);
+                }
+            });
+            var col=MONTH_COLORS[mi%MONTH_COLORS.length];
+            datasets.push({
+                label:monthLabels[mi],
+                data:scores,
+                backgroundColor:col.bg,
+                borderColor:col.border,
+                borderWidth:1,
+                barPercentage:1.0,
+                categoryPercentage:0.7
+            });
+        }
+        return datasets;
+    }
+
+    // Threshold lines plugin
+    var thresholdPlugin={
+        id:'sumThresholdLines',
+        afterDraw:function(chart){
+            var yScale=chart.scales.y;
+            var ctx2=chart.ctx;
+            ctx2.save();
+            ctx2.setLineDash([8,4]);
+            // Threshold 1 (กปภ. กำหนด) - red
+            var y1=yScale.getPixelForValue(th1);
+            ctx2.strokeStyle='#e53935';ctx2.lineWidth=2;
+            ctx2.beginPath();ctx2.moveTo(chart.chartArea.left,y1);ctx2.lineTo(chart.chartArea.right,y1);ctx2.stroke();
+            ctx2.fillStyle='#e53935';ctx2.font='bold 11px sans-serif';ctx2.textAlign='right';
+            ctx2.fillText('เกณฑ์ผ่านที่ กปภ. กำหนด '+th1+'%',chart.chartArea.right-5,y1-5);
+            // Threshold 2 (ติดตาม กปภ.ข.1) - green
+            var y2=yScale.getPixelForValue(th2);
+            ctx2.strokeStyle='#4caf50';ctx2.lineWidth=2;
+            ctx2.beginPath();ctx2.moveTo(chart.chartArea.left,y2);ctx2.lineTo(chart.chartArea.right,y2);ctx2.stroke();
+            ctx2.fillStyle='#4caf50';ctx2.font='bold 11px sans-serif';
+            ctx2.fillText('เกณฑ์ผ่านที่ กปภ.ข.1 ติดตาม '+th2+'%',chart.chartArea.right-5,y2-5);
+            ctx2.restore();
+        }
+    };
+
+    function makeChartConfig(labelList,showLegend){
+        return {
+            type:'bar',
+            data:{labels:labelList,datasets:buildDatasets(labelList)},
+            options:{
+                responsive:true,
+                maintainAspectRatio:false,
+                plugins:{
+                    legend:{display:showLegend,position:'top',labels:{font:{size:12},boxWidth:14}},
+                    tooltip:{callbacks:{label:function(c){var v=c.parsed.y;if(v==null)return 'ไม่มีข้อมูล';return (c.dataset.label||'')+': '+v.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2})+'%';}}},
+                    datalabels:{display:showVals,color:'#333',font:{size:10,weight:'bold'},anchor:'end',align:'top',formatter:function(v){if(v==null||v===0)return '';return v.toLocaleString('th-TH',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';}},
+                    title:{display:false}
+                },
+                scales:{
+                    x:{ticks:{font:{size:12,weight:function(ctx2){return ctx2.tick&&ctx2.tick.label==='ภาพรวม กปภ.ข.1'?'bold':'normal';}},color:function(ctx2){return ctx2.tick&&ctx2.tick.label==='ภาพรวม กปภ.ข.1'?'#004d40':'#666';}},grid:{display:true,color:'rgba(0,0,0,0.1)',drawOnChartArea:true,drawTicks:true},offset:true},
+                    y:{min:0,max:100,ticks:{callback:function(v){return v.toLocaleString('th-TH',{minimumFractionDigits:0,maximumFractionDigits:0})+'%';},stepSize:20},title:{display:false},grid:{color:'rgba(0,0,0,0.06)'}}
+                }
+            },
+            plugins:[thresholdPlugin]
+        };
+    }
+
+    // Destroy existing charts
+    if(sumChart1Obj){sumChart1Obj.destroy();sumChart1Obj=null;}
+    if(sumChart2Obj){sumChart2Obj.destroy();sumChart2Obj=null;}
+
+    var ctx1=document.getElementById('sumChart1').getContext('2d');
+    var ctx2=document.getElementById('sumChart2').getContext('2d');
+    sumChart1Obj=new Chart(ctx1,makeChartConfig(row1Labels,true));
+    sumChart2Obj=new Chart(ctx2,makeChartConfig(row2Labels,false));
+
+    // Render bottom summary
+    sumRenderBottom(th1,th2);
+}
+
+function sumRenderBottom(th1,th2){
+    // Use latest month data for summary
+    var lastMk=MONTHS[MONTHS.length-1];
+    var monthData=DATA.data[lastMk]||{};
+
+    var pass100=[];var pass80=[];var fail=[];
+    var totalClosed=0,totalComplete=0;
+
+    BRANCHES.forEach(function(b){
+        var d=monthData[b]||{closed:0,complete:0,score:0};
+        totalClosed+=d.closed;
+        totalComplete+=d.complete;
+        if(d.score>=th2) pass100.push(b);
+        else if(d.score>=th1) pass80.push(b);
+        else fail.push(b);
+    });
+
+    var kpiTotal=totalClosed>0?((totalComplete/totalClosed)*100):0;
+
+    var lp=lastMk.split('-');
+    var lyy=parseInt(lp[0],10);var lmm=parseInt(lp[1],10);
+    var fiscalMonth=(lmm>=10)?(lmm-9):(lmm+3);
+    var quarter=Math.ceil(fiscalMonth/3);
+    var fiscalYear=(lmm>=10)?(lyy+1):lyy;
+
+    // Single rounded box: left = legend lines, right = 100% badge
+    var html='<div style="display:flex;flex-wrap:wrap;gap:16px;align-items:stretch">';
+
+    // Left: pass/fail legend lines
+    html+='<div style="flex:1;min-width:300px;background:#e8f5e9;border:2px solid #c8e6c9;border-radius:16px;padding:20px 24px;display:flex;flex-direction:column;justify-content:center;gap:10px">';
+
+    // Line 1: pass th2
+    html+='<div style="display:flex;align-items:center;gap:8px">';
+    html+='<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;background:#4caf50;color:#fff;border-radius:50%;font-size:14px;flex-shrink:0">&#10003;</span>';
+    html+='<span style="font-size:14px;color:#2e7d32"><b>กปภ.สาขา ที่ผ่านเกณฑ์ การติดตามของ กปภ.ข.1</b> ('+th2+'%) จำนวน <b style="color:#1b5e20;font-size:16px">'+pass100.length+'</b> สาขา</span>';
+    html+='</div>';
+
+    // Line 2: pass th1
+    html+='<div style="display:flex;align-items:center;gap:8px">';
+    html+='<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;background:#ff9800;color:#fff;border-radius:50%;font-size:14px;flex-shrink:0">&#10003;</span>';
+    html+='<span style="font-size:14px;color:#e65100"><b>กปภ.สาขา ที่ผ่านเกณฑ์ การติดตามของ กปภ.</b> ('+th1+'% ขึ้นไป) จำนวน <b style="color:#bf360c;font-size:16px">'+(pass80.length+pass100.length)+'</b> สาขา</span>';
+    html+='</div>';
+
+    // Line 3: fail
+    html+='<div style="display:flex;align-items:center;gap:8px">';
+    html+='<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;background:#e53935;color:#fff;border-radius:50%;font-size:15px;font-weight:bold;flex-shrink:0">&times;</span>';
+    html+='<span style="font-size:14px;color:#c62828"><b>กปภ.สาขา ที่ไม่ผ่านเกณฑ์</b> (น้อยกว่า '+th1+'%) จำนวน <b style="color:#b71c1c;font-size:16px">'+fail.length+'</b> สาขา</span>';
+    html+='</div>';
+
+    html+='</div>';
+
+    // Right: 100% badge with branch names
+    if(pass100.length>0){
+        html+='<div style="flex:0 0 auto;min-width:180px;background:#e8f5e9;border:2px solid #c8e6c9;border-radius:16px;padding:16px 24px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px">';
+        html+='<div style="font-size:36px;font-weight:800;color:#2e7d32">100%</div>';
+        html+='<div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center">';
+        pass100.forEach(function(b){
+            html+='<span style="display:inline-flex;align-items:center;gap:4px;background:#4caf50;color:#fff;border-radius:20px;padding:4px 14px;font-size:12px;font-weight:600"><span style="font-size:13px">&#10003;</span> '+b+'</span>';
+        });
+        html+='</div>';
+        html+='</div>';
+    }
+
+    html+='</div>';
+
+    // KPI total score bar
+    html+='<div style="margin-top:12px;background:linear-gradient(135deg,#004d40,#00838f);border-radius:12px;padding:16px 24px;color:#fff;text-align:center">';
+    html+='<div style="font-size:16px;font-weight:700">คะแนน KPI จุดซ่อมท่อ กปภ.ข.1 ไตรมาส '+quarter+'/'+(fiscalYear<100?fiscalYear:(fiscalYear%100))+' <span style="font-size:36px;margin-left:12px">'+kpiTotal.toFixed(0)+'%</span></div>';
+    html+='</div>';
+
+    document.getElementById('sumBottomSection').innerHTML=html;
+}
+
+function sumExportPNG(){
+    // Combine both charts into one canvas
+    var c1=document.getElementById('sumChart1');
+    var c2=document.getElementById('sumChart2');
+    var combined=document.createElement('canvas');
+    combined.width=Math.max(c1.width,c2.width);
+    combined.height=c1.height+c2.height+20;
+    var ctx=combined.getContext('2d');
+    ctx.fillStyle='#fff';ctx.fillRect(0,0,combined.width,combined.height);
+    ctx.drawImage(c1,0,0);
+    ctx.drawImage(c2,0,c1.height+20);
+    var link=document.createElement('a');
+    link.download='สรุปKPI_จุดซ่อมท่อ.png';
+    link.href=combined.toDataURL('image/png');
+    link.click();
+}
+
+function sumExportExcel(){
+    var wb=new ExcelJS.Workbook();
+    var ws=wb.addWorksheet('สรุป KPI');
+    var header=['สาขา'];
+    MONTHS.forEach(function(mk){
+        var p=mk.split('-');var yy=parseInt(p[0],10);var mm=parseInt(p[1],10);
+        header.push(MONTH_NAMES[mm<10?'0'+mm:''+mm]+' '+(2500+yy));
+    });
+    ws.addRow(header);
+    BRANCHES.forEach(function(b){
+        var row=[b];
+        MONTHS.forEach(function(mk){
+            var d=(DATA.data[mk]||{})[b]||{score:0};
+            row.push(d.score);
+        });
+        ws.addRow(row);
+    });
+    ws.getRow(1).font={bold:true};
+    ws.columns.forEach(function(c){c.width=18;});
+    wb.xlsx.writeBuffer().then(function(buf){
+        var blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+        var link=document.createElement('a');
+        link.download='สรุปKPI_จุดซ่อมท่อ.xlsx';
+        link.href=URL.createObjectURL(blob);
+        link.click();
+    });
+}
+
+function sumExportPPTX(){
+    if(typeof PptxGenJS==='undefined'){alert('PptxGenJS ยังโหลดไม่เสร็จ');return;}
+    var c1=document.getElementById('sumChart1');
+    var c2=document.getElementById('sumChart2');
+    var pptx=new PptxGenJS();
+    var s1=pptx.addSlide();
+    s1.addImage({data:c1.toDataURL('image/png'),x:0.3,y:0.3,w:9.4,h:4.5});
+    var s2=pptx.addSlide();
+    s2.addImage({data:c2.toDataURL('image/png'),x:0.3,y:0.3,w:9.4,h:4.5});
+    pptx.writeFile({fileName:'สรุปKPI_จุดซ่อมท่อ.pptx'});
+}
+
 // ==================== INIT ====================
 if(typeof Chart!=='undefined'&&typeof ChartDataLabels!=='undefined'){
     Chart.register(ChartDataLabels);
@@ -559,6 +950,637 @@ if(typeof Chart!=='undefined'&&typeof ChartDataLabels!=='undefined'){
 initInfo();
 initMonthSelect();
 gisRender();
+sumInit();
+// ==================== CHART CUSTOMIZATION (right-click + font popup) ====================
+function getChartObj(canvasId){
+    var map={'gisChart':gisChartObj,'sumChart1':sumChart1Obj,'sumChart2':sumChart2Obj};
+    return map[canvasId]||null;
+}
+function hexToRgba(hex,alpha){
+    if(!hex||typeof hex!=='string')return'rgba(136,136,136,'+alpha+')';
+    hex=hex.replace('#','');
+    if(hex.length===3)hex=hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
+    if(hex.length>=8)hex=hex.substring(0,6);
+    var r=parseInt(hex.substring(0,2),16)||0;
+    var g=parseInt(hex.substring(2,4),16)||0;
+    var b=parseInt(hex.substring(4,6),16)||0;
+    return'rgba('+r+','+g+','+b+','+alpha+')';
+}
+
+// --- Context menu state ---
+var _ctxState=null,_ctxChartState=null;
+var CTX_COLORS=['#e74c3c','#e67e22','#f1c40f','#2ecc71','#1abc9c','#3498db','#2980b9','#9b59b6','#8e44ad','#34495e','#e91e63','#00bcd4','#4caf50','#ff9800','#795548','#607d8b','#004d40','#00838f'];
+var CTX_DASHES=[[],[5,5],[10,5],[2,2],[10,5,2,5]];
+var CTX_DASH_LABELS=['ทึบ','ประ','ยาว','จุด','ผสม'];
+
+function closeCtxMenu(){
+    document.getElementById('ctxMenu').classList.remove('show');
+    document.getElementById('ctxChartMenu').classList.remove('show');
+    _ctxState=null;_ctxChartState=null;
+}
+document.addEventListener('click',function(e){
+    if(!e.target.closest('.ctx-menu'))closeCtxMenu();
+});
+
+function showCtxMenu(e,chart,dsIdx,dIdx){
+    closeCtxMenu();
+    var ds=chart.data.datasets[dsIdx];if(!ds)return;
+    _ctxState={chart:chart,canvasId:null,datasetIndex:dsIdx,dataIndex:dIdx};
+    // find canvasId
+    var canvases=document.querySelectorAll('canvas');
+    canvases.forEach(function(c){if(getChartObj(c.id)===chart)_ctxState.canvasId=c.id;});
+    var menu=document.getElementById('ctxMenu');
+    menu.querySelector('#ctxMenuTitle').textContent='แก้ไข: '+(ds.label||'Dataset');
+    // Colors
+    var grid=menu.querySelector('#ctxColors');
+    grid.innerHTML='';
+    CTX_COLORS.forEach(function(c){
+        var sw=document.createElement('div');
+        sw.className='ctx-color-swatch';
+        sw.style.background=c;
+        sw.setAttribute('data-color',c);
+        if((ds.borderColor||ds.backgroundColor)===c)sw.classList.add('sel');
+        sw.onclick=function(){ctxSetColor(c);};
+        grid.appendChild(sw);
+    });
+    // Custom color
+    var cc=document.getElementById('ctxCustomColor');
+    cc.onchange=function(){ctxSetColor(cc.value);};
+    // Chart type buttons
+    var curType=ds.type||chart.config.type||'bar';
+    if(curType==='line'&&ds.fill)curType='area';
+    if(curType==='line'&&ds.tension===0)curType='straight';
+    menu.querySelectorAll('[data-ct]').forEach(function(b){b.classList.toggle('sel',b.getAttribute('data-ct')===curType);});
+    // Show values
+    var sv=document.getElementById('ctxShowValues');
+    sv.checked=!!(chart.options.plugins&&chart.options.plugins.datalabels&&chart.options.plugins.datalabels.display);
+    // Dashes
+    var dashRow=menu.querySelector('#ctxDashes');
+    dashRow.innerHTML='';
+    CTX_DASHES.forEach(function(d,i){
+        var btn=document.createElement('button');
+        btn.className='ctx-dash-btn';
+        btn.textContent=CTX_DASH_LABELS[i];
+        var curDash=ds.borderDash||[];
+        if(JSON.stringify(curDash)===JSON.stringify(d))btn.classList.add('sel');
+        btn.onclick=function(){ds.borderDash=d;chart.update();dashRow.querySelectorAll('.ctx-dash-btn').forEach(function(b){b.classList.remove('sel');});btn.classList.add('sel');};
+        dashRow.appendChild(btn);
+    });
+    // Width
+    var wSlider=document.getElementById('ctxWidth');
+    wSlider.value=ds.borderWidth||2;
+    document.getElementById('ctxWidthVal').textContent=ds.borderWidth||2;
+    menu.style.left=e.clientX+'px';menu.style.top=e.clientY+'px';
+    menu.classList.add('show');
+    setTimeout(function(){var mr=menu.getBoundingClientRect();if(mr.right>window.innerWidth)menu.style.left=(window.innerWidth-mr.width-8)+'px';if(mr.bottom>window.innerHeight)menu.style.top=(window.innerHeight-mr.height-8)+'px';},0);
+}
+
+function ctxSetColor(color){
+    if(!_ctxState)return;
+    var ds=_ctxState.chart.data.datasets[_ctxState.datasetIndex];
+    if(!ds)return;
+    var t=ds.type||_ctxState.chart.config.type||'bar';
+    if(t==='bar'){ds.backgroundColor=color;ds.borderColor=color;}
+    else{ds.borderColor=color;ds.backgroundColor=hexToRgba(color,ds.fill?0.25:0.1);ds.pointBackgroundColor=color;}
+    _ctxState.chart.update();
+    document.querySelectorAll('#ctxColors .ctx-color-swatch').forEach(function(sw){sw.classList.toggle('sel',sw.getAttribute('data-color')===color);});
+}
+
+function ctxChartSetType(type){
+    if(!_ctxState)return;
+    var ds=_ctxState.chart.data.datasets[_ctxState.datasetIndex];if(!ds)return;
+    if(type==='area'){ds.type='line';ds.fill=true;ds.tension=0.3;var bc=ds.borderColor;if(Array.isArray(bc))bc=bc[0];ds.backgroundColor=hexToRgba(bc||'#3498db',0.25);}
+    else if(type==='straight'){ds.type='line';ds.fill=false;ds.tension=0;}
+    else{ds.type=type;ds.fill=false;ds.tension=0.3;if(type==='bar'){var bc2=ds.borderColor;if(Array.isArray(bc2))bc2=bc2[0];ds.backgroundColor=hexToRgba(bc2||'#3498db',0.7);}}
+    _ctxState.chart.update();
+    document.querySelectorAll('#ctxMenu [data-ct]').forEach(function(b){b.classList.toggle('sel',b.getAttribute('data-ct')===type);});
+}
+
+function ctxChartToggleValues(show){
+    if(!_ctxState)return;
+    var chart=_ctxState.chart;if(!chart)return;
+    if(!chart.options.plugins)chart.options.plugins={};
+    chart.options.plugins.datalabels={display:show,color:function(ctx2){if(ctx2.dataset&&ctx2.dataset.yAxisID==='y1')return '#e53935';return document.body.classList.contains('dark')?'#ddd':'#333';},font:{size:10,weight:'bold'},anchor:'end',align:'top',formatter:function(v,ctx2){if(v==null||v===0)return '';if(ctx2.dataset&&ctx2.dataset.yAxisID==='y1')return v.toLocaleString('th-TH',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';var d=Math.abs(v)<100?2:0;return v.toLocaleString('th-TH',{minimumFractionDigits:d,maximumFractionDigits:d});}};
+    chart.update();
+}
+
+function ctxApplyWidth(){
+    if(!_ctxState)return;
+    var v=parseInt(document.getElementById('ctxWidth').value);
+    document.getElementById('ctxWidthVal').textContent=v;
+    var ds=_ctxState.chart.data.datasets[_ctxState.datasetIndex];
+    if(ds){ds.borderWidth=v;_ctxState.chart.update();}
+}
+
+// --- Chart background context menu ---
+function showCtxChartMenu(e,chart,canvas){
+    closeCtxMenu();
+    _ctxChartState={chart:chart,canvasId:canvas.id};
+    var menu=document.getElementById('ctxChartMenu');
+    var curBg=(chart.options.plugins.chartAreaBg&&chart.options.plugins.chartAreaBg.color)||'';
+    menu.querySelectorAll('#ctxChartBgColors .ctx-color-swatch').forEach(function(sw){sw.classList.toggle('sel',sw.getAttribute('data-color')===curBg);});
+    menu.style.left=e.clientX+'px';menu.style.top=e.clientY+'px';
+    menu.classList.add('show');
+    setTimeout(function(){var mr=menu.getBoundingClientRect();if(mr.right>window.innerWidth)menu.style.left=(window.innerWidth-mr.width-8)+'px';if(mr.bottom>window.innerHeight)menu.style.top=(window.innerHeight-mr.height-8)+'px';},0);
+}
+function ctxChartSetBg(color){
+    if(!_ctxChartState)return;
+    var chart=getChartObj(_ctxChartState.canvasId);if(!chart)return;
+    if(!chart.options.plugins.chartAreaBg)chart.options.plugins.chartAreaBg={};
+    chart.options.plugins.chartAreaBg.color=color;chart.update();
+    document.querySelectorAll('#ctxChartBgColors .ctx-color-swatch').forEach(function(sw){sw.classList.toggle('sel',sw.getAttribute('data-color')===color);});
+}
+function ctxChartClearBg(){
+    if(!_ctxChartState)return;
+    var chart=getChartObj(_ctxChartState.canvasId);if(!chart)return;
+    if(!chart.options.plugins.chartAreaBg)chart.options.plugins.chartAreaBg={};
+    chart.options.plugins.chartAreaBg.color=null;chart.update();
+    document.querySelectorAll('#ctxChartBgColors .ctx-color-swatch').forEach(function(sw){sw.classList.remove('sel');});
+}
+
+// Chart area background plugin
+var chartAreaBgPlugin={
+    id:'chartAreaBg',
+    beforeDraw:function(chart){
+        var bg=chart.options.plugins&&chart.options.plugins.chartAreaBg&&chart.options.plugins.chartAreaBg.color;
+        if(!bg)return;
+        var ctx=chart.ctx;var ca=chart.chartArea;
+        ctx.save();ctx.fillStyle=bg;ctx.fillRect(ca.left,ca.top,ca.right-ca.left,ca.bottom-ca.top);ctx.restore();
+    }
+};
+Chart.register(chartAreaBgPlugin);
+
+// --- Context menu on all chart containers ---
+document.querySelectorAll('.chart-container').forEach(function(container){
+    container.addEventListener('contextmenu',function(e){
+        var canvas=e.target.closest('canvas');if(!canvas)return;
+        var chart=getChartObj(canvas.id);if(!chart)return;
+        var rect=canvas.getBoundingClientRect();
+        var mx=e.clientX-rect.left;var my=e.clientY-rect.top;
+        // Check legend hit
+        var legend=chart.legend;
+        if(legend&&legend.legendHitBoxes){
+            for(var i=0;i<legend.legendHitBoxes.length;i++){
+                var hb=legend.legendHitBoxes[i];
+                if(mx>=hb.left&&mx<=hb.left+hb.width&&my>=hb.top&&my<=hb.top+hb.height){
+                    e.preventDefault();showCtxMenu(e,chart,i,null);return;
+                }
+            }
+        }
+        // Check dataset element
+        var elements=chart.getElementsAtEventForMode(e,'nearest',{intersect:true},false);
+        if(!elements||!elements.length){e.preventDefault();showCtxChartMenu(e,chart,canvas);return;}
+        e.preventDefault();showCtxMenu(e,chart,elements[0].datasetIndex,elements[0].index);
+    });
+});
+
+// --- Font popup ---
+var _fpCanvasId=null;
+function openFontPopup(btn){
+    var bar=btn.closest('.export-bar');
+    var el=bar.previousElementSibling;
+    while(el&&!el.classList.contains('chart-container')&&!el.querySelector('canvas')){el=el.previousElementSibling;}
+    if(!el)return;
+    var canvas=el.querySelector?el.querySelector('canvas'):null;
+    if(!canvas&&el.tagName==='CANVAS')canvas=el;
+    if(!canvas)return;
+    _fpCanvasId=canvas.id;
+    var chart=getChartObj(_fpCanvasId);if(!chart)return;
+    var opt=chart.options||{};var sc=opt.scales||{};
+    var xSize=10;if(sc.x&&sc.x.ticks&&sc.x.ticks.font&&sc.x.ticks.font.size)xSize=sc.x.ticks.font.size;
+    var ySize=12;if(sc.y&&sc.y.ticks&&sc.y.ticks.font&&sc.y.ticks.font.size)ySize=sc.y.ticks.font.size;
+    else if(sc.y1&&sc.y1.ticks&&sc.y1.ticks.font&&sc.y1.ticks.font.size)ySize=sc.y1.ticks.font.size;
+    var dlSize=10;var dlp=opt.plugins&&opt.plugins.datalabels;
+    if(dlp&&dlp.font&&dlp.font.size)dlSize=dlp.font.size;
+    var lgSize=11;if(opt.plugins&&opt.plugins.legend&&opt.plugins.legend.labels&&opt.plugins.legend.labels.font&&opt.plugins.legend.labels.font.size)lgSize=opt.plugins.legend.labels.font.size;
+    var xRot=0;if(sc.x&&sc.x.ticks&&sc.x.ticks.maxRotation!=null)xRot=sc.x.ticks.maxRotation;
+    document.getElementById('fpAxisX').value=xSize;document.getElementById('fpAxisXVal').textContent=xSize;
+    document.getElementById('fpAxisY').value=ySize;document.getElementById('fpAxisYVal').textContent=ySize;
+    document.getElementById('fpDataLabel').value=dlSize;document.getElementById('fpDataLabelVal').textContent=dlSize;
+    document.getElementById('fpLegend').value=lgSize;document.getElementById('fpLegendVal').textContent=lgSize;
+    _fpSetRotToggle('fpRotX',xRot);_fpSetRotToggle('fpRotY',0);_fpSetRotToggle('fpRotDL',0);
+    document.getElementById('fontPopupOverlay').classList.add('show');
+}
+function closeFontPopup(){document.getElementById('fontPopupOverlay').classList.remove('show');_fpCanvasId=null;}
+function _fpSetRotToggle(groupId,deg){
+    var btns=document.getElementById(groupId).querySelectorAll('.fp-rot-btn');
+    btns.forEach(function(b){b.classList.remove('active');});
+    var idx=deg===90||deg===-90?1:deg===45||deg===-45?2:0;
+    if(btns[idx])btns[idx].classList.add('active');
+}
+function _getFpCharts(){
+    // For Card 2 charts, apply to both sumChart1 and sumChart2 together
+    var charts=[];
+    var primary=getChartObj(_fpCanvasId);if(primary)charts.push(primary);
+    if(_fpCanvasId==='sumChart1'){var c2=getChartObj('sumChart2');if(c2)charts.push(c2);}
+    if(_fpCanvasId==='sumChart2'){var c1=getChartObj('sumChart1');if(c1)charts.push(c1);}
+    return charts;
+}
+function setRot(axis,deg,btn){
+    btn.parentElement.querySelectorAll('.fp-rot-btn').forEach(function(b){b.classList.remove('active');});
+    btn.classList.add('active');
+    if(!_fpCanvasId)return;var charts=_getFpCharts();if(!charts.length)return;
+    charts.forEach(function(chart){
+        var sc=chart.options.scales||{};
+        if(axis==='x'){if(sc.x){if(!sc.x.ticks)sc.x.ticks={};sc.x.ticks.maxRotation=deg;sc.x.ticks.minRotation=deg;}}
+        else if(axis==='y'){['y','y1'].forEach(function(k){if(sc[k]){if(!sc[k].ticks)sc[k].ticks={};sc[k].ticks.maxRotation=deg;sc[k].ticks.minRotation=deg;}});}
+        else if(axis==='dl'){if(!chart.options.plugins)chart.options.plugins={};if(!chart.options.plugins.datalabels)chart.options.plugins.datalabels={};chart.options.plugins.datalabels.rotation=-deg;}
+        chart.update();
+    });
+}
+function applyFontSize(){
+    if(!_fpCanvasId)return;var charts=_getFpCharts();if(!charts.length)return;
+    var xS=parseInt(document.getElementById('fpAxisX').value);
+    var yS=parseInt(document.getElementById('fpAxisY').value);
+    var dlS=parseInt(document.getElementById('fpDataLabel').value);
+    var lgS=parseInt(document.getElementById('fpLegend').value);
+    document.getElementById('fpAxisXVal').textContent=xS;
+    document.getElementById('fpAxisYVal').textContent=yS;
+    document.getElementById('fpDataLabelVal').textContent=dlS;
+    document.getElementById('fpLegendVal').textContent=lgS;
+    charts.forEach(function(chart){
+        var sc=chart.options.scales||{};
+        if(sc.x){if(!sc.x.ticks)sc.x.ticks={};if(!sc.x.ticks.font)sc.x.ticks.font={};sc.x.ticks.font.size=xS;}
+        ['y','y1'].forEach(function(k){if(sc[k]){if(!sc[k].ticks)sc[k].ticks={};if(!sc[k].ticks.font)sc[k].ticks.font={};sc[k].ticks.font.size=yS;}});
+        if(!chart.options.plugins)chart.options.plugins={};
+        if(!chart.options.plugins.datalabels)chart.options.plugins.datalabels={};
+        if(!chart.options.plugins.datalabels.font)chart.options.plugins.datalabels.font={};
+        chart.options.plugins.datalabels.font.size=dlS;
+        if(!chart.options.plugins.legend)chart.options.plugins.legend={};
+        if(!chart.options.plugins.legend.labels)chart.options.plugins.legend.labels={};
+        if(!chart.options.plugins.legend.labels.font)chart.options.plugins.legend.labels.font={};
+        chart.options.plugins.legend.labels.font.size=lgS;
+        chart.update();
+    });
+}
+
+// ==================== AXIS SCROLL / PAN / DOUBLE-CLICK ====================
+// Axis settings store
+var axisSettings={};
+function getAxisSetting(canvasId,scaleKey){
+    return (axisSettings[canvasId]&&axisSettings[canvasId][scaleKey])||null;
+}
+function setAxisSetting(canvasId,scaleKey,cfg){
+    if(!axisSettings[canvasId])axisSettings[canvasId]={};
+    axisSettings[canvasId][scaleKey]=cfg;
+}
+function clearAxisSettings(canvasId){delete axisSettings[canvasId];}
+
+// Axis enforcer plugin: apply stored min/max/stepSize on every update
+Chart.register({id:'axisEnforcer',beforeUpdate:function(chart){
+    var canvas=chart.canvas;if(!canvas||!canvas.id)return;
+    var store=axisSettings[canvas.id];if(!store)return;
+    var scales=chart.options.scales;if(!scales)return;
+    Object.keys(store).forEach(function(k){
+        var s=scales[k];if(!s)return;
+        var cfg=store[k];if(!cfg)return;
+        if(cfg.min!=null)s.min=cfg.min;
+        if(cfg.max!=null)s.max=cfg.max;
+        if(cfg.stepSize!=null){
+            if(!s.ticks)s.ticks={};
+            s.ticks.stepSize=cfg.stepSize;
+        }
+    });
+}});
+
+function getAxisMin(canvasId,scaleKey){
+    var cfg=getAxisSetting(canvasId,scaleKey);
+    return (cfg&&cfg.min!=null)?cfg.min:0;
+}
+
+// Axis settings dialog (double-click on axis)
+function showAxisDialog(canvasId,scaleKey,axisLabel,isNumeric){
+    var chart=getChartObj(canvasId);if(!chart)return;
+    var cur=getAxisSetting(canvasId,scaleKey)||{};
+    var scaleObj=chart.scales[scaleKey];
+    var curMin=(cur.min!=null)?cur.min:(scaleObj?scaleObj.min:0);
+    var curMax=(cur.max!=null)?cur.max:'';
+    var curStep=(cur.stepSize!=null)?cur.stepSize:'';
+    var overlay=document.createElement('div');
+    overlay.className='axis-dlg-overlay';
+    var dlg=document.createElement('div');
+    dlg.className='axis-dlg';
+    var disabled=isNumeric?'':'disabled';
+    var hint=isNumeric?'เว้นว่างเพื่อใช้ค่า Auto':'แกนนี้ไม่ใช่ตัวเลข ตั้งค่าไม่ได้';
+    dlg.innerHTML='<h4>ตั้งค่าแกน: '+axisLabel+'</h4>'+
+        '<div class="hint">'+hint+'</div>'+
+        '<div class="row"><label>Min:</label><input type="number" id="axDlgMin" step="any" value="'+(curMin!=null?curMin:'')+'" '+disabled+'></div>'+
+        '<div class="row"><label>Max:</label><input type="number" id="axDlgMax" step="any" value="'+curMax+'" '+disabled+'></div>'+
+        '<div class="row"><label>Interval:</label><input type="number" id="axDlgStep" step="any" value="'+curStep+'" '+disabled+'></div>'+
+        '<div class="btns">'+
+        '<button class="btn-reset" id="axDlgReset">Reset</button>'+
+        '<button class="btn-cancel" id="axDlgCancel">Cancel</button>'+
+        '<button class="btn-ok" id="axDlgOk">OK</button></div>';
+    overlay.appendChild(dlg);
+    document.body.appendChild(overlay);
+    function close(){document.body.removeChild(overlay);}
+    document.getElementById('axDlgCancel').onclick=close;
+    overlay.addEventListener('click',function(ev){if(ev.target===overlay)close();});
+    document.getElementById('axDlgReset').onclick=function(){
+        if(axisSettings[canvasId])delete axisSettings[canvasId][scaleKey];
+        var s=chart.options.scales[scaleKey];
+        if(s){delete s.min;delete s.max;if(s.ticks)delete s.ticks.stepSize;}
+        chart.update();
+        close();
+    };
+    document.getElementById('axDlgOk').onclick=function(){
+        if(!isNumeric){close();return;}
+        var vMin=document.getElementById('axDlgMin').value.trim();
+        var vMax=document.getElementById('axDlgMax').value.trim();
+        var vStep=document.getElementById('axDlgStep').value.trim();
+        var cfg={};
+        if(vMin!==''){var p=parseFloat(vMin);if(!isNaN(p))cfg.min=p;}
+        if(vMax!==''){var p=parseFloat(vMax);if(!isNaN(p))cfg.max=p;}
+        if(vStep!==''){var p=parseFloat(vStep);if(p>0)cfg.stepSize=p;}
+        if(Object.keys(cfg).length>0){
+            setAxisSetting(canvasId,scaleKey,cfg);
+        }else{
+            if(axisSettings[canvasId])delete axisSettings[canvasId][scaleKey];
+        }
+        var s=chart.options.scales[scaleKey];
+        if(s){
+            if(cfg.min!=null){s.min=cfg.min;}else{delete s.min;}
+            if(cfg.max!=null){s.max=cfg.max;}else{delete s.max;}
+            if(cfg.stepSize!=null){if(!s.ticks)s.ticks={};s.ticks.stepSize=cfg.stepSize;}
+            else if(s.ticks){delete s.ticks.stepSize;}
+        }
+        chart.update();
+        close();
+    };
+    setTimeout(function(){var el=document.getElementById('axDlgMin');if(el&&!el.disabled)el.focus();},50);
+}
+
+// Scroll zoom + Pan + Double-click axis
+(function(){
+    var ZOOM_FACTOR=0.1;
+
+    function getAllYScales(chart){
+        var scales=[];
+        if(!chart||!chart.options||!chart.options.scales)return scales;
+        Object.keys(chart.options.scales).forEach(function(k){
+            var s=chart.options.scales[k];
+            if(k==='y'||k.startsWith('y')||s.position==='left'||s.position==='right'){
+                scales.push({key:k,scale:s});
+            }
+        });
+        return scales;
+    }
+
+    function isXScale(k,s){
+        return k==='x'||k.startsWith('x')||(s.position==='top'||s.position==='bottom');
+    }
+
+    function getAllXScales(chart){
+        var scales=[];
+        if(!chart||!chart.options||!chart.options.scales)return scales;
+        Object.keys(chart.options.scales).forEach(function(k){
+            var s=chart.options.scales[k];
+            if(isXScale(k,s))scales.push({key:k,scale:s});
+        });
+        return scales;
+    }
+
+    function getHoveredYScales(chart,mouseX){
+        var area=chart.chartArea;if(!area)return[];
+        var all=getAllYScales(chart);var hit=[];
+        all.forEach(function(item){
+            var scaleObj=chart.scales[item.key];if(!scaleObj)return;
+            var sLeft=scaleObj.left,sRight=scaleObj.right;
+            if(sLeft!=null&&sRight!=null&&mouseX>=sLeft&&mouseX<=sRight){
+                hit.push(item);
+            }
+        });
+        if(!hit.length){
+            all.forEach(function(item){
+                var scaleObj=chart.scales[item.key];if(!scaleObj)return;
+                var pos=scaleObj.position||'left';
+                if(pos==='left'&&mouseX<=area.left)hit.push(item);
+                else if(pos==='right'&&mouseX>=area.right)hit.push(item);
+            });
+        }
+        return hit;
+    }
+
+    function getHoveredXScales(chart,mouseY){
+        var area=chart.chartArea;if(!area)return[];
+        var all=getAllXScales(chart);var hit=[];
+        all.forEach(function(item){
+            var scaleObj=chart.scales[item.key];if(!scaleObj)return;
+            if(mouseY>=area.bottom)hit.push(item);
+        });
+        return hit;
+    }
+
+    function getMouseXY(e,canvas){
+        var rect=canvas.getBoundingClientRect();
+        return{x:e.clientX-rect.left,y:e.clientY-rect.top};
+    }
+
+    // Wheel zoom on Y-axis
+    function handleWheel(e){
+        var canvas=e.target.closest('canvas');if(!canvas)return;
+        var chart=getChartObj(canvas.id);if(!chart||!chart.chartArea)return;
+        var m=getMouseXY(e,canvas);
+        var targets=getHoveredYScales(chart,m.x);
+        if(!targets.length)return;
+        e.preventDefault();
+        var dir=e.deltaY>0?1:-1;
+        targets.forEach(function(item){
+            var scaleObj=chart.scales[item.key];if(!scaleObj)return;
+            var curMin=scaleObj.min,curMax=scaleObj.max;
+            var range=curMax-curMin;
+            var newRange=dir>0?range*(1+ZOOM_FACTOR):range*(1-ZOOM_FACTOR);
+            if(newRange<=0)return;
+            if(!item.scale._origMin&&item.scale._origMin!==0){
+                item.scale._origMin=curMin;item.scale._origMax=curMax;
+            }
+            var org=getAxisMin(canvas.id,item.key);
+            item.scale.min=org;item.scale.max=org+newRange;
+        });
+        chart.update('none');
+    }
+
+    // Double-click on axis → settings dialog
+    function handleDblClick(e){
+        var canvas=e.target.closest('canvas');if(!canvas)return;
+        var chart=getChartObj(canvas.id);if(!chart||!chart.chartArea)return;
+        var m=getMouseXY(e,canvas);
+        var yHit=getHoveredYScales(chart,m.x);
+        if(yHit.length){
+            var sk=yHit[0].key;
+            var scaleObj=chart.scales[sk];
+            var label='Y';
+            if(scaleObj&&scaleObj.position==='right')label='Y-Right';
+            else if(yHit.length>1||scaleObj&&scaleObj.position==='left')label='Y-Left';
+            showAxisDialog(canvas.id,sk,label,true);
+            return;
+        }
+        var xHit=getHoveredXScales(chart,m.y);
+        if(xHit.length){
+            var sk=xHit[0].key;
+            var scaleObj=chart.scales[sk];
+            var isNum=scaleObj&&(scaleObj.type==='linear'||scaleObj.type==='logarithmic'||scaleObj.type==='time');
+            showAxisDialog(canvas.id,sk,'X',isNum);
+            return;
+        }
+    }
+
+    // Pan (click-drag) on Y-axis
+    var panState=null;
+    function handleMouseDown(e){
+        if(e.button!==0)return;
+        var canvas=e.target.closest('canvas');if(!canvas)return;
+        var chart=getChartObj(canvas.id);if(!chart||!chart.chartArea)return;
+        var m=getMouseXY(e,canvas);
+        var targets=getHoveredYScales(chart,m.x);
+        if(!targets.length)return;
+        var scalesInfo=[];
+        targets.forEach(function(item){
+            var scaleObj=chart.scales[item.key];if(!scaleObj)return;
+            if(!item.scale._origMin&&item.scale._origMin!==0){
+                item.scale._origMin=scaleObj.min;item.scale._origMax=scaleObj.max;
+            }
+            if(item.scale.min==null)item.scale.min=scaleObj.min;
+            if(item.scale.max==null)item.scale.max=scaleObj.max;
+            scalesInfo.push({key:item.key,startMin:item.scale.min,startMax:item.scale.max,pxRange:scaleObj.bottom-scaleObj.top});
+        });
+        panState={chart:chart,startY:e.clientY,scales:scalesInfo,canvas:canvas};
+        canvas.style.cursor='grabbing';e.preventDefault();
+    }
+    function handleMouseMove(e){
+        if(!panState)return;
+        var dy=e.clientY-panState.startY;
+        var chart=panState.chart;var allY=getAllYScales(chart);
+        panState.scales.forEach(function(info){
+            var match=allY.find(function(s){return s.key===info.key;});if(!match)return;
+            var valRange=info.startMax-info.startMin;
+            var pxRange=info.pxRange||1;var valPerPx=valRange/pxRange;var shift=dy*valPerPx;
+            var org=getAxisMin(panState.canvas.id,info.key);
+            match.scale.min=org;
+            var newMax=info.startMax+shift;
+            if(newMax<=org)newMax=org+0.1;
+            match.scale.max=newMax;
+        });
+        chart.update('none');
+    }
+    function handleMouseUp(e){
+        if(!panState)return;
+        if(panState.canvas)panState.canvas.style.cursor='';
+        panState=null;
+    }
+
+    document.querySelectorAll('.chart-container').forEach(function(container){
+        container.addEventListener('wheel',handleWheel,{passive:false});
+        container.addEventListener('dblclick',handleDblClick);
+        container.addEventListener('mousedown',handleMouseDown);
+    });
+    document.addEventListener('mousemove',handleMouseMove);
+    document.addEventListener('mouseup',handleMouseUp);
+})();
+</script>
+
+<!-- Right-click menu: dataset -->
+<div class="ctx-menu" id="ctxMenu">
+    <h5 id="ctxMenuTitle">แก้ไขเส้น</h5>
+    <div class="ctx-menu-section" id="ctxChartTypeSection">
+        <div class="ctx-menu-label">ชนิดกราฟ</div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+            <button class="ctx-dash-btn" data-ct="line" onclick="ctxChartSetType('line')">เส้นโค้ง</button>
+            <button class="ctx-dash-btn" data-ct="straight" onclick="ctxChartSetType('straight')">เส้นตรง</button>
+            <button class="ctx-dash-btn" data-ct="bar" onclick="ctxChartSetType('bar')">แท่ง</button>
+            <button class="ctx-dash-btn" data-ct="area" onclick="ctxChartSetType('area')">พื้นที่</button>
+        </div>
+    </div>
+    <div class="ctx-menu-section" id="ctxShowValSection">
+        <div class="ctx-menu-label">แสดงค่า</div>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px">
+            <input type="checkbox" id="ctxShowValues" onchange="ctxChartToggleValues(this.checked)">
+            แสดงค่าบนกราฟ
+        </label>
+    </div>
+    <div class="ctx-menu-section">
+        <div class="ctx-menu-label">สี</div>
+        <div class="ctx-color-grid" id="ctxColors"></div>
+        <div style="margin-top:8px;display:flex;align-items:center;gap:6px">
+            <span style="font-size:11px;color:var(--sub)">กำหนดเอง:</span>
+            <input type="color" id="ctxCustomColor" value="#e74c3c" style="width:28px;height:28px;border:none;cursor:pointer;background:none">
+        </div>
+    </div>
+    <div class="ctx-menu-section" id="ctxDashSection">
+        <div class="ctx-menu-label">ชนิดเส้น</div>
+        <div class="ctx-dash-row" id="ctxDashes"></div>
+    </div>
+    <div class="ctx-menu-section">
+        <div class="ctx-menu-label">ความหนาเส้น</div>
+        <div class="ctx-width-row">
+            <input type="range" id="ctxWidth" min="1" max="8" value="2" oninput="ctxApplyWidth()">
+            <span class="ctx-width-val" id="ctxWidthVal">2</span>
+        </div>
+    </div>
+</div>
+
+<!-- Right-click menu: chart background -->
+<div class="ctx-menu" id="ctxChartMenu" style="min-width:200px">
+    <h5 style="margin:0 0 8px;font-size:13px;color:var(--heading)">สีพื้นหลังกราฟ</h5>
+    <div class="ctx-menu-section">
+        <div style="display:flex;gap:4px;flex-wrap:wrap" id="ctxChartBgColors"></div>
+        <div style="margin-top:6px;display:flex;align-items:center;gap:6px">
+            <span style="font-size:11px;color:var(--sub)">กำหนดเอง:</span>
+            <input type="color" id="ctxChartBgCustom" value="#ffffff" style="width:28px;height:28px;border:none;cursor:pointer;background:none">
+            <button class="ctx-dash-btn" onclick="ctxChartClearBg()" style="font-size:11px">ล้าง (โปร่งใส)</button>
+        </div>
+    </div>
+</div>
+
+<!-- Font Popup -->
+<div class="font-popup-overlay" id="fontPopupOverlay" onclick="if(event.target===this)closeFontPopup()">
+    <div class="font-popup">
+        <button class="fp-close" onclick="closeFontPopup()">&times;</button>
+        <h4><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M9.93 2L4 22h3.2l1.67-5.5h6.26L16.8 22H20L14.07 2H9.93zm-.34 11.5L12 5.88l2.41 7.62H9.59z"/></svg> ปรับแต่งตัวอักษร</h4>
+        <div class="fp-section">
+            <div class="fp-section-title">ขนาดตัวอักษร</div>
+            <div class="fp-row"><span class="fp-label">แกน X</span><input type="range" id="fpAxisX" min="6" max="24" value="10" oninput="applyFontSize()"><span class="fp-val" id="fpAxisXVal">10</span></div>
+            <div class="fp-row"><span class="fp-label">แกน Y</span><input type="range" id="fpAxisY" min="6" max="24" value="12" oninput="applyFontSize()"><span class="fp-val" id="fpAxisYVal">12</span></div>
+            <div class="fp-row"><span class="fp-label">แสดงค่า</span><input type="range" id="fpDataLabel" min="6" max="24" value="10" oninput="applyFontSize()"><span class="fp-val" id="fpDataLabelVal">10</span></div>
+            <div class="fp-row"><span class="fp-label">Legend</span><input type="range" id="fpLegend" min="6" max="24" value="11" oninput="applyFontSize()"><span class="fp-val" id="fpLegendVal">11</span></div>
+        </div>
+        <div class="fp-section">
+            <div class="fp-section-title">การเรียงตัวอักษร</div>
+            <div class="fp-rot-group"><span class="fp-rot-label">แกน X</span><div class="fp-rot-btns" id="fpRotX">
+                <button class="fp-rot-btn active" onclick="setRot('x',0,this)" title="แนวนอน">A</button>
+                <button class="fp-rot-btn" onclick="setRot('x',90,this)" title="แนวตั้ง">A&#8593;</button>
+                <button class="fp-rot-btn" onclick="setRot('x',45,this)" title="แนวเอียง">A&#8599;</button>
+            </div></div>
+            <div class="fp-rot-group"><span class="fp-rot-label">แกน Y</span><div class="fp-rot-btns" id="fpRotY">
+                <button class="fp-rot-btn active" onclick="setRot('y',0,this)" title="แนวนอน">A</button>
+                <button class="fp-rot-btn" onclick="setRot('y',90,this)" title="แนวตั้ง">A&#8593;</button>
+                <button class="fp-rot-btn" onclick="setRot('y',45,this)" title="แนวเอียง">A&#8599;</button>
+            </div></div>
+            <div class="fp-rot-group"><span class="fp-rot-label">แสดงค่า</span><div class="fp-rot-btns" id="fpRotDL">
+                <button class="fp-rot-btn active" onclick="setRot('dl',0,this)" title="แนวนอน">A</button>
+                <button class="fp-rot-btn" onclick="setRot('dl',90,this)" title="แนวตั้ง">A&#8593;</button>
+                <button class="fp-rot-btn" onclick="setRot('dl',45,this)" title="แนวเอียง">A&#8599;</button>
+            </div></div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Init background color swatches
+(function(){
+    var bgColors=['#ffffff','#f8f9fa','#fff8e1','#e8f5e9','#e3f2fd','#fce4ec','#f3e5f5','#e0f2f1','#eceff1','#263238'];
+    var container=document.getElementById('ctxChartBgColors');
+    bgColors.forEach(function(c){
+        var sw=document.createElement('div');
+        sw.className='ctx-color-swatch';
+        sw.style.background=c;
+        sw.style.border='2px solid #ccc';
+        sw.setAttribute('data-color',c);
+        sw.onclick=function(){ctxChartSetBg(c);};
+        container.appendChild(sw);
+    });
+    document.getElementById('ctxChartBgCustom').onchange=function(){ctxChartSetBg(this.value);};
+})();
 </script>
 
 </body>
