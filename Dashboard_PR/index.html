@@ -6,6 +6,7 @@
 <title>Dashboard งานลูกค้าสัมพันธ์ - กปภ.เขต 1</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
 <script>
 // Load PptxGenJS with fallback CDN URLs
@@ -396,6 +397,99 @@
           <span style="font-size:12px;color:var(--sub2,#718096)">(ตัวเลข = จำนวนเดือนที่มีข้อมูล)</span>
         </div>
         <div id="prStatsRow"></div>
+      </div>
+      <!-- Upload Data Section -->
+      <div style="background:var(--card-bg,#fff);border-radius:12px;padding:20px 24px;margin-bottom:24px;box-shadow:0 2px 8px rgba(0,0,0,.08)">
+        <h3 style="margin-bottom:12px;color:var(--heading,#1a365d)">อัปโหลดข้อมูล</h3>
+        <p style="font-size:13px;color:var(--sub2,#718096);margin-bottom:4px">อัปโหลดไฟล์รูปแบบเดียวกับในโฟลเดอร์ข้อมูลดิบ (.xlsx/.xls/.csv) — ระบบอ่านเดือนอัตโนมัติ เลือกหลายไฟล์พร้อมกันได้</p>
+        <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start">
+          <!-- PR Upload -->
+          <div style="flex:1;min-width:300px;border:2px dashed var(--border,#d1d5db);border-radius:10px;padding:16px;transition:all .2s">
+            <div style="font-weight:700;color:var(--primary,#e65100);font-size:14px;margin-bottom:8px">&#128203; ข้อมูลข้อร้องเรียน (PR)</div>
+            <p style="font-size:12px;color:var(--sub2,#718096);margin-bottom:8px">ระบบจะอ่านเดือนจากชื่อไฟล์ หรือจากข้อมูลในไฟล์อัตโนมัติ<br>หรือระบุเดือนเองก็ได้</p>
+            <details style="margin-bottom:10px;font-size:12px;color:var(--text,#333)">
+              <summary style="cursor:pointer;font-weight:600;color:var(--primary,#e65100);padding:3px 0;font-size:12.5px">&#9432; คำแนะนำการตั้งชื่อไฟล์ PR</summary>
+              <div style="margin-top:6px;padding:10px 14px;background:var(--card-bg,#f0f4f8);border-radius:8px;border-left:4px solid var(--primary,#e65100)">
+                <p style="margin:0 0 4px;color:var(--sub2,#718096)">ระบบจะอ่านเดือนจาก <b>ชื่อไฟล์</b> รูปแบบ <code style="background:#fff3e0;padding:1px 6px;border-radius:4px;font-weight:600">YY-MM</code> (ปี พ.ศ. 2 หลัก - เดือน 2 หลัก)</p>
+                <div style="margin:6px 0 2px;font-weight:600">ตัวอย่างชื่อไฟล์ที่ระบบอ่านได้:</div>
+                <table style="width:100%;font-size:12px;border-collapse:collapse;margin-bottom:4px">
+                  <tr><td style="padding:3px 8px;border-bottom:1px solid var(--border,#d1d5db)"><code>ร้องเรียน_69-04.xlsx</code></td><td style="padding:3px 8px;border-bottom:1px solid var(--border,#d1d5db);color:var(--sub2,#718096)">&#10140; เม.ย. 2569</td></tr>
+                  <tr><td style="padding:3px 8px;border-bottom:1px solid var(--border,#d1d5db)"><code>ร้องเรียน_68-10.xlsx</code></td><td style="padding:3px 8px;border-bottom:1px solid var(--border,#d1d5db);color:var(--sub2,#718096)">&#10140; ต.ค. 2568</td></tr>
+                  <tr><td style="padding:3px 8px;border-bottom:1px solid var(--border,#d1d5db)"><code>PR_69-05.xlsx</code></td><td style="padding:3px 8px;border-bottom:1px solid var(--border,#d1d5db);color:var(--sub2,#718096)">&#10140; พ.ค. 2569</td></tr>
+                  <tr><td style="padding:3px 8px"><code>complaint_69-06.csv</code></td><td style="padding:3px 8px;color:var(--sub2,#718096)">&#10140; มิ.ย. 2569</td></tr>
+                </table>
+                <p style="margin:4px 0 0;color:var(--sub2,#718096);font-size:11.5px">&#128161; ถ้าชื่อไฟล์ไม่มี YY-MM ระบบจะพยายามอ่านจากข้อมูลในไฟล์ (แถวที่ 3 "ระหว่างเดือน...") หรือเลือกโหมด "ระบุเดือนเอง"</p>
+              </div>
+            </details>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+              <label style="font-size:12px;font-weight:600;color:var(--heading,#1a365d)">โหมด:</label>
+              <select id="uploadPRMode" onchange="togglePRManualMonth()" style="padding:4px 8px;border:1px solid var(--border,#d1d5db);border-radius:6px;font-size:13px;background:var(--card-bg,#fff);color:var(--text,#333)">
+                <option value="auto">อัตโนมัติ (อ่านจากชื่อไฟล์/ข้อมูลในไฟล์)</option>
+                <option value="manual">ระบุเดือนเอง</option>
+              </select>
+              <span id="prManualMonthWrap" style="display:none;gap:8px;align-items:center">
+                <label style="font-size:12px;font-weight:600;color:var(--heading,#1a365d)">ปี พ.ศ.:</label>
+                <select id="uploadPRYear" style="padding:4px 8px;border:1px solid var(--border,#d1d5db);border-radius:6px;font-size:13px;background:var(--card-bg,#fff);color:var(--text,#333)"></select>
+                <label style="font-size:12px;font-weight:600;color:var(--heading,#1a365d)">เดือน:</label>
+                <select id="uploadPRMonth" style="padding:4px 8px;border:1px solid var(--border,#d1d5db);border-radius:6px;font-size:13px;background:var(--card-bg,#fff);color:var(--text,#333)">
+                  <option value="01">ม.ค.</option><option value="02">ก.พ.</option><option value="03">มี.ค.</option>
+                  <option value="04">เม.ย.</option><option value="05">พ.ค.</option><option value="06">มิ.ย.</option>
+                  <option value="07">ก.ค.</option><option value="08">ส.ค.</option><option value="09">ก.ย.</option>
+                  <option value="10">ต.ค.</option><option value="11">พ.ย.</option><option value="12">ธ.ค.</option>
+                </select>
+              </span>
+            </div>
+            <div style="border:2px dashed var(--border,#d1d5db);border-radius:8px;padding:12px;text-align:center;cursor:pointer;transition:all .2s" id="uploadDropPR" onclick="document.getElementById('uploadFilePR').click()" ondragover="event.preventDefault();this.style.borderColor='var(--primary,#e65100)';this.style.background='rgba(230,81,0,.05)'" ondragleave="this.style.borderColor='var(--border,#d1d5db)';this.style.background=''" ondrop="event.preventDefault();this.style.borderColor='var(--border,#d1d5db)';this.style.background='';handleUploadPR(event.dataTransfer.files)">
+              <input type="file" id="uploadFilePR" accept=".xlsx,.xls,.csv" multiple style="display:none" onchange="handleUploadPR(this.files)">
+              <div style="font-size:12px;color:var(--sub2,#718096)">ลากไฟล์มาวาง หรือคลิกเพื่อเลือกไฟล์ (เลือกหลายไฟล์ได้)</div>
+              <div style="font-size:11px;color:var(--sub2,#718096);margin-top:2px">รูปแบบเดียวกับ ร้องเรียน_YY-MM.xlsx</div>
+            </div>
+            <div id="uploadStatusPR" style="margin-top:8px;font-size:12px;display:none"></div>
+          </div>
+          <!-- AON Upload -->
+          <div style="flex:1;min-width:300px;border:2px dashed var(--border,#d1d5db);border-radius:10px;padding:16px;transition:all .2s">
+            <div style="font-weight:700;color:var(--accent,#ff6d00);font-size:14px;margin-bottom:8px">&#128200; ข้อมูล Always-On (AON)</div>
+            <p style="font-size:12px;color:var(--sub2,#718096);margin-bottom:8px">ระบบจะอ่านทุก Sheet ที่มีคอลัมน์ "always on" อัตโนมัติ<br>หรือระบุเดือนเอง (กรณีไฟล์ไม่มี Sheet แยกเดือน)</p>
+            <details style="margin-bottom:10px;font-size:12px;color:var(--text,#333)">
+              <summary style="cursor:pointer;font-weight:600;color:var(--accent,#ff6d00);padding:3px 0;font-size:12.5px">&#9432; คำแนะนำการตั้งชื่อไฟล์ AON</summary>
+              <div style="margin-top:6px;padding:10px 14px;background:var(--card-bg,#f0f4f8);border-radius:8px;border-left:4px solid var(--accent,#ff6d00)">
+                <p style="margin:0 0 4px;color:var(--sub2,#718096)">ระบบจะอ่านเดือนจาก <b>ชื่อ Sheet</b> และ <b>คอลัมน์ "always on"</b> ในไฟล์อัตโนมัติ — ชื่อไฟล์ไม่จำเป็นต้องเป็นรูปแบบเฉพาะ</p>
+                <div style="margin:6px 0 2px;font-weight:600">ตัวอย่างชื่อไฟล์ที่ใช้ได้:</div>
+                <table style="width:100%;font-size:12px;border-collapse:collapse;margin-bottom:4px">
+                  <tr><td style="padding:3px 8px;border-bottom:1px solid var(--border,#d1d5db)"><code>ข้อมูล PWA Always-on สะสม เดือนกุมภาพันธ์ 2569.xls</code></td><td style="padding:3px 8px;border-bottom:1px solid var(--border,#d1d5db);color:var(--sub2,#718096)">&#10004;</td></tr>
+                  <tr><td style="padding:3px 8px;border-bottom:1px solid var(--border,#d1d5db)"><code>AON_Feb69.xlsx</code></td><td style="padding:3px 8px;border-bottom:1px solid var(--border,#d1d5db);color:var(--sub2,#718096)">&#10004;</td></tr>
+                  <tr><td style="padding:3px 8px"><code>always_on_data.xls</code></td><td style="padding:3px 8px;color:var(--sub2,#718096)">&#10004;</td></tr>
+                </table>
+                <p style="margin:4px 0 0;color:var(--sub2,#718096);font-size:11.5px">&#128161; สิ่งสำคัญคือ <b>ภายในไฟล์</b> ต้องมี Sheet ที่มีคอลัมน์ "always on ..." (เช่น "always on ก.พ.69") — ระบบจะอ่านเดือนจากตรงนั้น</p>
+              </div>
+            </details>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+              <label style="font-size:12px;font-weight:600;color:var(--heading,#1a365d)">โหมด:</label>
+              <select id="uploadAONMode" onchange="toggleAONManualMonth()" style="padding:4px 8px;border:1px solid var(--border,#d1d5db);border-radius:6px;font-size:13px;background:var(--card-bg,#fff);color:var(--text,#333)">
+                <option value="auto">อัตโนมัติ (อ่านจากชื่อ Sheet/คอลัมน์)</option>
+                <option value="manual">ระบุเดือนเอง</option>
+              </select>
+              <span id="aonManualMonthWrap" style="display:none;gap:8px;align-items:center">
+                <label style="font-size:12px;font-weight:600;color:var(--heading,#1a365d)">ปี พ.ศ.:</label>
+                <select id="uploadAONYear" style="padding:4px 8px;border:1px solid var(--border,#d1d5db);border-radius:6px;font-size:13px;background:var(--card-bg,#fff);color:var(--text,#333)"></select>
+                <label style="font-size:12px;font-weight:600;color:var(--heading,#1a365d)">เดือน:</label>
+                <select id="uploadAONMonth" style="padding:4px 8px;border:1px solid var(--border,#d1d5db);border-radius:6px;font-size:13px;background:var(--card-bg,#fff);color:var(--text,#333)">
+                  <option value="01">ม.ค.</option><option value="02">ก.พ.</option><option value="03">มี.ค.</option>
+                  <option value="04">เม.ย.</option><option value="05">พ.ค.</option><option value="06">มิ.ย.</option>
+                  <option value="07">ก.ค.</option><option value="08">ส.ค.</option><option value="09">ก.ย.</option>
+                  <option value="10">ต.ค.</option><option value="11">พ.ย.</option><option value="12">ธ.ค.</option>
+                </select>
+              </span>
+            </div>
+            <div style="border:2px dashed var(--border,#d1d5db);border-radius:8px;padding:12px;text-align:center;cursor:pointer;transition:all .2s" id="uploadDropAON" onclick="document.getElementById('uploadFileAON').click()" ondragover="event.preventDefault();this.style.borderColor='var(--accent,#ff6d00)';this.style.background='rgba(255,109,0,.05)'" ondragleave="this.style.borderColor='var(--border,#d1d5db)';this.style.background=''" ondrop="event.preventDefault();this.style.borderColor='var(--border,#d1d5db)';this.style.background='';handleUploadAON(event.dataTransfer.files)">
+              <input type="file" id="uploadFileAON" accept=".xlsx,.xls,.csv" multiple style="display:none" onchange="handleUploadAON(this.files)">
+              <div style="font-size:12px;color:var(--sub2,#718096)">ลากไฟล์มาวาง หรือคลิกเพื่อเลือกไฟล์ (เลือกหลายไฟล์ได้)</div>
+              <div style="font-size:11px;color:var(--sub2,#718096);margin-top:2px">รูปแบบ PWA Always-on .xls/.xlsx</div>
+            </div>
+            <div id="uploadStatusAON" style="margin-top:8px;font-size:12px;display:none"></div>
+          </div>
+        </div>
+        <div id="uploadLog" style="margin-top:12px;display:none;max-height:200px;overflow-y:auto;background:var(--card-bg,#f8f9fa);border:1px solid var(--border,#d1d5db);border-radius:8px;padding:10px;font-size:12px;font-family:monospace"></div>
       </div>
     </div>
   </div>
@@ -2375,11 +2469,22 @@ pr2Init();
           </div>
         </div>
         <div class="pr-control-group">
+          <label>ตัวชี้วัด (%)</label>
+          <input type="number" id="aon2Threshold" value="76.25" step="0.01" min="0" max="100" onchange="aon2Render()" style="width:70px;padding:4px 6px;border-radius:4px;border:1px solid #ccc;font-size:13px">
+        </div>
+        <div class="pr-control-group">
+          <label>แกน X</label>
+          <select id="aon2XAxis" onchange="aon2Render()">
+            <option value="branch" selected>สาขา</option>
+            <option value="time">ช่วงเวลา</option>
+          </select>
+        </div>
+        <div class="pr-control-group">
           <label>ประเภทกราฟ</label>
           <select id="aon2ChartType" onchange="aon2Render()">
+            <option value="bar" selected>กราฟแท่ง</option>
             <option value="line">กราฟเส้นโค้ง</option>
             <option value="straight">กราฟเส้นตรง</option>
-            <option value="bar">กราฟแท่ง</option>
             <option value="area">กราฟพื้นที่</option>
           </select>
         </div>
@@ -2534,17 +2639,7 @@ function aonRender(){
                 borderWidth:1,
                 categoryPercentage:0.56,
                 barPercentage:1.0,
-                datalabels:{
-                    display:true,
-                    anchor:'end',
-                    align:'end',
-                    offset:2,
-                    rotation:-90,
-                    color:function(ctx2){return ctx2.dataset.borderColor[ctx2.dataIndex];},
-                    font:{size:10,weight:'bold'},
-                    formatter:function(v){return v!=null?v.toFixed(2):'';},
-                    clamp:true
-                }
+                datalabels:{display:false}
             }]
         },
         options:{
@@ -2736,12 +2831,7 @@ function aonCmpRender(){
         borderWidth:1,
         categoryPercentage:0.7,
         barPercentage:1.0,
-        datalabels:{
-            display:true,anchor:'end',align:'end',offset:2,rotation:-90,
-            color:function(ctx2){return ctx2.dataset.borderColor[ctx2.dataIndex]||'#999';},
-            font:{size:9},
-            formatter:function(v){return v!=null?v.toFixed(2):'';}
-        }
+        datalabels:{display:false}
     },{
         label:monthLabel,
         data:curValues,
@@ -2750,12 +2840,7 @@ function aonCmpRender(){
         borderWidth:1,
         categoryPercentage:0.7,
         barPercentage:1.0,
-        datalabels:{
-            display:true,anchor:'end',align:'end',offset:2,rotation:-90,
-            color:function(ctx2){return ctx2.dataset.borderColor[ctx2.dataIndex]||'#333';},
-            font:{size:10,weight:'bold'},
-            formatter:function(v){return v!=null?v.toFixed(2):'';}
-        }
+        datalabels:{display:false}
     }];
 
     var ctx=document.getElementById('aonCmpChart').getContext('2d');
@@ -2995,31 +3080,95 @@ function aon2Render(){
     var branches=aon2GetSelectedBranches();
     var chartType=document.getElementById('aon2ChartType').value;
     var monthKeys=aon2GetFilteredMonths();
-    var labels=monthKeys.map(function(k){return AON_MONTH_LABELS[k]||k;});
+    var xAxis=(document.getElementById('aon2XAxis')||{}).value||'branch';
+    var aon2Threshold=parseFloat(document.getElementById('aon2Threshold').value)||76.25;
 
-    var datasets=[];
-    branches.forEach(function(branch){
-        var idx=AON_BRANCH_ORDER.indexOf(branch);
-        var color=AON2_COLORS[idx%AON2_COLORS.length];
-        var data=monthKeys.map(function(mk){return AON[mk]?AON[mk][branch]:null;});
-        var dsType=(chartType==='bar')?'bar':'line';
-        var tension=(chartType==='straight')?0:(chartType==='line'||chartType==='area')?0.3:0;
-        var isFill=(chartType==='area');
-        var bgColor=(chartType==='bar')?color+'B0':isFill?color+'30':color;
-        datasets.push({
-            label:branch,
-            data:data,
-            borderColor:color,
-            backgroundColor:bgColor,
-            borderWidth:2,
-            pointRadius:3,
-            pointHoverRadius:5,
-            tension:tension,
-            fill:isFill,
-            type:dsType,
-            datalabels:{display:false}
+    var labels,datasets;
+
+    /* สีเหมือนกราฟ 1-2: ฟ้า=บรรลุ, แดง=ไม่บรรลุ */
+    var passBarBg='rgba(33,150,243,0.75)', passBarBd='#1565c0';
+    var failBarBg='rgba(211,47,47,0.75)',  failBarBd='#b71c1c';
+
+    if(xAxis==='branch'){
+        /* ===== แกน X = สาขา, datasets = เดือน ===== */
+        labels=branches;
+        datasets=[];
+        var nMonths=monthKeys.length;
+        monthKeys.forEach(function(mk,mi){
+            var isBar=(chartType==='bar');
+            var data=branches.map(function(b){return AON[mk]?AON[mk][b]:null;});
+            var dsType=isBar?'bar':'line';
+            var tension=(chartType==='straight')?0:(chartType==='line'||chartType==='area')?0.3:0;
+            var isFill=(chartType==='area');
+
+            if(isBar){
+                /* ฟ้าไล่น้ำหนัก (บรรลุ) / แดงไล่น้ำหนัก (ไม่บรรลุ) */
+                var lightness=75-Math.round((mi/(Math.max(nMonths-1,1)))*45); /* 75% → 30% */
+                var bgArr=data.map(function(v){
+                    if(v!=null&&v<aon2Threshold){
+                        return 'hsl(0,70%,'+lightness+'%)';
+                    }
+                    return 'hsl(210,80%,'+lightness+'%)';
+                });
+                var bdArr=bgArr.slice();
+                datasets.push({
+                    label:AON_MONTH_LABELS[mk]||mk,
+                    data:data,
+                    borderColor:bdArr,
+                    backgroundColor:bgArr,
+                    borderWidth:0,
+                    type:dsType,
+                    datalabels:{display:false}
+                });
+            }else{
+                var color=AON2_COLORS[mi%AON2_COLORS.length];
+                var bgColor=isFill?color+'30':color;
+                datasets.push({
+                    label:AON_MONTH_LABELS[mk]||mk,
+                    data:data,
+                    borderColor:color,
+                    backgroundColor:bgColor,
+                    borderWidth:2,
+                    pointRadius:3,pointHoverRadius:5,
+                    tension:tension,fill:isFill,
+                    type:dsType,
+                    datalabels:{display:false}
+                });
+            }
         });
-    });
+    }else{
+        /* ===== แกน X = ช่วงเวลา, datasets = สาขา ===== */
+        labels=monthKeys.map(function(k){return AON_MONTH_LABELS[k]||k;});
+        datasets=[];
+        branches.forEach(function(branch){
+            var idx=AON_BRANCH_ORDER.indexOf(branch);
+            var color=AON2_COLORS[idx%AON2_COLORS.length];
+            var data=monthKeys.map(function(mk){return AON[mk]?AON[mk][branch]:null;});
+            var dsType=(chartType==='bar')?'bar':'line';
+            var tension=(chartType==='straight')?0:(chartType==='line'||chartType==='area')?0.3:0;
+            var isFill=(chartType==='area');
+            var bgColor=(chartType==='bar')?color+'B0':isFill?color+'30':color;
+            if(chartType==='bar'){
+                /* เส้นกรอบหนาสีแดง ถ้าต่ำกว่าเกณฑ์ */
+                var bdArr=data.map(function(v){return(v!=null&&v<aon2Threshold)?'#b71c1c':color;});
+                var bwArr=data.map(function(v){return(v!=null&&v<aon2Threshold)?3:0;});
+                datasets.push({
+                    label:branch,data:data,
+                    borderColor:bdArr,backgroundColor:bgColor,
+                    borderWidth:bwArr,type:dsType,
+                    datalabels:{display:false}
+                });
+            }else{
+                datasets.push({
+                    label:branch,data:data,
+                    borderColor:color,backgroundColor:bgColor,
+                    borderWidth:2,pointRadius:3,pointHoverRadius:5,
+                    tension:tension,fill:isFill,type:dsType,
+                    datalabels:{display:false}
+                });
+            }
+        });
+    }
 
     if(aonChart2Inst){aonChart2Inst.destroy();aonChart2Inst=null;}
     var ctx=document.getElementById('aonChart2').getContext('2d');
@@ -3040,7 +3189,10 @@ function aon2Render(){
                     mode:'nearest',intersect:true,
                     callbacks:{
                         title:function(items){if(!items.length)return'';return items[0].label;},
-                        label:function(ctx2){return ctx2.dataset.label+': '+ctx2.parsed.y.toFixed(2)+'%';}
+                        label:function(ctx2){
+                            var v=ctx2.parsed.y;if(v==null)return'ไม่มีข้อมูล';
+                            return ctx2.dataset.label+': '+v.toFixed(2)+'%'+(v>=aon2Threshold?' ✓ บรรลุ':' ✗ ไม่บรรลุ');
+                        }
                     }
                 },
                 chartAreaBg:{color:null}
@@ -3067,6 +3219,9 @@ function aon2Render(){
             }
         }
     });
+    /* Store threshold for plugin (เส้นตัวชี้วัด) */
+    aonChart2Inst.config._aonThreshold=aon2Threshold;
+    aonChart2Inst.update();
 }
 
 function aon2BuildTable(){
@@ -3276,6 +3431,572 @@ function buildPRDatasetTable(){
 
 // Initialize info section
 initPRInfo();
+
+// ==================== UPLOAD DATA ====================
+/* Populate year selects for upload */
+(function initUploadYearSelects(){
+    var now=new Date();var bey=now.getFullYear()+543;if(now.getMonth()>=9)bey++;/* fiscal year */
+    var years=[];for(var y=bey-5;y<=bey+1;y++)years.push(y);
+    ['uploadPRYear','uploadAONYear'].forEach(function(id){
+        var sel=document.getElementById(id);if(!sel)return;
+        years.forEach(function(y){
+            var opt=document.createElement('option');
+            opt.value=String(y);opt.textContent=String(y);
+            sel.appendChild(opt);
+        });
+        sel.value=String(bey);
+    });
+    /* Set default month to current */
+    var mm=String(now.getMonth()+1);if(mm.length<2)mm='0'+mm;
+    var prM=document.getElementById('uploadPRMonth');if(prM)prM.value=mm;
+    var aonM=document.getElementById('uploadAONMonth');if(aonM)aonM.value=mm;
+})();
+function togglePRManualMonth(){
+    var mode=document.getElementById('uploadPRMode').value;
+    var wrap=document.getElementById('prManualMonthWrap');
+    if(wrap)wrap.style.display=(mode==='manual')?'inline-flex':'none';
+}
+function toggleAONManualMonth(){
+    var mode=document.getElementById('uploadAONMode').value;
+    var wrap=document.getElementById('aonManualMonthWrap');
+    if(wrap)wrap.style.display=(mode==='manual')?'inline-flex':'none';
+}
+
+function uploadLog(msg,isError){
+    var el=document.getElementById('uploadLog');
+    if(!el)return;
+    el.style.display='block';
+    var line=document.createElement('div');
+    line.style.cssText='padding:2px 0;'+(isError?'color:#d32f2f;font-weight:600':'color:var(--text,#333)');
+    line.textContent='['+(new Date()).toLocaleTimeString('th-TH')+'] '+msg;
+    el.appendChild(line);
+    el.scrollTop=el.scrollHeight;
+}
+function setUploadStatus(id,msg,type){
+    var el=document.getElementById(id);if(!el)return;
+    el.style.display='block';
+    el.style.color=type==='error'?'#d32f2f':type==='success'?'#2e7d32':'var(--text,#333)';
+    el.style.fontWeight=type==='error'||type==='success'?'600':'400';
+    el.textContent=msg;
+}
+
+function readFileAsArrayBuffer(file){
+    return new Promise(function(resolve,reject){
+        var r=new FileReader();r.onload=function(){resolve(r.result);};r.onerror=function(){reject(r.error);};r.readAsArrayBuffer(file);
+    });
+}
+
+/* Map "สาขาXXX" -> "XXX" to match branch names in DATA/AON */
+var BRANCH_NAME_MAP={
+    'สาขาชลบุรี':'ชลบุรี','สาขาบ้านบึง':'บ้านบึง','สาขาพนัสนิคม':'พนัสนิคม',
+    'สาขาศรีราชา':'ศรีราชา','สาขาแหลมฉบัง':'แหลมฉบัง','สาขาพัทยา':'พัทยา',
+    'สาขาฉะเชิงเทรา':'ฉะเชิงเทรา','สาขาบางปะกง':'บางปะกง','สาขาบางคล้า':'บางคล้า',
+    'สาขาพนมสารคาม':'พนมสารคาม','สาขาระยอง':'ระยอง','สาขาบ้านฉาง':'บ้านฉาง',
+    'สาขาปากน้ำประแสร์':'ปากน้ำประแสร์','สาขาจันทบุรี':'จันทบุรี','สาขาขลุง':'ขลุง',
+    'สาขาตราด':'ตราด','สาขาคลองใหญ่':'คลองใหญ่','สาขาสระแก้ว':'สระแก้ว',
+    'สาขาวัฒนานคร':'วัฒนานคร','สาขาอรัญประเทศ':'อรัญประเทศ',
+    'สาขาปราจีนบุรี':'ปราจีนบุรี','สาขากบินทร์บุรี':'กบินทร์บุรี'
+};
+function normBranch(name){
+    var n=String(name).trim();
+    if(BRANCH_NAME_MAP[n])return BRANCH_NAME_MAP[n];
+    /* Also try removing "สาขา" prefix */
+    if(n.indexOf('สาขา')===0)return n.substring(4);
+    return n;
+}
+function parseNum(v){
+    if(v==null||v==='')return 0;
+    if(typeof v==='number')return v;
+    var s=String(v).replace(/[\s,\u00a0]/g,'');
+    var n=parseFloat(s);
+    return isNaN(n)?0:n;
+}
+function makeMonthKey(yyyy,mm){
+    /* yyyy = พ.ศ. (e.g. 2569), mm = 1-12 -> "69-01" */
+    var yy=yyyy-2500;
+    return (yy<10?'0'+yy:String(yy))+'-'+(mm<10?'0'+mm:String(mm));
+}
+
+/* ===== PR Upload (raw format from ข้อมูลดิบ/เรื่องร้องเรียน) ===== */
+/*
+  Format: GUI_019 report
+  Row 5 = category headers (merged): กปภ.ข | กปภ.สาขา | จำนวนลูกค้า | ครั้ง/... | 1.ด้านปริมาณน้ำ | _ | _ | 2.ด้านท่อแตกรั่ว | ...
+  Row 6 = sub-headers: _ | _ | _ | _ | รวม | ไม่เกิน | เกิน | รวม | ไม่เกิน | เกิน | ...
+  Row 7-28 = branch data (22 rows)
+  Row 29 = รวม เขต 1
+  Columns: A=ลำดับ, B=สาขา, C=จำนวนลูกค้า, D=ครั้ง/พันราย, E-G=cat1(รวม,ไม่เกิน,เกิน), H-J=cat2, ...
+  Last 3 cols before end = รวมสาขา (รวม, ไม่เกิน, เกิน)
+*/
+/* Auto-detect month from PR filename: e.g. "ร้องเรียน_66-01.xlsx" -> "66-01" */
+function detectPRMonthFromFilename(filename){
+    var m=filename.match(/(\d{2})-(\d{2})/);
+    if(m)return m[1]+'-'+m[2];
+    return null;
+}
+/* Auto-detect month from PR row 3: "ระหว่างเดือน มกราคม พ.ศ. 2566 ถึง มกราคม พ.ศ. 2566" */
+var THAI_FULL_MONTH_MAP={'มกราคม':1,'กุมภาพันธ์':2,'มีนาคม':3,'เมษายน':4,'พฤษภาคม':5,'มิถุนายน':6,'กรกฎาคม':7,'สิงหาคม':8,'กันยายน':9,'ตุลาคม':10,'พฤศจิกายน':11,'ธันวาคม':12};
+function detectPRMonthFromRow3(text){
+    var s=String(text||'');
+    /* Find pattern: "ถึง <เดือน> พ.ศ. <ปี>" — use the ending month */
+    var m=s.match(/ถึง\s+(\S+)\s+พ\.ศ\.\s*(\d{4})/);
+    if(!m){/* fallback: "เดือน <เดือน> พ.ศ. <ปี>" */
+        m=s.match(/เดือน\s+(\S+)\s+พ\.ศ\.\s*(\d{4})/);
+    }
+    if(m){
+        var monthName=m[1];
+        var yyyy=parseInt(m[2]);
+        var mm=THAI_FULL_MONTH_MAP[monthName];
+        if(mm&&yyyy){return makeMonthKey(yyyy,mm);}
+    }
+    return null;
+}
+/* Process a single PR file and return {count, mk} */
+function processSinglePRFile(file,manualMK){
+    return readFileAsArrayBuffer(file).then(function(buf){
+        if(typeof XLSX==='undefined')throw new Error('SheetJS (XLSX) ยังไม่โหลด กรุณารีเฟรชหน้า');
+        var wb=XLSX.read(buf,{type:'array'});
+        var ws=wb.Sheets[wb.SheetNames[0]];
+        var rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:true});
+        uploadLog('['+file.name+'] พบ '+rows.length+' แถว');
+
+        /* Determine month key */
+        var mk=manualMK;
+        if(!mk){
+            mk=detectPRMonthFromFilename(file.name);
+            if(mk){uploadLog('['+file.name+'] ตรวจพบเดือนจากชื่อไฟล์: '+mk);}
+            if(!mk&&rows.length>2){
+                for(var c=0;c<rows[2].length;c++){
+                    mk=detectPRMonthFromRow3(rows[2][c]);
+                    if(mk){uploadLog('['+file.name+'] ตรวจพบเดือนจากข้อมูลในไฟล์: '+mk);break;}
+                }
+            }
+            if(!mk)throw new Error('['+file.name+'] ไม่สามารถตรวจจับเดือนได้ กรุณาเปลี่ยนเป็นโหมด "ระบุเดือนเอง"');
+        }
+
+        if(rows.length<7)throw new Error('['+file.name+'] ไฟล์มีข้อมูลไม่เพียงพอ');
+
+        /* Parse category headers from row 5 (index 4) */
+        var headerRow=rows[4];
+        var catGroups=[];
+        for(var c2=4;c2<headerRow.length;c2++){
+            var h=String(headerRow[c2]||'').trim();
+            if(h&&h!=='รวมสาขา'){
+                var catName=h.replace(/^\d+\.\s*/,'').trim();
+                catGroups.push({name:catName,startCol:c2});
+                c2+=2;
+            } else if(h==='รวมสาขา'){break;}
+        }
+
+        var totalStartCol=-1;
+        for(var c3=4;c3<headerRow.length;c3++){
+            if(String(headerRow[c3]||'').trim()==='รวมสาขา'){totalStartCol=c3;break;}
+        }
+
+        if(!DATA.data[mk])DATA.data[mk]={};
+        var count=0;
+        for(var r=6;r<rows.length;r++){
+            var row=rows[r];
+            if(!row||row.length<5)continue;
+            var branchName=String(row[1]||'').trim();
+            if(!branchName||branchName==='รวม เขต 1'||branchName==='รวมทั้งหมด')continue;
+            branchName=normBranch(branchName);
+            if(!branchName)continue;
+
+            var bd={};
+            bd['จำนวนลูกค้า']=parseNum(row[2]);
+            bd['categories']={};
+            catGroups.forEach(function(cg){
+                var sc=cg.startCol;
+                bd['categories'][cg.name]={'รวม':parseNum(row[sc]),'ไม่เกิน':parseNum(row[sc+1]),'เกิน':parseNum(row[sc+2])};
+            });
+            if(totalStartCol>=0){
+                bd['รวมสาขา']=parseNum(row[totalStartCol]);
+                bd['รวม_ไม่เกิน']=parseNum(row[totalStartCol+1]);
+                bd['รวม_เกิน']=parseNum(row[totalStartCol+2]);
+            } else {
+                var tot=0,totNE=0,totE=0;
+                catGroups.forEach(function(cg){var sc2=cg.startCol;tot+=parseNum(row[sc2]);totNE+=parseNum(row[sc2+1]);totE+=parseNum(row[sc2+2]);});
+                bd['รวมสาขา']=tot;bd['รวม_ไม่เกิน']=totNE;bd['รวม_เกิน']=totE;
+            }
+            DATA.data[mk][branchName]=bd;
+            count++;
+            if(DATA.branches.indexOf(branchName)<0)DATA.branches.push(branchName);
+        }
+        catGroups.forEach(function(cg){
+            if(DATA.cat_names&&DATA.cat_names.indexOf(cg.name)<0)DATA.cat_names.push(cg.name);
+        });
+        if(DATA.all_months.indexOf(mk)<0)DATA.all_months.push(mk);
+        if(DATA.months.indexOf(mk)<0)DATA.months.push(mk);
+
+        uploadLog('['+file.name+'] สำเร็จ: '+count+' สาขา (เดือน '+mk+')');
+        return {count:count,mk:mk};
+    });
+}
+
+function handleUploadPR(files){
+    if(!files||!files.length)return;
+    var fileList=Array.prototype.slice.call(files);
+    var mode=(document.getElementById('uploadPRMode')||{}).value||'auto';
+    var manualMK=null;
+    if(mode==='manual'){
+        var yearVal=parseInt(document.getElementById('uploadPRYear').value);
+        var monthVal=document.getElementById('uploadPRMonth').value;
+        manualMK=makeMonthKey(yearVal,parseInt(monthVal));
+    }
+    setUploadStatus('uploadStatusPR','กำลังอ่าน '+fileList.length+' ไฟล์...','info');
+    uploadLog('เริ่มอัปโหลด PR: '+fileList.length+' ไฟล์'+(manualMK?' (ระบุเดือน '+manualMK+')':' (อัตโนมัติ)'));
+
+    /* Process files sequentially */
+    var totalCount=0;var processedMonths=[];var errors=[];
+    var chain=Promise.resolve();
+    fileList.forEach(function(file){
+        chain=chain.then(function(){
+            return processSinglePRFile(file,manualMK).then(function(result){
+                totalCount+=result.count;
+                if(processedMonths.indexOf(result.mk)<0)processedMonths.push(result.mk);
+            });
+        }).catch(function(err){
+            uploadLog('ข้อผิดพลาด: '+err.message,true);
+            errors.push(file.name);
+        });
+    });
+    chain.then(function(){
+        DATA.all_months.sort();DATA.months.sort();
+        if(totalCount>0){
+            processedMonths.sort();
+            var msg='สำเร็จ: '+totalCount+' สาขา จาก '+fileList.length+' ไฟล์ ('+processedMonths.join(', ')+')';
+            if(errors.length>0)msg+=' | ผิดพลาด '+errors.length+' ไฟล์';
+            uploadLog('อัปเดตข้อมูล PR เสร็จสิ้น: '+msg);
+            setUploadStatus('uploadStatusPR',msg,errors.length>0?'error':'success');
+            refreshAllAfterUpload();
+        } else {
+            setUploadStatus('uploadStatusPR','ไม่พบข้อมูลที่ถูกต้อง','error');
+        }
+    });
+    document.getElementById('uploadFilePR').value='';
+}
+
+/* ===== AON Upload (raw format from ข้อมูลดิบ/AlwayON) ===== */
+/*
+  Format: PWA Always-on .xls/.xlsx
+  May have multiple sheets (one per month, e.g. "ต.ค.68", "พ.ย.68")
+  Row 4 (index 3) = main header: ลำดับ | เขต | กปภ.สาขา | BA | หน่วยงาน | จังหวัด | ...
+  Row 5 (index 4) = sub-header: ... | always on ม.ค.69 | ...
+  Data rows start at row 6 (index 5), column 4 = "หน่วยงาน" = branch name
+  The "always on XX.YY" column has the percentage (0-1 scale, multiply by 100)
+*/
+/* Thai month abbreviation map */
+var THAI_MONTH_MAP={'ม.ค.':1,'ก.พ.':2,'มี.ค.':3,'เม.ย.':4,'พ.ค.':5,'มิ.ย.':6,'ก.ค.':7,'ส.ค.':8,'ก.ย.':9,'ต.ค.':10,'พ.ย.':11,'ธ.ค.':12};
+/* Sheet name to month key: e.g. "ต.ค.68" -> "68-10" */
+function sheetNameToMonthKey(name){
+    var s=String(name).trim();
+    for(var abbr in THAI_MONTH_MAP){
+        if(s.indexOf(abbr)>=0){
+            var mm=THAI_MONTH_MAP[abbr];
+            /* Extract year: 2 digits after the month abbreviation */
+            var m=s.match(/(\d{2})/);
+            if(m){
+                var yy=parseInt(m[1]);
+                return (yy<10?'0'+yy:String(yy))+'-'+(mm<10?'0'+mm:String(mm));
+            }
+        }
+    }
+    return null;
+}
+/* Parse "always on ต.ค.68" -> month key "68-10" */
+function parseAlwaysOnHeader(header){
+    var s=String(header).trim().toLowerCase();
+    if(s.indexOf('always on')<0&&s.indexOf('always-on')<0)return null;
+    /* Extract Thai month + year */
+    for(var abbr in THAI_MONTH_MAP){
+        if(header.indexOf(abbr)>=0){
+            var mm=THAI_MONTH_MAP[abbr];
+            var m2=header.match(/(\d{2})/);
+            if(m2){
+                var yy2=parseInt(m2[1]);
+                return (yy2<10?'0'+yy2:String(yy2))+'-'+(mm<10?'0'+mm:String(mm));
+            }
+        }
+    }
+    return null;
+}
+
+/* Process a single AON workbook, return {count, months:[]} */
+function processSingleAONFile(file,mode,manualMK){
+    return readFileAsArrayBuffer(file).then(function(buf){
+        if(typeof XLSX==='undefined')throw new Error('SheetJS (XLSX) ยังไม่โหลด กรุณารีเฟรชหน้า');
+        var wb=XLSX.read(buf,{type:'array'});
+        uploadLog('['+file.name+'] พบ '+wb.SheetNames.length+' Sheet: '+wb.SheetNames.join(', '));
+
+        var totalCount=0;var monthsProcessed=[];
+
+        if(mode==='manual'){
+            var count=processAONSheet(wb,wb.SheetNames[0],manualMK,true);
+            totalCount+=count;
+            if(count>0)monthsProcessed.push(manualMK);
+        } else {
+            wb.SheetNames.forEach(function(sheetName){
+                var ws=wb.Sheets[sheetName];
+                var rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:true});
+                if(rows.length<6)return;
+                var subHeader=rows[4];
+                var alwaysOnCols=[];
+                for(var c=0;c<subHeader.length;c++){
+                    var mk2=parseAlwaysOnHeader(String(subHeader[c]||''));
+                    if(mk2)alwaysOnCols.push({col:c,mk:mk2});
+                }
+                if(alwaysOnCols.length>0){
+                    var sheetMK=sheetNameToMonthKey(sheetName);
+                    var bestCol=null;
+                    alwaysOnCols.forEach(function(ac){if(ac.mk===sheetMK)bestCol=ac;});
+                    if(!bestCol)bestCol=alwaysOnCols[0];
+                    uploadLog('['+file.name+'] Sheet "'+sheetName+'": always on -> '+bestCol.mk);
+                    var count2=processAONSheetWithCol(rows,bestCol.col,bestCol.mk);
+                    totalCount+=count2;
+                    if(count2>0&&monthsProcessed.indexOf(bestCol.mk)<0)monthsProcessed.push(bestCol.mk);
+                } else {
+                    var sheetMK2=sheetNameToMonthKey(sheetName);
+                    if(sheetMK2)uploadLog('['+file.name+'] Sheet "'+sheetName+'": ไม่พบคอลัมน์ always on - ข้าม');
+                }
+            });
+        }
+        uploadLog('['+file.name+'] สำเร็จ: '+totalCount+' รายการ ('+monthsProcessed.join(', ')+')');
+        return {count:totalCount,months:monthsProcessed};
+    });
+}
+
+function handleUploadAON(files){
+    if(!files||!files.length)return;
+    var fileList=Array.prototype.slice.call(files);
+    var mode=document.getElementById('uploadAONMode').value;
+    var manualMK=null;
+    if(mode==='manual'){
+        var yearVal=parseInt(document.getElementById('uploadAONYear').value);
+        var monthVal=document.getElementById('uploadAONMonth').value;
+        manualMK=makeMonthKey(yearVal,parseInt(monthVal));
+    }
+    setUploadStatus('uploadStatusAON','กำลังอ่าน '+fileList.length+' ไฟล์...','info');
+    uploadLog('เริ่มอัปโหลด AON: '+fileList.length+' ไฟล์'+(manualMK?' (ระบุเดือน '+manualMK+')':' (อัตโนมัติ)'));
+
+    var grandTotal=0;var allMonths=[];var errors=[];
+    var chain=Promise.resolve();
+    fileList.forEach(function(file){
+        chain=chain.then(function(){
+            return processSingleAONFile(file,mode,manualMK).then(function(result){
+                grandTotal+=result.count;
+                result.months.forEach(function(m){if(allMonths.indexOf(m)<0)allMonths.push(m);});
+            });
+        }).catch(function(err){
+            uploadLog('ข้อผิดพลาด: '+err.message,true);
+            errors.push(file.name);
+        });
+    });
+    chain.then(function(){
+        if(grandTotal>0){
+            /* Rebuild AON derived vars */
+            AON_ALL_MONTHS=Object.keys(AON).sort();
+            AON_MONTH_LABELS=(function(){var map={};Object.keys(AON).forEach(function(k){var p=k.split('-');var yy=parseInt(p[0])+2500;var mm=parseInt(p[1]);map[k]=fmtMonthYear(mm,yy);});return map;})();
+            var brSet=new Set(AON_BRANCH_ORDER);
+            AON_ALL_MONTHS.forEach(function(mk3){
+                Object.keys(AON[mk3]).forEach(function(b){
+                    if(!brSet.has(b)){AON_BRANCH_ORDER.push(b);brSet.add(b);}
+                });
+            });
+            allMonths.sort();
+            var msg='สำเร็จ: '+grandTotal+' รายการ จาก '+fileList.length+' ไฟล์ ('+allMonths.join(', ')+')';
+            if(errors.length>0)msg+=' | ผิดพลาด '+errors.length+' ไฟล์';
+            uploadLog('อัปเดตข้อมูล AON เสร็จสิ้น: '+msg);
+            setUploadStatus('uploadStatusAON',msg,errors.length>0?'error':'success');
+            refreshAllAfterUpload();
+        } else {
+            setUploadStatus('uploadStatusAON','ไม่พบข้อมูล always on ที่ถูกต้อง','error');
+        }
+    });
+    document.getElementById('uploadFileAON').value='';
+}
+
+function processAONSheet(wb,sheetName,monthKey,forceColumn){
+    var ws=wb.Sheets[sheetName];
+    var rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:true});
+    if(rows.length<6)return 0;
+
+    /* Find always on column */
+    var subHeader=rows[4];
+    var aonCol=-1;
+
+    if(!forceColumn){
+        /* Look for "always on" column matching monthKey */
+        for(var c=0;c<subHeader.length;c++){
+            var mk=parseAlwaysOnHeader(String(subHeader[c]||''));
+            if(mk===monthKey){aonCol=c;break;}
+        }
+    }
+    if(aonCol<0){
+        /* Find first "always on" column */
+        for(var c2=0;c2<subHeader.length;c2++){
+            if(parseAlwaysOnHeader(String(subHeader[c2]||''))){aonCol=c2;break;}
+        }
+    }
+    if(aonCol<0){
+        /* Fallback: look for % column — compute as รวม(ชำระแล้ว)/จัดพิมพ์ */
+        uploadLog('Sheet "'+sheetName+'": ไม่พบคอลัมน์ always on');
+        return 0;
+    }
+
+    return processAONSheetWithCol(rows,aonCol,monthKey);
+}
+
+function processAONSheetWithCol(rows,aonCol,monthKey){
+    if(!AON[monthKey])AON[monthKey]={};
+    var count=0;
+    /* Find "หน่วยงาน" column (usually col 4 = index 4) */
+    var nameCol=4;/* default */
+    var headerRow3=rows[3];
+    for(var c=0;c<headerRow3.length;c++){
+        if(String(headerRow3[c]||'').trim()==='หน่วยงาน'){nameCol=c;break;}
+    }
+    /* Find "เขต" column to filter only เขต 1 */
+    var distCol=-1;
+    for(var c2=0;c2<headerRow3.length;c2++){
+        if(String(headerRow3[c2]||'').trim()==='เขต'){distCol=c2;break;}
+    }
+
+    for(var r=5;r<rows.length;r++){
+        var row=rows[r];
+        if(!row||row.length<=aonCol)continue;
+        /* Filter for เขต 1 only */
+        if(distCol>=0){
+            var dist=parseNum(row[distCol]);
+            if(dist!==1)continue;
+        }
+        var rawName=String(row[nameCol]||'').trim();
+        if(!rawName)continue;
+        var branchName=normBranch(rawName);
+        if(!branchName||branchName==='รวม'||branchName.indexOf('รวม')===0)continue;
+
+        var val=row[aonCol];
+        if(val==null||val==='')continue;
+        var numVal=parseFloat(val);
+        if(isNaN(numVal))continue;
+        /* Values are 0-1 scale -> convert to percentage */
+        if(numVal<=1.5)numVal=Math.round(numVal*10000)/100;/* e.g. 0.8595 -> 85.95 */
+        AON[monthKey][branchName]=numVal;
+        count++;
+    }
+    return count;
+}
+
+/* ===== Refresh all charts after upload ===== */
+function refreshAllAfterUpload(){
+    uploadLog('กำลังรีเฟรชกราฟและตารางทั้งหมด...');
+    try{
+        /* Rebuild info section */
+        var fl=document.getElementById('prFileList');
+        if(fl)fl.innerHTML='';
+        initPRInfo();
+
+        /* Destroy & re-init PR charts (Tab 1-2) */
+        if(typeof chartWaterQty1!=='undefined'&&chartWaterQty1){chartWaterQty1.destroy();chartWaterQty1=null;}
+        if(typeof chartWaterQty2!=='undefined'&&chartWaterQty2){chartWaterQty2.destroy();chartWaterQty2=null;}
+        /* Clear PR selects before re-init to avoid duplicate options */
+        var pr1Unit=document.getElementById('pr1UnitSelect');
+        if(pr1Unit){while(pr1Unit.options.length>1)pr1Unit.remove(1);}
+        ['pr1MetricSelect','pr1From','pr1To','pr2MetricSelect','pr2From','pr2To'].forEach(function(id){
+            var el=document.getElementById(id);if(el)el.innerHTML='';
+        });
+        if(typeof pr1Init==='function')pr1Init();
+        if(typeof pr2Init==='function')pr2Init();
+
+        /* Re-populate AON selects */
+        var aonSel=document.getElementById('aonMonthSelect');
+        if(aonSel){
+            var curVal=aonSel.value;
+            aonSel.innerHTML='';
+            AON_ALL_MONTHS.forEach(function(mk){
+                var opt=document.createElement('option');
+                opt.value=mk;opt.textContent=AON_MONTH_LABELS[mk]||mk;
+                aonSel.appendChild(opt);
+            });
+            if(AON_ALL_MONTHS.indexOf(curVal)>=0)aonSel.value=curVal;
+            else if(AON_ALL_MONTHS.length)aonSel.value=AON_ALL_MONTHS[AON_ALL_MONTHS.length-1];
+        }
+        var aonCmpSel=document.getElementById('aonCmpMonthSelect');
+        if(aonCmpSel){
+            var curVal2=aonCmpSel.value;
+            aonCmpSel.innerHTML='';
+            AON_ALL_MONTHS.forEach(function(mk){
+                var opt=document.createElement('option');
+                opt.value=mk;opt.textContent=AON_MONTH_LABELS[mk]||mk;
+                aonCmpSel.appendChild(opt);
+            });
+            if(AON_ALL_MONTHS.indexOf(curVal2)>=0)aonCmpSel.value=curVal2;
+            else if(AON_ALL_MONTHS.length)aonCmpSel.value=AON_ALL_MONTHS[AON_ALL_MONTHS.length-1];
+        }
+        /* Re-init AON chart 3 time selects */
+        var aon2From=document.getElementById('aon2From');
+        var aon2To=document.getElementById('aon2To');
+        if(aon2From&&aon2To){
+            var oldFrom=aon2From.value,oldTo=aon2To.value;
+            aon2From.innerHTML='';aon2To.innerHTML='';
+            AON_ALL_MONTHS.forEach(function(mk){
+                var lbl=AON_MONTH_LABELS[mk]||mk;
+                var o1=document.createElement('option');o1.value=mk;o1.textContent=lbl;aon2From.appendChild(o1);
+                var o2=document.createElement('option');o2.value=mk;o2.textContent=lbl;aon2To.appendChild(o2);
+            });
+            if(AON_ALL_MONTHS.indexOf(oldFrom)>=0)aon2From.value=oldFrom;
+            else if(AON_ALL_MONTHS.length)aon2From.value=AON_ALL_MONTHS[0];
+            if(AON_ALL_MONTHS.indexOf(oldTo)>=0)aon2To.value=oldTo;
+            else if(AON_ALL_MONTHS.length)aon2To.value=AON_ALL_MONTHS[AON_ALL_MONTHS.length-1];
+        }
+        /* Re-init AON chart 3 branch checkboxes */
+        if(typeof initAon2BranchesRefresh==='function')initAon2BranchesRefresh();
+
+        /* Re-render AON charts */
+        if(aonChart1Inst){aonChart1Inst.destroy();aonChart1Inst=null;}
+        if(typeof aonRender==='function')aonRender();
+        if(typeof aonCmpChartInst!=='undefined'&&aonCmpChartInst){aonCmpChartInst.destroy();aonCmpChartInst=null;}
+        if(typeof aonCmpRender==='function')aonCmpRender();
+        if(typeof aon2Render==='function')aon2Render();
+
+        /* Update infoContent height */
+        var ic=document.getElementById('infoContent');
+        if(ic&&!ic.classList.contains('collapsed'))ic.style.maxHeight=ic.scrollHeight+'px';
+
+        uploadLog('รีเฟรชเสร็จสิ้น');
+    }catch(e){
+        uploadLog('เกิดข้อผิดพลาดขณะรีเฟรช: '+e.message,true);
+    }
+}
+
+/* Helper to refresh AON chart 3 branch checkboxes */
+function initAon2BranchesRefresh(){
+    var wrap=document.getElementById('aon2BranchToggles');
+    if(!wrap)return;
+    var oldChecked=new Set();
+    wrap.querySelectorAll('input[type=checkbox]:checked').forEach(function(cb){if(cb.value)oldChecked.add(cb.value);});
+    wrap.innerHTML='';
+    AON_BRANCH_ORDER.forEach(function(b,i){
+        var color=AON2_COLORS[i%AON2_COLORS.length];
+        var lbl=document.createElement('label');
+        lbl.style.cssText='font-size:12.5px;font-weight:600;color:'+color;
+        var cb=document.createElement('input');
+        cb.type='checkbox';cb.value=b;
+        cb.checked=(oldChecked.size===0||oldChecked.has(b));
+        cb.style.cssText='accent-color:'+color;
+        cb.onchange=function(){
+            if(aon2BranchMode==='single'){
+                document.querySelectorAll('#aon2BranchToggles input[type="checkbox"]').forEach(function(c){if(c!==cb)c.checked=false;});
+                cb.checked=true;
+            }
+            aon2Render();
+        };
+        lbl.appendChild(cb);
+        lbl.appendChild(document.createTextNode(' '+b));
+        wrap.appendChild(lbl);
+    });
+}
+
+
 
 // ==================== CHART: Water Quantity ====================
 let chartWaterQty1 = null;
@@ -3687,11 +4408,8 @@ function toggleDataLabels(cb){
     if(show){
         chart.data.datasets.forEach(function(ds){var c=ds.backgroundColor||'#333';ds.datalabels={display:true,rotation:-90,anchor:'end',align:'end',offset:0,color:c,font:{size:9,weight:'bold'},formatter:function(v){if(v==null||v===0)return'';var d=Math.abs(v)<100?2:0;return v.toLocaleString('th-TH',{minimumFractionDigits:d,maximumFractionDigits:d});}};});
     }else{
-        var len=chart.data.datasets.length;
-        chart.data.datasets.forEach(function(ds,i){
-            var c=ds.backgroundColor||'#333';
-            if(i===0||i===len-1){ds.datalabels={display:true,rotation:-90,anchor:'end',align:'end',offset:0,color:c,font:{size:9,weight:'bold'},formatter:function(v){if(v==null||v===0)return'';var d=Math.abs(v)<100?2:0;return v.toLocaleString('th-TH',{minimumFractionDigits:d,maximumFractionDigits:d});}};}
-            else{ds.datalabels={display:false};}
+        chart.data.datasets.forEach(function(ds){
+            ds.datalabels={display:false};
         });
     }
     chart.update();
