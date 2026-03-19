@@ -665,6 +665,9 @@
                 <button class="upload-tab active" data-category="repair" onclick="switchTab('repair')">
                     🔧 ลงข้อมูลซ่อมท่อ <span class="tab-count" id="repair-count">-</span>
                 </button>
+                <button class="upload-tab" data-category="pressure" onclick="switchTab('pressure')">
+                    💧 แรงดันน้ำ <span class="tab-count" id="pressure-count">-</span>
+                </button>
             </div>
 
             <!-- Upload Panels -->
@@ -708,7 +711,9 @@
         const API_BASE = window.location.origin;
         const CATEGORIES = {
             'repair': { thai: 'ลงข้อมูลซ่อมท่อ', icon: '🔧', color: '#00838f', dark: '#004d40',
-                hint: 'ไฟล์สรุปข้อมูลจำนวนข้อร้องเรียนงานซ่อม เช่น <code>สรุปข้อมูลจำนวนข้อร้องเรียนงานซ่อม 690218.xlsx</code>' }
+                hint: 'ไฟล์สรุปข้อมูลจำนวนข้อร้องเรียนงานซ่อม เช่น <code>สรุปข้อมูลจำนวนข้อร้องเรียนงานซ่อม 690218.xlsx</code>' },
+            'pressure': { thai: 'แรงดันน้ำ', icon: '💧', color: '#1565c0', dark: '#0d47a1',
+                hint: 'ไฟล์ข้อมูลแรงดันน้ำจากระบบ OIS เช่น <code>PRESSURE_69-02.xlsx</code> หรือ <code>แรงดันน้ำ_69-02.xlsx</code><br>ตั้งชื่อไฟล์ให้มี <b>YY-MM</b> เช่น 69-02 = ก.พ. 2569' }
         };
 
         let currentCategory = 'repair';

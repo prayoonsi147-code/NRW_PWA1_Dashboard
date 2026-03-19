@@ -154,7 +154,7 @@ body.dark .main-tab-bar{background:#00363a}
   <h1>Dashboard แผนที่แนวท่อ</h1>
   <p>งานแผนที่แนวท่อ กองระบบจำหน่าย กปภ.ข.1</p>
   <div style="position:absolute;top:50%;right:32px;transform:translateY(-50%);display:flex;align-items:center;gap:12px">
-    <a href="manage.html" onclick="if(location.protocol==='file:'){location.href='http://localhost:5002/manage.html';return false;}" style="text-decoration:none;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.4);color:#fff;padding:7px 18px;border-radius:8px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;transition:background .2s;cursor:pointer" onmouseover="this.style.background='rgba(255,255,255,.35)'" onmouseout="this.style.background='rgba(255,255,255,.18)'">&#9881; จัดการแหล่งข้อมูล</a>
+    <a href="manage.html" onclick="var h=location.hostname;if(h==='localhost'||h==='127.0.0.1'){return true;}if(location.protocol==='file:'){location.href='http://localhost:5002/manage.html';return false;}alert('จัดการแหล่งข้อมูลใช้ได้เฉพาะบนเครื่อง Local\n\nกรุณาเปิด start_server.bat แล้วเข้าผ่าน http://localhost:5002');return false;" style="text-decoration:none;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.4);color:#fff;padding:7px 18px;border-radius:8px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;transition:background .2s;cursor:pointer" onmouseover="this.style.background='rgba(255,255,255,.35)'" onmouseout="this.style.background='rgba(255,255,255,.18)'">&#9881; จัดการแหล่งข้อมูล</a>
     <div class="theme-toggle" onclick="toggleTheme()" style="position:static;transform:none">
       <span id="themeIcon">&#9788;</span>
       <div class="theme-switch" id="themeSwitch"></div>
@@ -187,6 +187,7 @@ body.dark .main-tab-bar{background:#00363a}
 <!-- Main Tab Bar -->
 <div class="main-tab-bar" id="mainTabBar">
   <button class="main-tab-btn active" onclick="switchMainTab('kpi',this)">KPI จุดซ่อมท่อ</button>
+  <button class="main-tab-btn" onclick="switchMainTab('pressure',this)">แรงดันน้ำ</button>
   <button id="globalCtrlToggle" onclick="toggleGlobalControls(this)" style="margin-left:auto;padding:8px 16px;border:none;border-radius:8px;background:rgba(255,255,255,.18);color:#fff;cursor:pointer;font-size:13px;font-weight:600;transition:all .2s" title="ซ่อนตัวเลือกทุก Card">&#x1F441; ซ่อนตัวเลือก</button>
 </div>
 
@@ -292,6 +293,51 @@ body.dark .main-tab-bar{background:#00363a}
 </div>
 </div><!-- /mainTab-kpi end -->
 
+<!-- Tab Content: แรงดันน้ำ -->
+<div class="main-tab-content" id="mainTab-pressure">
+<div class="chart-card">
+  <div class="card-header">
+    <h3 style="color:var(--heading)">💧 ข้อมูลแรงดันน้ำจากระบบ OIS</h3>
+    <button class="card-toggle" onclick="toggleCard(this)">&#9650;</button>
+  </div>
+  <div class="card-body">
+    <div class="controls">
+      <div class="control-group">
+        <label>เลือกเดือน</label>
+        <select id="pressureMonth" onchange="pressureRender()"></select>
+      </div>
+      <div class="control-group">
+        <label>เกณฑ์ (เรื่องแรงดัน)</label>
+        <input type="number" id="pressureThreshold" value="0.85" step="0.01" min="0" onchange="pressureRender()" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--input-bg);color:var(--text)">
+      </div>
+      <div class="control-group">
+        <label>ประเภทกราฟ</label>
+        <select id="pressureChartType" onchange="pressureRender()">
+          <option value="bar">แท่ง</option>
+          <option value="line">เส้นโค้ง</option>
+          <option value="straight">เส้นตรง</option>
+          <option value="area">พื้นที่</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="chart-container" id="pressureChartWrap">
+      <canvas id="pressureChart"></canvas>
+    </div>
+
+    <div class="export-bar">
+      <button class="export-btn" onclick="pressureResetChart()" title="รีเซ็ตขนาดกราฟ">&#8634; รีเซ็ต</button>
+      <label class="export-btn" style="cursor:pointer"><input type="checkbox" id="pressureShowValues" checked onchange="pressureRender()" style="margin-right:4px">แสดงค่า</label>
+      <button class="export-btn" onclick="openFontPopup(this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M9.93 2L4 22h3.2l1.67-5.5h6.26L16.8 22H20L14.07 2H9.93zm-.34 11.5L12 5.88l2.41 7.62H9.59z"/></svg></button>
+      <button class="export-btn" onclick="pressureExportPNG()"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></button>
+      <button class="export-btn" onclick="pressureCopyChart()"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M16 1H4a2 2 0 00-2 2v14h2V3h12V1zm3 4H8a2 2 0 00-2 2v14a2 2 0 002 2h11a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h11v14z"/></svg></button>
+      <button class="export-btn" onclick="pressureExportExcel()"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button>
+      <button class="export-btn" onclick="pressureExportPPTX()"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#D04423"/><path d="M7 5v14h2v-5h3a4 4 0 000-8H7zm2 2h3a2 2 0 010 4H9V7z" fill="#fff"/></svg></button>
+    </div>
+  </div>
+</div>
+</div><!-- /mainTab-pressure end -->
+
 </div>
 
 <script>
@@ -314,6 +360,10 @@ function switchMainTab(tabId,btn){
         if(tabId==='summary'){
             if(!sumInitialized)sumInit();
             else{if(sumChart1Obj)sumChart1Obj.resize();if(sumChart2Obj)sumChart2Obj.resize();}
+        }
+        if(tabId==='pressure'){
+            if(!pressureInitialized)pressureInit();
+            else if(pressureChartObj)pressureChartObj.resize();
         }
     },50);
 }
@@ -947,6 +997,256 @@ function sumExportPPTX(){
     pptx.writeFile({fileName:'สรุปKPI_จุดซ่อมท่อ.pptx'});
 }
 
+// ==================== PRESSURE TAB ====================
+var pressureChartObj=null;
+var pressureInitialized=false;
+const PRESSURE_DATA={"68-10":{"กบินทร์บุรี":1.55,"ขลุง":1.6,"คลองใหญ่":1.38,"จันทบุรี":1.25,"ฉะเชิงเทรา":1.67,"ชลบุรี":1.03,"ตราด":1.56,"บางคล้า":0.92,"บางปะกง":1.23,"บ้านฉาง":2.49,"บ้านบึง":1.64,"ปราจีนบุรี":1.54,"ปากน้ำประแสร์":1.29,"พนมสารคาม":2.39,"พนัสนิคม":1.12,"พัทยา":1.36,"ระยอง":1.06,"วัฒนานคร":1.43,"ศรีราชา":2.64,"สระแก้ว":1.65,"อรัญประเทศ":1.25,"แหลมฉบัง":1.77},"68-11":{"กบินทร์บุรี":1.55,"ขลุง":1.6,"คลองใหญ่":1.38,"จันทบุรี":1.25,"ฉะเชิงเทรา":1.68,"ชลบุรี":1.01,"ตราด":1.57,"บางคล้า":0.92,"บางปะกง":1.07,"บ้านฉาง":2.49,"บ้านบึง":1.61,"ปราจีนบุรี":1.54,"ปากน้ำประแสร์":1.29,"พนมสารคาม":2.38,"พนัสนิคม":1.14,"พัทยา":1.24,"ระยอง":1.05,"วัฒนานคร":1.43,"ศรีราชา":2.64,"สระแก้ว":1.65,"อรัญประเทศ":1.24,"แหลมฉบัง":1.79},"68-12":{"กบินทร์บุรี":1.55,"ขลุง":1.6,"คลองใหญ่":1.38,"จันทบุรี":1.25,"ฉะเชิงเทรา":1.68,"ชลบุรี":0.98,"ตราด":1.57,"บางคล้า":0.92,"บางปะกง":1.03,"บ้านฉาง":2.49,"บ้านบึง":1.57,"ปราจีนบุรี":1.54,"ปากน้ำประแสร์":1.29,"พนมสารคาม":2.39,"พนัสนิคม":1.12,"พัทยา":1.03,"ระยอง":1.05,"วัฒนานคร":1.43,"ศรีราชา":2.64,"สระแก้ว":1.66,"อรัญประเทศ":1.23,"แหลมฉบัง":1.76},"69-01":{"กบินทร์บุรี":1.55,"ขลุง":1.6,"คลองใหญ่":1.38,"จันทบุรี":1.25,"ฉะเชิงเทรา":1.65,"ชลบุรี":0.99,"ตราด":1.56,"บางคล้า":1.06,"บางปะกง":0.94,"บ้านฉาง":2.49,"บ้านบึง":1.53,"ปราจีนบุรี":1.54,"ปากน้ำประแสร์":1.29,"พนมสารคาม":2.4,"พนัสนิคม":1.12,"พัทยา":1.15,"ระยอง":1.06,"วัฒนานคร":1.43,"ศรีราชา":2.64,"สระแก้ว":1.66,"อรัญประเทศ":1.19,"แหลมฉบัง":1.79},"69-02":{"กบินทร์บุรี":1.55,"ขลุง":1.6,"คลองใหญ่":1.38,"จันทบุรี":1.25,"ฉะเชิงเทรา":1.67,"ชลบุรี":1.25,"ตราด":1.58,"บางคล้า":1.07,"บางปะกง":0.89,"บ้านฉาง":2.49,"บ้านบึง":1.55,"ปราจีนบุรี":1.54,"ปากน้ำประแสร์":1.29,"พนมสารคาม":2.36,"พนัสนิคม":1.13,"พัทยา":0.95,"ระยอง":1.06,"วัฒนานคร":1.43,"ศรีราชา":2.64,"สระแก้ว":1.64,"อรัญประเทศ":1.24,"แหลมฉบัง":1.75}};
+const PRESSURE_MONTHS=["68-10","68-11","68-12","69-01","69-02"];
+
+function pressureInit(){
+    pressureInitialized=true;
+    var sel=document.getElementById('pressureMonth');
+    sel.innerHTML='';
+    PRESSURE_MONTHS.forEach(function(mk){
+        var p=mk.split('-');
+        var yy=parseInt(p[0],10);
+        var mm=parseInt(p[1],10);
+        var opt=document.createElement('option');
+        opt.value=mk;
+        opt.textContent=MONTH_NAMES[mm<10?'0'+mm:''+mm]+' '+(2500+yy);
+        sel.appendChild(opt);
+    });
+    if(PRESSURE_MONTHS.length>0)sel.value=PRESSURE_MONTHS[PRESSURE_MONTHS.length-1];
+    pressureRender();
+}
+
+function getMonthDisplayName(monthKey){
+    if(!monthKey||monthKey.indexOf('-')<0)return'';
+    var p=monthKey.split('-');
+    var yy=parseInt(p[0],10);
+    var mm=parseInt(p[1],10);
+    return MONTH_NAMES[mm<10?'0'+mm:''+mm]+' '+(2500+yy);
+}
+
+// Horizontal line annotation plugin for threshold
+var thresholdLinePlugin={
+    id:'thresholdLine',
+    afterDraw:function(chart){
+        if(!chart.options.plugins.thresholdLine)return;
+        var threshold=chart.options.plugins.thresholdLine.value;
+        if(threshold===undefined||threshold===null)return;
+        var ctx=chart.ctx;
+        var yScale=chart.scales.y;
+        if(!yScale)return;
+        var yPixel=yScale.getPixelForValue(threshold);
+        var chartArea=chart.chartArea;
+        ctx.save();
+        ctx.strokeStyle='#e53935';
+        ctx.lineWidth=3;
+        ctx.setLineDash([5,5]);
+        ctx.beginPath();
+        ctx.moveTo(chartArea.left,yPixel);
+        ctx.lineTo(chartArea.right,yPixel);
+        ctx.stroke();
+        // Draw threshold label
+        ctx.fillStyle='#e53935';
+        ctx.font='bold 12px Segoe UI,sans-serif';
+        ctx.textAlign='left';
+        ctx.textBaseline='bottom';
+        ctx.fillText('เกณฑ์ '+threshold.toFixed(2),chartArea.left+6,yPixel-4);
+        ctx.restore();
+    }
+};
+Chart.register(thresholdLinePlugin);
+
+function pressureRender(){
+    var monthKey=document.getElementById('pressureMonth').value;
+    var threshold=parseFloat(document.getElementById('pressureThreshold').value)||0.85;
+    var chartType=document.getElementById('pressureChartType').value||'bar';
+    var showValues=document.getElementById('pressureShowValues').checked;
+
+    var monthData=PRESSURE_DATA[monthKey]||{};
+    var labels=BRANCHES;
+    var values=BRANCHES.map(function(b){return monthData[b]||0;});
+
+    var barColors=values.map(function(v){return v<threshold?'#e53935':'#00838f';});
+    var datasetConfig={
+        label:'แรงดันน้ำ (บาร์)',
+        data:values,
+        borderColor:'#00838f',
+        backgroundColor:'#00838f',
+        borderWidth:2,
+        pointRadius:4,
+        pointBackgroundColor:'#00838f',
+        tension:0.3,
+        fill:false
+    };
+
+    if(chartType==='bar'){
+        datasetConfig.type='bar';
+        datasetConfig.backgroundColor=barColors;
+        datasetConfig.borderColor=barColors;
+        datasetConfig.tension=undefined;
+        datasetConfig.pointRadius=undefined;
+        datasetConfig.pointBackgroundColor=undefined;
+    } else if(chartType==='straight'){
+        datasetConfig.type='line';
+        datasetConfig.tension=0;
+        datasetConfig.fill=false;
+    } else if(chartType==='area'){
+        datasetConfig.type='line';
+        datasetConfig.tension=0.3;
+        datasetConfig.fill=true;
+        datasetConfig.backgroundColor='rgba(0,131,143,0.25)';
+    } else {
+        datasetConfig.type='line';
+        datasetConfig.tension=0.3;
+        datasetConfig.fill=false;
+    }
+
+    var canvas=document.getElementById('pressureChart');
+    if(!canvas)return;
+
+    var isDark=document.body.classList.contains('dark');
+    var titleColor=isDark?'#4dd0e1':'#004d40';
+    var textColor=isDark?'#e0e0e0':'#333';
+
+    var chartConfig={
+        type:chartType,
+        data:{
+            labels:labels,
+            datasets:[datasetConfig]
+        },
+        options:{
+            responsive:true,
+            maintainAspectRatio:false,
+            interaction:{mode:'nearestNearest'},
+            plugins:{
+                legend:{display:false},
+                tooltip:{
+                    backgroundColor:'rgba(0,0,0,0.8)',
+                    titleColor:'#fff',
+                    bodyColor:'#fff',
+                    borderColor:'#888',
+                    borderWidth:1,
+                    padding:12,
+                    displayColors:false,
+                    callbacks:{
+                        label:function(ctx){
+                            var v=ctx.parsed.y;
+                            if(v===undefined||v===null)return'ไม่มีข้อมูล';
+                            return'แรงดัน: '+v.toFixed(2)+' บาร์';
+                        }
+                    }
+                },
+                datalabels:{
+                    display:showValues,
+                    color:function(ctx){
+                        var v=ctx.dataset.data[ctx.dataIndex];
+                        return v<threshold?'#e53935':'#00838f';
+                    },
+                    font:{size:10,weight:'bold'},
+                    anchor:'end',
+                    align:'top',
+                    formatter:function(v){
+                        if(v==null||v===0)return'';
+                        return v.toFixed(2);
+                    }
+                },
+                title:{
+                    display:true,
+                    text:'ข้อมูลจากระบบ OIS ณ สิ้นเดือน '+getMonthDisplayName(monthKey),
+                    color:titleColor,
+                    font:{size:14,weight:'bold'},
+                    padding:{bottom:16}
+                },
+                thresholdLine:{value:threshold}
+            },
+            scales:{
+                y:{
+                    min:0,
+                    ticks:{
+                        color:textColor,
+                        font:{size:12},
+                        callback:function(v){
+                            if(v<100)return v.toFixed(2);
+                            return v.toLocaleString('th-TH');
+                        }
+                    },
+                    grid:{color:isDark?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.05)'}
+                },
+                x:{
+                    ticks:{
+                        color:textColor,
+                        font:{size:12},
+                        maxRotation:60
+                    },
+                    grid:{display:false}
+                }
+            }
+        }
+    };
+
+    if(pressureChartObj){
+        pressureChartObj.destroy();
+    }
+
+    pressureChartObj=new Chart(canvas,chartConfig);
+}
+
+function pressureResetChart(){
+    if(pressureChartObj)pressureChartObj.resetZoom();
+}
+
+function pressureExportPNG(){
+    var canvas=document.getElementById('pressureChart');
+    if(!canvas)return;
+    var link=document.createElement('a');
+    link.download='แรงดันน้ำ_OIS.png';
+    link.href=canvas.toDataURL('image/png');
+    link.click();
+}
+
+function pressureCopyChart(){
+    var canvas=document.getElementById('pressureChart');
+    if(!canvas)return;
+    canvas.toBlob(function(blob){
+        navigator.clipboard.write([
+            new ClipboardItem({'image/png':blob})
+        ]).then(function(){alert('คัดลอกแล้ว');}).catch(function(){alert('คัดลอกไม่ได้');});
+    });
+}
+
+function pressureExportExcel(){
+    var monthKey=document.getElementById('pressureMonth').value;
+    var monthData=PRESSURE_DATA[monthKey]||{};
+    var wb=new ExcelJS.Workbook();
+    var ws=wb.addWorksheet('แรงดันน้ำ');
+    ws.addRow(['สาขา','แรงดันน้ำ (บาร์)']);
+    BRANCHES.forEach(function(b){
+        ws.addRow([b,monthData[b]||0]);
+    });
+    ws.getRow(1).font={bold:true};
+    ws.columns.forEach(function(c){c.width=20;});
+    wb.xlsx.writeBuffer().then(function(buf){
+        var blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+        var link=document.createElement('a');
+        link.download='แรงดันน้ำ_OIS.xlsx';
+        link.href=URL.createObjectURL(blob);
+        link.click();
+    });
+}
+
+function pressureExportPPTX(){
+    if(typeof PptxGenJS==='undefined'){alert('PptxGenJS ยังโหลดไม่เสร็จ');return;}
+    var canvas=document.getElementById('pressureChart');
+    if(!canvas)return;
+    var pptx=new PptxGenJS();
+    var slide=pptx.addSlide();
+    slide.addImage({data:canvas.toDataURL('image/png'),x:0.3,y:0.3,w:9.4,h:5.4});
+    pptx.writeFile({fileName:'แรงดันน้ำ_OIS.pptx'});
+}
+
 // ==================== INIT ====================
 if(typeof Chart!=='undefined'&&typeof ChartDataLabels!=='undefined'){
     Chart.register(ChartDataLabels);
@@ -959,7 +1259,7 @@ gisRender();
 sumInit();
 // ==================== CHART CUSTOMIZATION (right-click + font popup) ====================
 function getChartObj(canvasId){
-    var map={'gisChart':gisChartObj,'sumChart1':sumChart1Obj,'sumChart2':sumChart2Obj};
+    var map={'gisChart':gisChartObj,'sumChart1':sumChart1Obj,'sumChart2':sumChart2Obj,'pressureChart':pressureChartObj};
     return map[canvasId]||null;
 }
 function hexToRgba(hex,alpha){

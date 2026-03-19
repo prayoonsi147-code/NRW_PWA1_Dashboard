@@ -34,6 +34,7 @@ PORT = 5002
 # Category mapping: URL slug → Thai folder name
 CATEGORY_MAP = {
     'repair': 'ลงข้อมูลซ่อมท่อ',
+    'pressure': 'แรงดันน้ำ',
 }
 
 # Create directories
@@ -119,7 +120,7 @@ def api_upload(category):
     folder_path = os.path.join(RAW_DATA_DIR, CATEGORY_MAP[category])
     os.makedirs(folder_path, exist_ok=True)
 
-    PREFIX_MAP = { 'repair': 'GIS' }
+    PREFIX_MAP = { 'repair': 'GIS', 'pressure': 'PRESSURE' }
     import re
 
     results = []
