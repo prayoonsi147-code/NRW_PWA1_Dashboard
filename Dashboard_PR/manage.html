@@ -1,0 +1,1707 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>จัดการแหล่งข้อมูล — Dashboard งานลูกค้าสัมพันธ์</title>
+    <script>
+        if (location.protocol === 'file:') {
+            location.href = 'http://localhost:5000/manage.html';
+        }
+    </script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
+            color: #333;
+            min-height: 100vh;
+            padding: 20px;
+            transition: background .3s, color .3s;
+        }
+
+        /* ── Dark Mode ── */
+        body.dark {
+            background: linear-gradient(135deg, #1a1209 0%, #2d1f0e 100%);
+            color: #e0d0c0;
+        }
+        body.dark .header { background: linear-gradient(135deg, #1a0e00, #4a2800); }
+        body.dark .header .back-btn { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.25); }
+        body.dark .upload-section,
+        body.dark .management-panel,
+        body.dark .upload-log { background: #2d1f0e; box-shadow: 0 2px 8px rgba(0,0,0,.3); }
+        body.dark .upload-tabs { background: #3a2815; border-bottom-color: #4a3520; }
+        body.dark .upload-tab { color: #b0906e; }
+        body.dark .upload-tab:hover { background: rgba(255,255,255,.05); color: #e0d0c0; }
+        body.dark .upload-tab .tab-count { background: rgba(255,255,255,.08); color: #b0906e; }
+        body.dark .drop-zone { background: #3a2815; border-color: #4a3520; }
+        body.dark .drop-zone-pr { background: rgba(196,62,0,.1); border-color: rgba(230,124,0,.3); }
+        body.dark .drop-zone-aon { background: rgba(21,101,192,.1); border-color: rgba(30,136,229,.3); }
+        body.dark .drop-zone-text, body.dark .drop-zone-hint { color: #b0906e; }
+        body.dark .upload-hint { background: #3a2815; border-color: #4a3520; color: #b0906e; }
+        body.dark .upload-hint summary { color: #e0d0c0; }
+        body.dark .upload-hint code { background: #4a3520; color: #ffb74d; }
+        body.dark .upload-hint .hint-tag { background: rgba(255,152,0,.15); color: #ffb74d; }
+        body.dark .upload-hint.pr-hint .hint-tag { background: rgba(255,152,0,.15); color: #ffb74d; }
+        body.dark .mode-radio label { color: #e0d0c0; }
+        body.dark .form-group label { color: #b0906e; }
+        body.dark .form-group select { background: #3a2815; border-color: #4a3520; color: #e0d0c0; }
+        body.dark .btn-primary { background: #c43e00; }
+        body.dark .btn-primary:hover:not(:disabled) { background: #e67c00; box-shadow: 0 4px 12px rgba(196,62,0,.3); }
+        body.dark .btn-secondary { background: #3a2815; color: #e0d0c0; border-color: #4a3520; }
+        body.dark .section-title { color: #ffb74d; }
+        body.dark .chip { border-color: #4a3520; }
+        body.dark .chip.pr-chip { background: rgba(196,62,0,.1); border-color: rgba(230,124,0,.3); }
+        body.dark .chip.pr-chip .chip-label { color: #ffb74d; }
+        body.dark .chip.aon-chip { background: rgba(21,101,192,.1); border-color: rgba(30,136,229,.3); }
+        body.dark .chip.aon-chip .chip-label { color: #64b5f6; }
+        body.dark .chip-delete { color: #ef5350; }
+        body.dark .year-label.pr-year { background: #8f2800; }
+        body.dark .year-label.aon-year { background: #0d47a1; }
+        body.dark .log-content { background: #3a2815; border-color: #4a3520; color: #b0906e; }
+        body.dark .log-entry { border-bottom-color: #4a3520; }
+        body.dark .modal-content { background: #2d1f0e; color: #e0d0c0; }
+        body.dark .modal-message { color: #b0906e; }
+        body.dark .upload-status.success { background: rgba(46,125,50,.2); color: #81c784; border-color: rgba(129,199,132,.3); }
+        body.dark .upload-status.error { background: rgba(198,40,40,.2); color: #ef5350; border-color: rgba(239,83,80,.3); }
+        body.dark .upload-status.loading { background: rgba(21,101,192,.2); color: #64b5f6; border-color: rgba(100,181,246,.3); }
+        body.dark .edit-table th { background: #3a2815; color: #b0906e; }
+        body.dark .edit-table td { border-color: #4a3520; }
+
+        /* Theme Toggle (in header) */
+        .theme-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+        .theme-switch { width: 44px; height: 24px; background: rgba(255,255,255,.25); border-radius: 12px; position: relative; transition: background .3s; }
+        .theme-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; background: #fff; border-radius: 50%; transition: transform .3s; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+        body.dark .theme-switch { background: rgba(255,183,77,.4); }
+        body.dark .theme-switch::after { transform: translateX(20px); background: #ffb74d; }
+        .theme-icon { font-size: 16px; color: rgba(255,255,255,.7); }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #c43e00 0%, #e67c00 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 4px 12px rgba(230, 81, 0, 0.2);
+        }
+
+        .header-content h1 {
+            font-size: 28px;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 2px solid white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+
+        .back-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateX(-4px);
+        }
+
+        /* (Summary card removed — counts shown in upload tabs) */
+
+        /* Upload Section — Tabbed */
+        .upload-section {
+            background: white;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Upload Tabs */
+        .upload-tabs {
+            display: flex;
+            background: #f5f5f5;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .upload-tab {
+            flex: 1;
+            padding: 12px 16px;
+            border: none;
+            background: transparent;
+            font-size: 13px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            color: #888;
+            position: relative;
+        }
+
+        .upload-tab:hover {
+            background: rgba(0,0,0,0.04);
+            color: #555;
+        }
+
+        .upload-tab.active {
+            color: #fff;
+        }
+
+        .upload-tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 3px;
+        }
+
+        .upload-tab[data-type="pr"].active {
+            background: linear-gradient(135deg, #c43e00, #e67c00);
+        }
+        .upload-tab[data-type="pr"].active::after { background: #c43e00; }
+
+        .upload-tab[data-type="aon"].active {
+            background: linear-gradient(135deg, #1565c0, #1e88e5);
+        }
+        .upload-tab[data-type="aon"].active::after { background: #1565c0; }
+
+        .upload-tab .tab-count {
+            font-size: 11px;
+            padding: 1px 7px;
+            border-radius: 10px;
+            background: rgba(0,0,0,0.08);
+            color: #666;
+        }
+
+        .upload-tab.active .tab-count {
+            background: rgba(255,255,255,0.3);
+            color: #fff;
+        }
+
+        .upload-tab-panel {
+            display: none;
+            padding: 20px 25px;
+        }
+
+        .upload-tab-panel.active {
+            display: block;
+        }
+
+        /* Mode Selector */
+        .mode-selector {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            align-items: center;
+        }
+
+        .mode-radio {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        .mode-radio input[type="radio"] {
+            cursor: pointer;
+            accent-color: #e67c00;
+        }
+
+        .mode-radio label {
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 13px;
+        }
+
+        /* Manual Mode Controls — inline */
+        .manual-controls {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .manual-controls.active {
+            display: flex;
+        }
+
+        .form-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .form-group label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            white-space: nowrap;
+        }
+
+        .form-group select {
+            padding: 6px 10px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: inherit;
+            transition: border-color 0.3s ease;
+            cursor: pointer;
+        }
+
+        .form-group select:focus {
+            outline: none;
+            border-color: #e67c00;
+            background-color: #fff8f5;
+        }
+
+        /* Drop Zone */
+        .drop-zone {
+            border: 2px dashed #ccc;
+            border-radius: 10px;
+            padding: 25px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #fafafa;
+            margin-bottom: 15px;
+        }
+
+        .drop-zone-pr {
+            border-color: #ffab91;
+            background: #fff8f5;
+        }
+
+        .drop-zone-aon {
+            border-color: #90caf9;
+            background: #f0f7ff;
+        }
+
+        .drop-zone.dragover {
+            border-color: #333;
+            background: #f0f0f0;
+            transform: scale(1.01);
+        }
+
+        .drop-zone-content {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+
+        .drop-zone-icon {
+            font-size: 24px;
+        }
+
+        .drop-zone-text {
+            font-size: 13px;
+            color: #666;
+        }
+
+        .drop-zone-hint {
+            font-size: 11px;
+            color: #999;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        /* Upload Hints */
+        .upload-hint {
+            margin-top: -8px;
+            margin-bottom: 14px;
+            font-size: 12px;
+            line-height: 1.6;
+            color: #666;
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 10px 14px;
+        }
+
+        .upload-hint summary {
+            cursor: pointer;
+            font-weight: 600;
+            color: #555;
+            font-size: 12px;
+        }
+
+        .upload-hint summary:hover { color: #333; }
+
+        .upload-hint .hint-body {
+            margin-top: 8px;
+        }
+
+        .upload-hint .hint-label {
+            font-weight: 600;
+            color: #444;
+        }
+
+        .upload-hint code {
+            background: #e8e8e8;
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+
+        .upload-hint .hint-example {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin: 4px 0 6px;
+        }
+
+        .upload-hint .hint-tag {
+            background: #e3f2fd;
+            color: #1565c0;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+
+        .upload-hint.pr-hint .hint-tag {
+            background: #fff3e0;
+            color: #c43e00;
+        }
+
+        .upload-hint .hint-note {
+            color: #888;
+            font-size: 11px;
+            font-style: italic;
+        }
+
+        /* Upload Status */
+        .upload-status {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            display: none;
+            font-size: 12px;
+        }
+
+        .upload-status.show {
+            display: block;
+        }
+
+        .upload-status.success {
+            background: #c8e6c9;
+            color: #1b5e20;
+            border: 1px solid #81c784;
+        }
+
+        .upload-status.error {
+            background: #ffcdd2;
+            color: #b71c1c;
+            border: 1px solid #ef5350;
+        }
+
+        .upload-status.loading {
+            background: #bbdefb;
+            color: #0d47a1;
+            border: 1px solid #64b5f6;
+        }
+
+        /* Buttons */
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            background: #e67c00;
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: #c43e00;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(230, 81, 0, 0.3);
+        }
+
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+            border: 1px solid #ddd;
+        }
+
+        .btn-secondary:hover {
+            background: #e8e8e8;
+        }
+
+        .btn-danger {
+            background: #d32f2f;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c62828;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(198, 40, 40, 0.3);
+        }
+
+        /* Management Panel */
+        .management-panel {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .month-section {
+            margin-bottom: 20px;
+        }
+
+        .month-section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 10px;
+            padding: 6px 14px;
+            border-radius: 6px;
+            display: inline-block;
+        }
+
+        .month-section-title.pr-title {
+            background: linear-gradient(135deg, #c43e00, #e67c00);
+        }
+
+        .month-section-title.aon-title {
+            background: linear-gradient(135deg, #1565c0, #1e88e5);
+        }
+
+        .month-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-bottom: 12px;
+        }
+
+        /* --- Year group --- */
+        .year-group {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 4px;
+            margin-bottom: 6px;
+            width: 100%;
+        }
+
+        .year-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: #fff;
+            padding: 2px 10px;
+            border-radius: 4px;
+            min-width: 52px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        .year-label.pr-year { background: #c43e00; }
+        .year-label.aon-year { background: #1565c0; }
+
+        .chip {
+            border: 1.5px solid;
+            border-radius: 4px;
+            padding: 3px 8px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            color: #333;
+            transition: all 0.15s ease;
+        }
+
+        .chip:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+        }
+
+        .chip.pr-chip {
+            border-color: #e67c00;
+            background: #fff8f0;
+        }
+
+        .chip.aon-chip {
+            border-color: #1e88e5;
+            background: #f0f7ff;
+        }
+
+        .chip-label {
+            font-weight: 600;
+            font-size: 11px;
+        }
+
+        .chip.pr-chip .chip-label { color: #c43e00; }
+        .chip.aon-chip .chip-label { color: #1565c0; }
+
+        .chip-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 12px;
+            padding: 1px 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 3px;
+            transition: all 0.15s ease;
+            line-height: 1;
+        }
+
+        .chip-delete {
+            color: #d32f2f;
+            font-size: 13px;
+        }
+
+        .chip-delete:hover {
+            background: #ffebee;
+        }
+
+        /* Edit Table */
+        .edit-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            font-size: 13px;
+            overflow-x: auto;
+            display: none;
+        }
+
+        .edit-table.active {
+            display: table;
+        }
+
+        .edit-table thead {
+            background: #f5f5f5;
+            border-bottom: 2px solid #ddd;
+        }
+
+        .edit-table th,
+        .edit-table td {
+            padding: 12px;
+            text-align: left;
+            border: 1px solid #e0e0e0;
+        }
+
+        .edit-table th {
+            font-weight: 600;
+            color: #666;
+            white-space: nowrap;
+        }
+
+        .edit-table input[type="number"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+            font-family: 'Monaco', 'Courier New', monospace;
+        }
+
+        .edit-table input[type="number"]:focus {
+            outline: none;
+            border-color: #e67c00;
+            background: #fff8f5;
+        }
+
+        .edit-table-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .edit-table-actions .btn {
+            padding: 8px 16px;
+            font-size: 12px;
+        }
+
+        /* Upload Log */
+        .upload-log {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .log-content {
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            max-height: 250px;
+            overflow-y: auto;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.5;
+            color: #333;
+        }
+
+        .log-entry {
+            padding: 5px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .log-time {
+            color: #999;
+            margin-right: 10px;
+        }
+
+        .log-success {
+            color: #1b5e20;
+        }
+
+        .log-error {
+            color: #b71c1c;
+        }
+
+        .log-info {
+            color: #0d47a1;
+        }
+
+        /* Footer Actions */
+        .footer-actions {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        /* Modal Dialog */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .modal-message {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 25px;
+            line-height: 1.5;
+            white-space: pre-line;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                gap: 20px;
+                text-align: center;
+            }
+
+            .header-content h1 {
+                font-size: 22px;
+            }
+
+            .summary-content {
+                grid-template-columns: 1fr;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+            }
+
+            .drop-zone {
+                padding: 25px;
+            }
+
+            .edit-table {
+                font-size: 12px;
+            }
+
+            .edit-table th,
+            .edit-table td {
+                padding: 8px;
+            }
+
+            .modal-content {
+                max-width: 90%;
+            }
+        }
+
+        /* Loading Spinner */
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #e67c00;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-content">
+                <h1>จัดการแหล่งข้อมูล — Dashboard งานลูกค่าสัมพันธ์</h1>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px">
+                <a href="/" class="back-btn">← กลับหน้า Dashboard</a>
+                <div class="theme-toggle" onclick="toggleTheme()">
+                    <span class="theme-icon">&#9788;</span>
+                    <div class="theme-switch"></div>
+                    <span class="theme-icon">&#9790;</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Summary counts (hidden — shown on upload tabs) -->
+        <span id="prCount" style="display:none">-</span>
+        <span id="aonCount" style="display:none">-</span>
+
+        <!-- Upload Section — Tabbed -->
+        <div class="upload-section">
+            <div class="upload-tabs" id="uploadTabs">
+                <button class="upload-tab active" data-type="pr" onclick="switchUploadTab('pr')">
+                    📋 ข้อร้องเรียน (PR) <span class="tab-count" id="prTabCount">-</span>
+                </button>
+                <button class="upload-tab" data-type="aon" onclick="switchUploadTab('aon')">
+                    📊 Always-On (AON) <span class="tab-count" id="aonTabCount">-</span>
+                </button>
+            </div>
+
+            <!-- PR Panel -->
+            <div class="upload-tab-panel active" id="panel-pr">
+                <div class="mode-selector">
+                    <div class="mode-radio">
+                        <input type="radio" id="prModeAuto" name="prMode" value="auto" checked>
+                        <label for="prModeAuto">อัตโนมัติ</label>
+                    </div>
+                    <div class="mode-radio">
+                        <input type="radio" id="prModeManual" name="prMode" value="manual">
+                        <label for="prModeManual">ระบุเดือนเอง</label>
+                    </div>
+                    <div class="manual-controls" id="prManualControls">
+                        <div class="form-group">
+                            <label for="prYear">ปี</label>
+                            <select id="prYear"><option value="">เลือกปี...</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label for="prMonth">เดือน</label>
+                            <select id="prMonth"><option value="">เลือกเดือน...</option></select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="drop-zone drop-zone-pr" id="prDropZone">
+                    <div class="drop-zone-content">
+                        <div class="drop-zone-icon">📁</div>
+                        <div class="drop-zone-text">ลากไฟล์มาวาง หรือคลิกเลือกไฟล์ &nbsp;<span class="drop-zone-hint">(.xlsx, .xls, .csv) เลือกได้หลายไฟล์</span></div>
+                    </div>
+                    <input type="file" id="prFileInput" class="file-input" accept=".xlsx,.xls,.csv" multiple>
+                </div>
+
+                <details class="upload-hint pr-hint" open>
+                    <summary>คำแนะนำรูปแบบไฟล์ (โหมดอัตโนมัติ)</summary>
+                    <div class="hint-body">
+                        <p><span class="hint-label">รูปแบบไฟล์:</span> ใช้ไฟล์ GUI_019 (ข้อร้องเรียน) ตามแบบฟอร์ม กปภ. — แถวที่ 3 ระบุช่วงเดือน, แถวที่ 5 เป็น header หมวดหมู่, แถวที่ 7-28 เป็นข้อมูล 22 สาขา</p>
+                        <p><span class="hint-label">ชื่อไฟล์:</span> ตั้งให้มีรหัส <code>ปี-เดือน</code> (YY-MM) อยู่ในชื่อ ระบบจะตรวจจับอัตโนมัติ</p>
+                        <div class="hint-example">
+                            <span class="hint-tag">ร้องเรียน_69-01.xlsx</span>
+                            <span class="hint-tag">PR_69-02.xlsx</span>
+                            <span class="hint-tag">GUI019_69-03.xlsx</span>
+                        </div>
+                        <p class="hint-note">* หากชื่อไฟล์ไม่มีรหัสเดือน ระบบจะลองอ่านจากข้อความในแถวที่ 3 ของไฟล์ เช่น "เดือน มกราคม พ.ศ. 2569"</p>
+                    </div>
+                </details>
+
+                <div class="upload-status" id="prUploadStatus"></div>
+
+                <div class="button-group">
+                    <button class="btn btn-primary" id="prUploadBtn" disabled>อัปโหลดข้อมูล PR</button>
+                </div>
+            </div>
+
+            <!-- AON Panel -->
+            <div class="upload-tab-panel" id="panel-aon">
+                <div class="mode-selector">
+                    <div class="mode-radio">
+                        <input type="radio" id="aonModeAuto" name="aonMode" value="auto" checked>
+                        <label for="aonModeAuto">อัตโนมัติ</label>
+                    </div>
+                    <div class="mode-radio">
+                        <input type="radio" id="aonModeManual" name="aonMode" value="manual">
+                        <label for="aonModeManual">ระบุเดือนเอง</label>
+                    </div>
+                    <div class="manual-controls" id="aonManualControls">
+                        <div class="form-group">
+                            <label for="aonYear">ปี</label>
+                            <select id="aonYear"><option value="">เลือกปี...</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label for="aonMonth">เดือน</label>
+                            <select id="aonMonth"><option value="">เลือกเดือน...</option></select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="drop-zone drop-zone-aon" id="aonDropZone">
+                    <div class="drop-zone-content">
+                        <div class="drop-zone-icon">📊</div>
+                        <div class="drop-zone-text">ลากไฟล์มาวาง หรือคลิกเลือกไฟล์ &nbsp;<span class="drop-zone-hint">(.xlsx, .xls, .csv) เลือกได้หลายไฟล์</span></div>
+                    </div>
+                    <input type="file" id="aonFileInput" class="file-input" accept=".xlsx,.xls,.csv" multiple>
+                </div>
+
+                <details class="upload-hint" open>
+                    <summary>คำแนะนำรูปแบบไฟล์ (โหมดอัตโนมัติ)</summary>
+                    <div class="hint-body">
+                        <p><span class="hint-label">รูปแบบไฟล์:</span> ใช้ไฟล์ PWA Always-On จาก กลส. — แต่ละ Sheet เป็น 1 เดือน (ชื่อ Sheet เช่น "ต.ค.68") และมีคอลัมน์ที่มีคำว่า <code>always on</code> เป็นค่า % (0-1)</p>
+                        <p><span class="hint-label">ชื่อไฟล์:</span> ตั้งอะไรก็ได้ ระบบอ่านเดือนจากชื่อ Sheet อัตโนมัติ ไฟล์เดียวมีหลาย Sheet (หลายเดือน) ได้</p>
+                        <div class="hint-example">
+                            <span class="hint-tag">PWA Always-on สะสม เดือนมกราคม 2569.xls</span>
+                        </div>
+                        <p><span class="hint-label">ตัวอย่างชื่อ Sheet ที่ระบบอ่านได้:</span></p>
+                        <div class="hint-example">
+                            <span class="hint-tag">ต.ค.68</span>
+                            <span class="hint-tag">พ.ย.68</span>
+                            <span class="hint-tag">ธ.ค.68</span>
+                            <span class="hint-tag">ม.ค.69</span>
+                        </div>
+                        <p class="hint-note">* ไฟล์เดียวอาจมีข้อมูลหลายเดือน (หลาย Sheet) ระบบจะแยก import ให้อัตโนมัติ</p>
+                    </div>
+                </details>
+
+                <div class="upload-status" id="aonUploadStatus"></div>
+
+                <div class="button-group">
+                    <button class="btn btn-primary" id="aonUploadBtn" disabled>อัปโหลดข้อมูล AON</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Management Panel -->
+        <div class="management-panel">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                <h2 class="section-title" style="margin-bottom:0">⚙️ จัดการข้อมูล</h2>
+                <button class="btn btn-secondary" onclick="openUploadFolder()" style="font-size:12px;padding:6px 14px;display:inline-flex;align-items:center;gap:5px">📂 เปิดโฟลเดอร์ข้อมูล</button>
+            </div>
+
+            <!-- PR Management -->
+            <div class="month-section">
+                <div class="month-section-title pr-title">📋 ข้อร้องเรียน (PR)</div>
+                <span style="font-size:11px;color:#888;margin-left:4px" id="prLastMod"></span>
+                <div class="month-chips" id="prChips"></div>
+                <table class="edit-table" id="prEditTable"></table>
+            </div>
+
+            <!-- AON Management -->
+            <div class="month-section">
+                <div class="month-section-title aon-title">📊 PWA Always-On (AON)</div>
+                <span style="font-size:11px;color:#888;margin-left:4px" id="aonLastMod"></span>
+                <div class="month-chips" id="aonChips"></div>
+                <table class="edit-table" id="aonEditTable"></table>
+            </div>
+        </div>
+
+        <!-- Upload Log -->
+        <div class="upload-log">
+            <h2 class="section-title">📝 บันทึกการอัปโหลด</h2>
+            <div class="log-content" id="logContent">
+                <div class="log-entry log-info"><span class="log-time">[เริ่มต้น]</span> ระบบพร้อมใช้งาน</div>
+            </div>
+        </div>
+
+        <!-- Footer Actions (hidden) -->
+        <!-- <div class="footer-actions">
+            <button class="btn btn-danger" id="clearAllBtn">ล้างข้อมูลทั้งหมด</button>
+        </div> -->
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div class="modal" id="confirmModal">
+        <div class="modal-content">
+            <div class="modal-title" id="confirmTitle">ยืนยันการดำเนินการ</div>
+            <div class="modal-message" id="confirmMessage"></div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="confirmCancel">ยกเลิก</button>
+                <button class="btn btn-primary" id="confirmOk">ยืนยัน</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_BASE = 'http://localhost:5000';
+        const MONTH_NAMES = ['', 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+
+        // Theme Toggle (synced with Dashboard PR via localStorage 'pr_theme')
+        function toggleTheme() {
+            document.body.classList.toggle('dark');
+            localStorage.setItem('pr_theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+        }
+        (function() {
+            if (localStorage.getItem('pr_theme') === 'dark') document.body.classList.add('dark');
+        })();
+
+        // Open uploaded_data folder
+        async function openUploadFolder() {
+            try {
+                const res = await fetch(`${API_BASE}/api/open-folder`, { method: 'POST' });
+                const data = await res.json();
+                if (!data.ok) addLog('ไม่สามารถเปิดโฟลเดอร์ได้', 'error');
+            } catch (e) {
+                addLog('ไม่สามารถเปิดโฟลเดอร์ได้', 'error');
+            }
+        }
+
+        // Upload Tab Switching
+        function switchUploadTab(type) {
+            document.querySelectorAll('.upload-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.upload-tab-panel').forEach(p => p.classList.remove('active'));
+            document.querySelector(`.upload-tab[data-type="${type}"]`).classList.add('active');
+            document.getElementById(`panel-${type}`).classList.add('active');
+        }
+
+        function updateTabCounts(prCount, aonCount) {
+            const prEl = document.getElementById('prTabCount');
+            const aonEl = document.getElementById('aonTabCount');
+            if (prEl) prEl.textContent = prCount;
+            if (aonEl) aonEl.textContent = aonCount;
+        }
+
+        // State
+        let currentEditingMk = null;
+        let cachedData = { pr: {}, aon: {} };
+        let currentEditingType = null;
+        let confirmCallback = null;
+
+        // Helper: Month key to Thai label
+        function mkToLabel(mk) {
+            const [yy, mm] = mk.split('-').map(Number);
+            return MONTH_NAMES[mm] + (2500 + yy);
+        }
+
+        // Helper: Thai month label to number
+        function monthLabelToNumber(label) {
+            return MONTH_NAMES.indexOf(label);
+        }
+
+        // Initialize
+        async function init() {
+            populateYearDropdowns();
+            populateMonthDropdowns();
+            setupEventListeners();
+            await loadData();
+        }
+
+        // Populate year dropdowns
+        function populateYearDropdowns() {
+            const years = [];
+            for (let i = 65; i <= 75; i++) {
+                years.push(i);
+            }
+
+            [document.getElementById('prYear'), document.getElementById('aonYear')].forEach(select => {
+                years.forEach(year => {
+                    const option = document.createElement('option');
+                    option.value = year;
+                    option.textContent = `พ.ศ. ${2500 + year}`;
+                    select.appendChild(option);
+                });
+            });
+        }
+
+        // Populate month dropdowns
+        function populateMonthDropdowns() {
+            [document.getElementById('prMonth'), document.getElementById('aonMonth')].forEach(select => {
+                MONTH_NAMES.slice(1).forEach((name, index) => {
+                    const option = document.createElement('option');
+                    option.value = index + 1;
+                    option.textContent = name;
+                    select.appendChild(option);
+                });
+            });
+        }
+
+        // Setup event listeners
+        function setupEventListeners() {
+            // PR mode toggle
+            document.getElementById('prModeAuto').addEventListener('change', () => {
+                document.getElementById('prManualControls').classList.remove('active');
+            });
+            document.getElementById('prModeManual').addEventListener('change', () => {
+                document.getElementById('prManualControls').classList.add('active');
+            });
+
+            // AON mode toggle
+            document.getElementById('aonModeAuto').addEventListener('change', () => {
+                document.getElementById('aonManualControls').classList.remove('active');
+            });
+            document.getElementById('aonModeManual').addEventListener('change', () => {
+                document.getElementById('aonManualControls').classList.add('active');
+            });
+
+            // PR drop zone
+            setupDropZone('prDropZone', 'prFileInput');
+            document.getElementById('prFileInput').addEventListener('change', () => {
+                document.getElementById('prUploadBtn').disabled = document.getElementById('prFileInput').files.length === 0;
+            });
+            document.getElementById('prUploadBtn').addEventListener('click', () => uploadFiles('pr'));
+
+            // AON drop zone
+            setupDropZone('aonDropZone', 'aonFileInput');
+            document.getElementById('aonFileInput').addEventListener('change', () => {
+                document.getElementById('aonUploadBtn').disabled = document.getElementById('aonFileInput').files.length === 0;
+            });
+            document.getElementById('aonUploadBtn').addEventListener('click', () => uploadFiles('aon'));
+
+            // Clear all (currently hidden)
+            const clearBtn = document.getElementById('clearAllBtn');
+            if (clearBtn) {
+                clearBtn.addEventListener('click', () => {
+                    showConfirmDialog(
+                        'ล้างข้อมูลทั้งหมด',
+                        'คุณแน่ใจว่าต้องการลบข้อมูลทั้งหมดหรือไม่? การดำเนินการนี้ไม่สามารถยกเลิกได้',
+                        clearAllData
+                    );
+                });
+            }
+
+            // Modal
+            document.getElementById('confirmCancel').addEventListener('click', closeConfirmDialog);
+            document.getElementById('confirmOk').addEventListener('click', () => {
+                if (confirmCallback) {
+                    confirmCallback();
+                }
+                closeConfirmDialog();
+            });
+        }
+
+        // Setup drop zone
+        function setupDropZone(dropZoneId, inputId) {
+            const dropZone = document.getElementById(dropZoneId);
+            const fileInput = document.getElementById(inputId);
+
+            dropZone.addEventListener('click', () => fileInput.click());
+
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('dragover');
+            });
+
+            dropZone.addEventListener('dragleave', () => {
+                dropZone.classList.remove('dragover');
+            });
+
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('dragover');
+                fileInput.files = e.dataTransfer.files;
+                fileInput.dispatchEvent(new Event('change'));
+            });
+        }
+
+        // Upload files
+        async function uploadFiles(type) {
+            const fileInput = document.getElementById(`${type}FileInput`);
+            const files = fileInput.files;
+
+            if (files.length === 0) {
+                showStatus(type, 'โปรดเลือกไฟล์', 'error');
+                return;
+            }
+
+            // Get mode and month key
+            const mode = document.querySelector(`input[name="${type}Mode"]:checked`).value;
+            let mk = null;
+
+            if (mode === 'manual') {
+                const year = document.getElementById(`${type}Year`).value;
+                const month = document.getElementById(`${type}Month`).value;
+
+                if (!year || !month) {
+                    showStatus(type, 'โปรดระบุปี และเดือน', 'error');
+                    return;
+                }
+
+                mk = `${year}-${String(month).padStart(2, '0')}`;
+            }
+
+            // Check for existing months
+            const existingMonths = cachedData[type] || {};
+            let duplicates = [];
+
+            if (mode === 'manual' && mk) {
+                if (existingMonths[mk]) duplicates.push(mkToLabel(mk));
+            } else {
+                // Auto mode: detect YY-MM from filenames
+                Array.from(files).forEach(f => {
+                    const m = f.name.match(/(\d{2})-(\d{2})/);
+                    if (m) {
+                        const detectedMk = `${m[1]}-${m[2]}`;
+                        if (existingMonths[detectedMk]) duplicates.push(mkToLabel(detectedMk));
+                    }
+                });
+            }
+
+            // Build confirmation message
+            let fileList = Array.from(files).map(f => f.name).join(', ');
+            let confirmMsg = `อัปโหลด ${files.length} ไฟล์:\n${fileList}`;
+            if (duplicates.length > 0) {
+                confirmMsg += `\n\n⚠️ ข้อมูลเดือนต่อไปนี้มีอยู่แล้ว จะถูกเขียนทับ:\n${duplicates.join(', ')}`;
+            }
+
+            showConfirmDialog(
+                duplicates.length > 0 ? '⚠️ ยืนยันเขียนทับข้อมูลเดิม' : 'ยืนยันการอัปโหลด',
+                confirmMsg,
+                async () => {
+                    await performUpload(type, files, mode, mk);
+                }
+            );
+        }
+
+        // Perform upload
+        async function performUpload(type, files, mode, mk) {
+            const statusEl = document.getElementById(`${type}UploadStatus`);
+            const formData = new FormData();
+
+            Array.from(files).forEach(file => {
+                formData.append('files', file);
+            });
+            formData.append('mode', mode);
+            if (mk) {
+                formData.append('manual_mk', mk);
+            }
+
+            showStatus(type, 'กำลังอัปโหลด...', 'loading');
+
+            try {
+                const response = await fetch(`${API_BASE}/api/upload/${type}`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Unknown error');
+                }
+
+                const result = await response.json();
+                const errFiles = (result.errors || []);
+                const okFiles = (result.results || []);
+
+                if (errFiles.length > 0 && okFiles.length === 0) {
+                    // All files failed
+                    const userMsg = 'ไฟล์นี้ไม่ใช่รูปแบบที่รองรับ ไม่สามารถ Upload ได้ กรุณาตรวจสอบอีกครั้ง';
+                    showStatus(type, userMsg, 'error');
+                    errFiles.forEach(e => addLog(`${e.filename}: ไม่สามารถอ่านได้ (${e.error})`, 'error'));
+                } else if (errFiles.length > 0) {
+                    // Some succeeded, some failed
+                    const failNames = errFiles.map(e => e.filename).join(', ');
+                    showStatus(type, `บางไฟล์ไม่สามารถ Upload ได้: ${failNames} — กรุณาตรวจสอบอีกครั้ง`, 'error');
+                    okFiles.forEach(r => addLog(`อัปโหลดสำเร็จ: ${r.filename || r.mk}`, 'success'));
+                    errFiles.forEach(e => addLog(`${e.filename}: ไม่สามารถอ่านได้ (${e.error})`, 'error'));
+                } else {
+                    showStatus(type, `อัปโหลดสำเร็จ ${okFiles.length} ไฟล์`, 'success');
+                    addLog(`อัปโหลด ${type.toUpperCase()} สำเร็จ (${Array.from(files).map(f => f.name).join(', ')})`, 'success');
+                }
+
+                // Clear file input and reset controls
+                document.getElementById(`${type}FileInput`).value = '';
+                document.getElementById(`${type}FileInput`).dispatchEvent(new Event('change'));
+
+                // Reload data
+                await loadData();
+            } catch (error) {
+                const userMsg = 'ไฟล์นี้ไม่ใช่รูปแบบที่รองรับ ไม่สามารถ Upload ได้ กรุณาตรวจสอบอีกครั้ง';
+                showStatus(type, userMsg, 'error');
+                addLog(`${userMsg} (${error.message})`, 'error');
+            }
+        }
+
+        // Load data
+        async function loadData() {
+            try {
+                const response = await fetch(`${API_BASE}/api/data`);
+                if (!response.ok) {
+                    throw new Error('Failed to load data');
+                }
+
+                const data = await response.json();
+                cachedData = data;
+
+                // Update summary
+                const prN = Object.keys(data.pr || {}).length;
+                const aonN = Object.keys(data.aon || {}).length;
+                document.getElementById('prCount').textContent = prN;
+                document.getElementById('aonCount').textContent = aonN;
+                updateTabCounts(prN, aonN);
+
+                // Update last modified
+                document.getElementById('prLastMod').textContent = data.pr_last_modified ? `อัปเดตล่าสุด: ${data.pr_last_modified}` : '';
+                document.getElementById('aonLastMod').textContent = data.aon_last_modified ? `อัปเดตล่าสุด: ${data.aon_last_modified}` : '';
+
+                // Update management panel
+                renderChips('pr', data.pr, data.pr_cat_names);
+                renderChips('aon', data.aon, null);
+
+                addLog('โหลดข้อมูลจากเซิร์ฟเวอร์สำเร็จ', 'info');
+            } catch (error) {
+                addLog(`ข้อผิดพลาด: ${error.message}`, 'error');
+            }
+        }
+
+        // Render chips
+        async function renderChips(type, monthData, categoryNames) {
+            const chipsContainer = document.getElementById(`${type}Chips`);
+            chipsContainer.innerHTML = '';
+
+            if (!monthData || Object.keys(monthData).length === 0) {
+                chipsContainer.innerHTML = '<div class="empty-state">ไม่มีข้อมูล</div>';
+                return;
+            }
+
+            const chipClass = type === 'pr' ? 'pr-chip' : 'aon-chip';
+            const yearClass = type === 'pr' ? 'pr-year' : 'aon-year';
+
+            // Group by year
+            const byYear = {};
+            Object.keys(monthData).sort().forEach(mk => {
+                const yy = mk.split('-')[0];
+                if (!byYear[yy]) byYear[yy] = [];
+                byYear[yy].push(mk);
+            });
+
+            Object.keys(byYear).sort().forEach(yy => {
+                const yearGroup = document.createElement('div');
+                yearGroup.className = 'year-group';
+
+                const yearLabel = document.createElement('span');
+                yearLabel.className = `year-label ${yearClass}`;
+                yearLabel.textContent = (2500 + Number(yy)).toString();
+                yearGroup.appendChild(yearLabel);
+
+                byYear[yy].forEach(mk => {
+                    const mm = Number(mk.split('-')[1]);
+                    const chip = document.createElement('div');
+                    chip.className = `chip ${chipClass}`;
+                    chip.innerHTML = `
+                        <span class="chip-label">${MONTH_NAMES[mm]}</span>
+                        <button class="chip-btn chip-delete" title="ลบ">✕</button>
+                    `;
+
+                    chip.querySelector('.chip-delete').addEventListener('click', () => {
+                        showConfirmDialog(
+                            'ยืนยันการลบ',
+                            `คุณต้องการลบข้อมูล ${mkToLabel(mk)} หรือไม่?`,
+                            () => deleteMonth(type, mk)
+                        );
+                    });
+
+                    yearGroup.appendChild(chip);
+                });
+
+                chipsContainer.appendChild(yearGroup);
+            });
+        }
+
+        // Edit month
+        function editMonth(type, mk, data, categoryNames) {
+            currentEditingMk = mk;
+            currentEditingType = type;
+
+            const table = document.getElementById(`${type}EditTable`);
+            table.innerHTML = '';
+
+            if (type === 'pr') {
+                renderPrEditTable(table, mk, data, categoryNames);
+            } else {
+                renderAonEditTable(table, mk, data);
+            }
+
+            table.classList.add('active');
+            table.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        // Render PR edit table
+        function renderPrEditTable(table, mk, data, categoryNames) {
+            // Categories
+            const categories = categoryNames || ['อุบัติเหตุและโรคประกอบาญชาติ', 'ข้อบกพร่อง', 'คำรองขอ', 'บริการ', 'คุณภาพ'];
+
+            // Build header
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+            headerRow.innerHTML = '<th>สาขา</th><th>จำนวนลูกค้า</th>';
+            categories.forEach(cat => {
+                headerRow.innerHTML += `<th>${cat}<br><small style="font-weight: normal;">(รวม/ไม่เกิน/เกิน)</small></th>`;
+            });
+            headerRow.innerHTML += '<th>รวมสาขา</th><th>รวม ไม่เกิน</th><th>รวม เกิน</th>';
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+
+            // Build body
+            const tbody = document.createElement('tbody');
+            Object.keys(data).forEach(branch => {
+                const row = document.createElement('tr');
+                const branchData = data[branch];
+
+                let html = `<td><strong>${branch}</strong></td>`;
+                html += `<td><input type="number" value="${branchData.จำนวนลูกค้า || 0}" data-field="จำนวนลูกค้า" data-branch="${branch}"></td>`;
+
+                categories.forEach(cat => {
+                    const catData = branchData.categories?.[cat] || { รวม: 0, ไม่เกิน: 0, เกิน: 0 };
+                    html += `<td>
+                        <input type="number" value="${catData.รวม || 0}" placeholder="รวม" data-field="รวม" data-category="${cat}" data-branch="${branch}" style="width: 60px; margin-bottom: 3px;">
+                        <input type="number" value="${catData.ไม่เกิน || 0}" placeholder="ไม่เกิน" data-field="ไม่เกิน" data-category="${cat}" data-branch="${branch}" style="width: 60px; margin-bottom: 3px;">
+                        <input type="number" value="${catData.เกิน || 0}" placeholder="เกิน" data-field="เกิน" data-category="${cat}" data-branch="${branch}" style="width: 60px;">
+                    </td>`;
+                });
+
+                html += `<td><input type="number" value="${branchData.รวมสาขา || 0}" data-field="รวมสาขา" data-branch="${branch}"></td>`;
+                html += `<td><input type="number" value="${branchData.รวม_ไม่เกิน || 0}" data-field="รวม_ไม่เกิน" data-branch="${branch}"></td>`;
+                html += `<td><input type="number" value="${branchData.รวม_เกิน || 0}" data-field="รวม_เกิน" data-branch="${branch}"></td>`;
+
+                row.innerHTML = html;
+                tbody.appendChild(row);
+            });
+            table.appendChild(tbody);
+
+            // Add action buttons
+            const tfoot = document.createElement('tfoot');
+            const actionRow = document.createElement('tr');
+            actionRow.innerHTML = `<td colspan="100%">
+                <div class="edit-table-actions">
+                    <button class="btn btn-primary" id="savePrBtn">บันทึก</button>
+                    <button class="btn btn-secondary" id="cancelPrBtn">ยกเลิก</button>
+                </div>
+            </td>`;
+            tfoot.appendChild(actionRow);
+            table.appendChild(tfoot);
+
+            // Event listeners
+            document.getElementById('savePrBtn').addEventListener('click', savePrEdit);
+            document.getElementById('cancelPrBtn').addEventListener('click', closePrEdit);
+        }
+
+        // Render AON edit table
+        function renderAonEditTable(table, mk, data) {
+            // Build header
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+            headerRow.innerHTML = '<th>สาขา</th><th>Always-On (%)</th>';
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+
+            // Build body
+            const tbody = document.createElement('tbody');
+            Object.keys(data).forEach(branch => {
+                const row = document.createElement('tr');
+                row.innerHTML = `<td><strong>${branch}</strong></td>`;
+                row.innerHTML += `<td><input type="number" value="${data[branch] || 0}" step="0.01" min="0" max="100" data-branch="${branch}" style="width: 100px;"></td>`;
+                tbody.appendChild(row);
+            });
+            table.appendChild(tbody);
+
+            // Add action buttons
+            const tfoot = document.createElement('tfoot');
+            const actionRow = document.createElement('tr');
+            actionRow.innerHTML = `<td colspan="100%">
+                <div class="edit-table-actions">
+                    <button class="btn btn-primary" id="saveAonBtn">บันทึก</button>
+                    <button class="btn btn-secondary" id="cancelAonBtn">ยกเลิก</button>
+                </div>
+            </td>`;
+            tfoot.appendChild(actionRow);
+            table.appendChild(tfoot);
+
+            // Event listeners
+            document.getElementById('saveAonBtn').addEventListener('click', saveAonEdit);
+            document.getElementById('cancelAonBtn').addEventListener('click', closeAonEdit);
+        }
+
+        // Save PR edit
+        async function savePrEdit() {
+            const table = document.getElementById('prEditTable');
+            const data = {};
+
+            // Parse inputs
+            table.querySelectorAll('tbody tr').forEach(row => {
+                const branch = row.querySelector('td strong').textContent;
+                data[branch] = {
+                    จำนวนลูกค้า: parseInt(row.querySelector('[data-field="จำนวนลูกค้า"]').value) || 0,
+                    categories: {},
+                    รวมสาขา: parseInt(row.querySelector('[data-field="รวมสาขา"]').value) || 0,
+                    รวม_ไม่เกิน: parseInt(row.querySelector('[data-field="รวม_ไม่เกิน"]').value) || 0,
+                    รวม_เกิน: parseInt(row.querySelector('[data-field="รวม_เกิน"]').value) || 0
+                };
+
+                // Collect categories
+                const categoryInputs = row.querySelectorAll('[data-category]');
+                categoryInputs.forEach(input => {
+                    const cat = input.dataset.category;
+                    if (!data[branch].categories[cat]) {
+                        data[branch].categories[cat] = { รวม: 0, ไม่เกิน: 0, เกิน: 0 };
+                    }
+                    data[branch].categories[cat][input.dataset.field] = parseInt(input.value) || 0;
+                });
+            });
+
+            try {
+                const response = await fetch(`${API_BASE}/api/data/edit/pr`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mk: currentEditingMk, data })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to save');
+                }
+
+                closePrEdit();
+                await loadData();
+                addLog(`บันทึกข้อมูล PR ${mkToLabel(currentEditingMk)} สำเร็จ`, 'success');
+            } catch (error) {
+                addLog(`ข้อผิดพลาด: ${error.message}`, 'error');
+            }
+        }
+
+        // Save AON edit
+        async function saveAonEdit() {
+            const table = document.getElementById('aonEditTable');
+            const data = {};
+
+            table.querySelectorAll('tbody tr').forEach(row => {
+                const branch = row.querySelector('td strong').textContent;
+                const input = row.querySelector('input[type="number"]');
+                data[branch] = parseFloat(input.value) || 0;
+            });
+
+            try {
+                const response = await fetch(`${API_BASE}/api/data/edit/aon`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mk: currentEditingMk, data })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to save');
+                }
+
+                closeAonEdit();
+                await loadData();
+                addLog(`บันทึกข้อมูล AON ${mkToLabel(currentEditingMk)} สำเร็จ`, 'success');
+            } catch (error) {
+                addLog(`ข้อผิดพลาด: ${error.message}`, 'error');
+            }
+        }
+
+        // Close edit tables
+        function closePrEdit() {
+            document.getElementById('prEditTable').classList.remove('active');
+            currentEditingMk = null;
+            currentEditingType = null;
+        }
+
+        function closeAonEdit() {
+            document.getElementById('aonEditTable').classList.remove('active');
+            currentEditingMk = null;
+            currentEditingType = null;
+        }
+
+        // Delete month
+        async function deleteMonth(type, mk) {
+            try {
+                const response = await fetch(`${API_BASE}/api/data/${type}/${mk}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to delete');
+                }
+
+                await loadData();
+                addLog(`ลบข้อมูล ${type.toUpperCase()} ${mkToLabel(mk)} สำเร็จ`, 'success');
+            } catch (error) {
+                addLog(`ข้อผิดพลาด: ${error.message}`, 'error');
+            }
+        }
+
+        // Clear all data
+        async function clearAllData() {
+            try {
+                const response = await fetch(`${API_BASE}/api/data/clear`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to clear');
+                }
+
+                await loadData();
+                addLog('ล้างข้อมูลทั้งหมดสำเร็จ', 'success');
+            } catch (error) {
+                addLog(`ข้อผิดพลาด: ${error.message}`, 'error');
+            }
+        }
+
+        // Show status
+        function showStatus(type, message, status) {
+            const statusEl = document.getElementById(`${type}UploadStatus`);
+            statusEl.textContent = message;
+            statusEl.className = `upload-status show ${status}`;
+        }
+
+        // Show confirm dialog
+        function showConfirmDialog(title, message, callback) {
+            document.getElementById('confirmTitle').textContent = title;
+            document.getElementById('confirmMessage').textContent = message;
+            const okBtn = document.getElementById('confirmOk');
+            if (title.includes('⚠️')) {
+                okBtn.className = 'btn btn-danger';
+                okBtn.textContent = 'ยืนยันเขียนทับ';
+            } else {
+                okBtn.className = 'btn btn-primary';
+                okBtn.textContent = 'ยืนยัน';
+            }
+            confirmCallback = callback;
+            document.getElementById('confirmModal').classList.add('active');
+        }
+
+        // Close confirm dialog
+        function closeConfirmDialog() {
+            document.getElementById('confirmModal').classList.remove('active');
+            confirmCallback = null;
+        }
+
+        // Add log
+        function addLog(message, type = 'info') {
+            const logContent = document.getElementById('logContent');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry log-' + type;
+
+            const time = new Date().toLocaleTimeString('th-TH');
+            entry.innerHTML = `<span class="log-time">[${time}]</span> ${message}`;
+
+            logContent.appendChild(entry);
+            logContent.scrollTop = logContent.scrollHeight;
+        }
+
+        // Start
+        init();
+    </script>
+</body>
+</html>

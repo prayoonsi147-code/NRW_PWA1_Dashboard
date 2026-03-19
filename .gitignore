@@ -19,3 +19,7 @@ hero-bg.svg
 
 # Prompt history
 prompt_history.txt
+
+# Server data (generated/uploaded — not source code)
+**/data.json
+**/uploaded_data/

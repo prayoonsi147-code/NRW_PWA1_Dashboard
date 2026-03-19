@@ -1,0 +1,1124 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>จัดการแหล่งข้อมูล — Dashboard น้ำสูญเสีย</title>
+    <script>
+        if (location.protocol === 'file:') {
+            location.href = 'http://localhost:5001/manage.html';
+        }
+    </script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #f0f7ff 0%, #e8f4fd 100%);
+            color: #333;
+            min-height: 100vh;
+            padding: 20px;
+            transition: background .3s, color .3s;
+        }
+
+        /* ── Dark Mode ── */
+        body.dark {
+            background: linear-gradient(135deg, #0a1628 0%, #0f3460 100%);
+            color: #e0e0e0;
+        }
+        body.dark .header { background: linear-gradient(135deg, #0a1628, #0f3460); }
+        body.dark .header .back-btn { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.25); }
+        body.dark .upload-section,
+        body.dark .management-panel,
+        body.dark .upload-log { background: #16213e; box-shadow: 0 2px 8px rgba(0,0,0,.3); }
+        body.dark .upload-tabs { background: #1a2a4a; border-bottom-color: #2a3a5a; }
+        body.dark .upload-tab { color: #7ec8e3; }
+        body.dark .upload-tab:hover { background: rgba(255,255,255,.05); color: #e0e0e0; }
+        body.dark .upload-tab .tab-count { background: rgba(255,255,255,.08); color: #7ec8e3; }
+        body.dark .drop-zone { background: #1a2a4a; border-color: #2a3a5a; }
+        body.dark .drop-zone-text, body.dark .drop-zone-hint { color: #7ec8e3; }
+        body.dark .upload-hint { background: #1a2a4a; border-color: #2a3a5a; color: #7ec8e3; }
+        body.dark .upload-hint summary { color: #e0e0e0; }
+        body.dark .upload-hint code { background: #2a3a5a; color: #64b5f6; }
+        body.dark .upload-hint .hint-tag { background: rgba(52,152,219,.15); color: #64b5f6; }
+        body.dark .mode-radio label { color: #e0e0e0; }
+        body.dark .form-group label { color: #7ec8e3; }
+        body.dark .form-group select { background: #1a2a4a; border-color: #2a3a5a; color: #e0e0e0; }
+        body.dark .btn-primary { background: #2980b9; }
+        body.dark .btn-primary:hover:not(:disabled) { background: #3498db; box-shadow: 0 4px 12px rgba(41,128,185,.3); }
+        body.dark .btn-secondary { background: #1a2a4a; color: #e0e0e0; border-color: #2a3a5a; }
+        body.dark .section-title { color: #64b5f6; }
+        body.dark .chip { border-color: #2a3a5a; }
+        body.dark .chip-label { color: #64b5f6; }
+        body.dark .chip-delete { color: #ef5350; }
+        body.dark .log-content { background: #1a2a4a; border-color: #2a3a5a; color: #7ec8e3; }
+        body.dark .log-entry { border-bottom-color: #2a3a5a; }
+        body.dark .modal-content { background: #16213e; color: #e0e0e0; }
+        body.dark .modal-message { color: #7ec8e3; }
+        body.dark .upload-status.success { background: rgba(46,125,50,.2); color: #81c784; border-color: rgba(129,199,132,.3); }
+        body.dark .upload-status.error { background: rgba(198,40,40,.2); color: #ef5350; border-color: rgba(239,83,80,.3); }
+        body.dark .upload-status.loading { background: rgba(41,128,185,.2); color: #64b5f6; border-color: rgba(100,181,246,.3); }
+        body.dark .edit-table th { background: #1a2a4a; color: #7ec8e3; }
+        body.dark .edit-table td { border-color: #2a3a5a; }
+
+        /* Theme Toggle */
+        .theme-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+        .theme-switch { width: 44px; height: 24px; background: rgba(255,255,255,.25); border-radius: 12px; position: relative; transition: background .3s; }
+        .theme-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; background: #fff; border-radius: 50%; transition: transform .3s; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+        body.dark .theme-switch { background: rgba(52,152,219,.4); }
+        body.dark .theme-switch::after { transform: translateX(20px); background: #64b5f6; }
+        .theme-icon { font-size: 16px; color: rgba(255,255,255,.7); }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #1e3a5f 0%, #2980b9 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 4px 12px rgba(30, 128, 185, 0.2);
+        }
+
+        .header-content h1 {
+            font-size: 28px;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 2px solid white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+
+        .back-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateX(-4px);
+        }
+
+        /* Upload Section */
+        .upload-section {
+            background: white;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #1e3a5f;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Upload Tabs */
+        .upload-tabs {
+            display: flex;
+            background: #f5f5f5;
+            border-bottom: 2px solid #e0e0e0;
+            overflow-x: auto;
+        }
+
+        .upload-tab {
+            flex: 1;
+            padding: 12px 16px;
+            border: none;
+            background: transparent;
+            font-size: 13px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            color: #888;
+            position: relative;
+            min-width: 120px;
+        }
+
+        .upload-tab:hover {
+            background: rgba(0,0,0,0.04);
+            color: #555;
+        }
+
+        .upload-tab.active {
+            color: #fff;
+        }
+
+        .upload-tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 3px;
+        }
+
+        .upload-tab .tab-count {
+            font-size: 11px;
+            padding: 1px 7px;
+            border-radius: 10px;
+            background: rgba(0,0,0,0.08);
+            color: #666;
+        }
+
+        .upload-tab.active .tab-count {
+            background: rgba(255,255,255,0.3);
+            color: #fff;
+        }
+
+        .upload-tab-panel {
+            display: none;
+            padding: 20px 25px;
+        }
+
+        .upload-tab-panel.active {
+            display: block;
+        }
+
+        /* Drop Zone */
+        .drop-zone {
+            border: 2px dashed #ccc;
+            border-radius: 10px;
+            padding: 25px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #fafafa;
+            margin-bottom: 15px;
+        }
+
+        .drop-zone {
+            border-color: #90caf9;
+            background: #f0f7ff;
+        }
+
+        .drop-zone.dragover {
+            border-color: #333;
+            background: #f0f0f0;
+            transform: scale(1.01);
+        }
+
+        .drop-zone-content {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+
+        .drop-zone-icon {
+            font-size: 24px;
+        }
+
+        .drop-zone-text {
+            font-size: 13px;
+            color: #666;
+        }
+
+        .drop-zone-hint {
+            font-size: 11px;
+            color: #999;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        /* Upload Hints */
+        .upload-hint {
+            margin-top: -8px;
+            margin-bottom: 14px;
+            font-size: 12px;
+            line-height: 1.6;
+            color: #666;
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 10px 14px;
+        }
+
+        .upload-hint summary {
+            cursor: pointer;
+            font-weight: 600;
+            color: #555;
+            font-size: 12px;
+        }
+
+        .upload-hint summary:hover { color: #333; }
+
+        .upload-hint .hint-body {
+            margin-top: 8px;
+        }
+
+        .upload-hint .hint-label {
+            font-weight: 600;
+            color: #444;
+        }
+
+        .upload-hint code {
+            background: #e8e8e8;
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+
+        .upload-hint .hint-example {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin: 4px 0 6px;
+        }
+
+        .upload-hint .hint-tag {
+            background: #e3f2fd;
+            color: #1565c0;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+
+        .upload-hint .hint-note {
+            color: #888;
+            font-size: 11px;
+            font-style: italic;
+        }
+
+        /* Upload Status */
+        .upload-status {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            display: none;
+            font-size: 12px;
+        }
+
+        .upload-status.show {
+            display: block;
+        }
+
+        .upload-status.success {
+            background: #c8e6c9;
+            color: #1b5e20;
+            border: 1px solid #81c784;
+        }
+
+        .upload-status.error {
+            background: #ffcdd2;
+            color: #b71c1c;
+            border: 1px solid #ef5350;
+        }
+
+        .upload-status.loading {
+            background: #bbdefb;
+            color: #0d47a1;
+            border: 1px solid #64b5f6;
+        }
+
+        /* Buttons */
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            background: #2980b9;
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: #1e3a5f;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(41, 128, 185, 0.3);
+        }
+
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+            border: 1px solid #ddd;
+        }
+
+        .btn-secondary:hover {
+            background: #e8e8e8;
+        }
+
+        .btn-danger {
+            background: #d32f2f;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c62828;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(198, 40, 40, 0.3);
+        }
+
+        /* Management Panel */
+        .management-panel {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .category-section {
+            margin-bottom: 20px;
+        }
+
+        .category-section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 10px;
+            padding: 6px 14px;
+            border-radius: 6px;
+            display: inline-block;
+        }
+
+        .file-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-bottom: 12px;
+        }
+
+        .chip {
+            border: 1.5px solid;
+            border-radius: 4px;
+            padding: 3px 8px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            color: #333;
+            transition: all 0.15s ease;
+            background: #f0f7ff;
+            border-color: #2980b9;
+        }
+
+        .chip:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+        }
+
+        .chip-label {
+            font-weight: 600;
+            font-size: 11px;
+            color: #1e3a5f;
+        }
+
+        .chip-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 12px;
+            padding: 1px 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 3px;
+            transition: all 0.15s ease;
+            line-height: 1;
+        }
+
+        .chip-delete {
+            color: #d32f2f;
+            font-size: 13px;
+        }
+
+        .chip-delete:hover {
+            background: #ffebee;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+
+        /* Upload Log */
+        .upload-log {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .log-content {
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            max-height: 250px;
+            overflow-y: auto;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.5;
+            color: #333;
+        }
+
+        .log-entry {
+            padding: 5px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .log-time {
+            color: #999;
+            margin-right: 10px;
+        }
+
+        .log-success {
+            color: #1b5e20;
+        }
+
+        .log-error {
+            color: #b71c1c;
+        }
+
+        .log-info {
+            color: #0d47a1;
+        }
+
+        /* Footer Actions */
+        .footer-actions {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        /* Modal Dialog */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .modal-message {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 25px;
+            line-height: 1.5;
+            white-space: pre-line;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                gap: 20px;
+                text-align: center;
+            }
+
+            .header-content h1 {
+                font-size: 22px;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+            }
+
+            .drop-zone {
+                padding: 25px;
+            }
+
+            .modal-content {
+                max-width: 90%;
+            }
+        }
+
+        /* Loading Spinner */
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #2980b9;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-content">
+                <h1>จัดการแหล่งข้อมูล — Dashboard น้ำสูญเสีย</h1>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px">
+                <button class="back-btn" id="backBtn" onclick="goBack()">← กลับหน้า Dashboard</button>
+                <div class="theme-toggle" onclick="toggleTheme()">
+                    <span class="theme-icon">&#9788;</span>
+                    <div class="theme-switch"></div>
+                    <span class="theme-icon">&#9790;</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Upload Section — Tabbed -->
+        <div class="upload-section">
+            <div class="upload-tabs" id="uploadTabs">
+                <button class="upload-tab active" data-category="ois" onclick="switchTab('ois')">
+                    📊 OIS <span class="tab-count" id="ois-count">-</span>
+                </button>
+                <button class="upload-tab" data-category="rl" onclick="switchTab('rl')">
+                    💧 Real Leak <span class="tab-count" id="rl-count">-</span>
+                </button>
+                <button class="upload-tab" data-category="mnf" onclick="switchTab('mnf')">
+                    📈 MNF <span class="tab-count" id="mnf-count">-</span>
+                </button>
+                <button class="upload-tab" data-category="p3" onclick="switchTab('p3')">
+                    📍 P3 <span class="tab-count" id="p3-count">-</span>
+                </button>
+                <button class="upload-tab" data-category="activities" onclick="switchTab('activities')">
+                    📋 Activities <span class="tab-count" id="activities-count">-</span>
+                </button>
+                <button class="upload-tab" data-category="eu" onclick="switchTab('eu')">
+                    ⚡ หน่วยไฟ <span class="tab-count" id="eu-count">-</span>
+                </button>
+                <button class="upload-tab" data-category="kpi" onclick="switchTab('kpi')">
+                    🎯 เกณฑ์ชี้วัด <span class="tab-count" id="kpi-count">-</span>
+                </button>
+                <button class="upload-tab" data-category="kpi2" onclick="switchTab('kpi2')">
+                    📊 KPI น้ำสูญ <span class="tab-count" id="kpi2-count">-</span>
+                </button>
+            </div>
+
+            <!-- Upload Panels (8 categories) -->
+            <div id="upload-panels"></div>
+        </div>
+
+        <!-- Management Panel -->
+        <div class="management-panel">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+                <h2 class="section-title" style="margin-bottom:0">📂 ข้อมูลปัจจุบัน</h2>
+                <button class="btn btn-secondary" onclick="openFolder()" style="font-size:12px;padding:6px 14px;display:inline-flex;align-items:center;gap:5px">
+                    📂 เปิดโฟลเดอร์ข้อมูล
+                </button>
+            </div>
+            <div id="management-content"></div>
+        </div>
+
+        <!-- Upload Log -->
+        <div class="upload-log">
+            <h2 class="section-title">📝 ประวัติการอัปโหลด</h2>
+            <div class="log-content" id="logContent">
+                <div class="empty-state" style="padding: 20px;">ยังไม่มีการอัปโหลดไฟล์</div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div class="modal" id="confirmModal">
+        <div class="modal-content">
+            <div class="modal-title" id="confirmTitle">ยืนยัน</div>
+            <div class="modal-message" id="confirmMessage"></div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeConfirmDialog()">ยกเลิก</button>
+                <button class="btn btn-primary" onclick="confirmAction()">ตกลง</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+        const CATEGORIES = {
+            'ois': { thai: 'OIS', icon: '📊', color: '#2980b9', dark: '#1a5276',
+                hint: 'ไฟล์ OIS รายปี ตั้งชื่อเป็นปี พ.ศ. เช่น <code>2569.xls</code>, <code>2568.xls</code>' },
+            'rl': { thai: 'Real Leak', icon: '💧', color: '#00897b', dark: '#004d40',
+                hint: 'ไฟล์ Real Leak ตั้งชื่อ <code>RL-ปี.xlsx</code> เช่น <code>RL-2569.xlsx</code>' },
+            'mnf': { thai: 'MNF', icon: '📈', color: '#7b1fa2', dark: '#4a148c',
+                hint: 'ไฟล์ MNF ตั้งชื่อ <code>MNF-ปี.xlsx</code> เช่น <code>MNF-2569.xlsx</code>' },
+            'p3': { thai: 'P3', icon: '📍', color: '#3949ab', dark: '#1a237e',
+                hint: 'ไฟล์ P3 แยกรายสาขา (22 ไฟล์) เช่น <code>P3_ชลบุรี.xlsx</code>' },
+            'activities': { thai: 'Activities', icon: '📋', color: '#2e7d32', dark: '#1b5e20',
+                hint: 'ไฟล์กิจกรรมลดน้ำสูญเสีย เช่น <code>กิจกรรมลดน้ำสูญเสีย.xlsx</code>' },
+            'eu': { thai: 'หน่วยไฟ', icon: '⚡', color: '#f57f17', dark: '#e65100',
+                hint: 'ไฟล์หน่วยไฟ (EU) ตั้งชื่อ <code>EU-ปี.xlsx</code> เช่น <code>EU-2569.xlsx</code>' },
+            'kpi': { thai: 'เกณฑ์ชี้วัด', icon: '🎯', color: '#c62828', dark: '#8e0000',
+                hint: 'ไฟล์เกณฑ์ชี้วัด KPI ตั้งชื่อ <code>KPI_Leak-ปี.xlsx</code> เช่น <code>KPI_Leak-2569.xlsx</code>' },
+            'kpi2': { thai: 'KPI น้ำสูญ', icon: '📊', color: '#d84315', dark: '#8f2800',
+                hint: 'ไฟล์เกณฑ์วัดน้ำสูญเสีย ตั้งชื่อ <code>KPI_Leal-ปี.xlsx</code> เช่น <code>KPI_Leal-2569.xlsx</code>' }
+        };
+
+        let currentCategory = 'ois';
+        let cachedData = {};
+        let confirmCallback = null;
+
+        // ─── Initialization ───────────────────────────────────────────────────
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            initTheme();
+            createUploadPanels();
+            setupEventListeners();
+            switchTab('ois'); // apply initial tab color
+            await loadData();
+        });
+
+        function initTheme() {
+            if (localStorage.getItem('theme') === 'dark') {
+                document.body.classList.add('dark');
+            }
+        }
+
+        function toggleTheme() {
+            document.body.classList.toggle('dark');
+            const isDark = document.body.classList.contains('dark');
+            localStorage.setItem('theme', isDark ? 'dark' : 'bright');
+        }
+
+        function goBack() {
+            window.location.href = '/';
+        }
+
+        // ─── Create Upload Panels ─────────────────────────────────────────────
+
+        function createUploadPanels() {
+            const container = document.getElementById('upload-panels');
+
+            Object.keys(CATEGORIES).forEach(slug => {
+                const cat = CATEGORIES[slug];
+                const panel = document.createElement('div');
+                panel.className = 'upload-tab-panel' + (slug === 'ois' ? ' active' : '');
+                panel.id = `panel-${slug}`;
+                panel.innerHTML = `
+                    <div class="drop-zone" id="dropZone-${slug}" style="border-color:${cat.color}40;background:${cat.color}08">
+                        <div class="drop-zone-content">
+                            <div class="drop-zone-icon">${cat.icon}</div>
+                            <div class="drop-zone-text">ลากไฟล์มาวาง หรือคลิกเลือกไฟล์ &nbsp;<span class="drop-zone-hint">(.xlsx, .xls, .csv) เลือกได้หลายไฟล์</span></div>
+                        </div>
+                        <input type="file" id="fileInput-${slug}" class="file-input" accept=".xlsx,.xls,.csv" multiple>
+                    </div>
+
+                    <details class="upload-hint" open>
+                        <summary>คำแนะนำการอัปโหลด (${cat.thai})</summary>
+                        <div class="hint-body">
+                            <p><span class="hint-label">รูปแบบไฟล์:</span> Excel (.xlsx, .xls) หรือ CSV</p>
+                            <p><span class="hint-label">ชื่อไฟล์:</span> ${cat.hint}</p>
+                            <p><span class="hint-label">เก็บไว้ที่:</span> ข้อมูลดิบ/${cat.thai}/</p>
+                            <p class="hint-note">* ระบบจะเก็บไฟล์ไว้ในโฟลเดอร์ข้อมูลดิบ</p>
+                        </div>
+                    </details>
+
+                    <div class="upload-status" id="uploadStatus-${slug}"></div>
+
+                    <div class="button-group">
+                        <button class="btn btn-primary" id="uploadBtn-${slug}" disabled>อัปโหลดไฟล์</button>
+                    </div>
+                `;
+                container.appendChild(panel);
+            });
+        }
+
+        function setupEventListeners() {
+            Object.keys(CATEGORIES).forEach(slug => {
+                // Drop zone
+                const dropZone = document.getElementById(`dropZone-${slug}`);
+                const fileInput = document.getElementById(`fileInput-${slug}`);
+                const uploadBtn = document.getElementById(`uploadBtn-${slug}`);
+
+                dropZone.addEventListener('click', () => fileInput.click());
+
+                dropZone.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    dropZone.classList.add('dragover');
+                });
+
+                dropZone.addEventListener('dragleave', () => {
+                    dropZone.classList.remove('dragover');
+                });
+
+                dropZone.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    dropZone.classList.remove('dragover');
+                    fileInput.files = e.dataTransfer.files;
+                    fileInput.dispatchEvent(new Event('change'));
+                });
+
+                // File input change
+                fileInput.addEventListener('change', () => {
+                    uploadBtn.disabled = fileInput.files.length === 0;
+                });
+
+                // Upload button
+                uploadBtn.addEventListener('click', () => uploadFiles(slug));
+            });
+        }
+
+        // ─── Tab Switching ────────────────────────────────────────────────────
+
+        function switchTab(slug) {
+            currentCategory = slug;
+            const cat = CATEGORIES[slug];
+
+            // Update active tab + color
+            document.querySelectorAll('.upload-tab').forEach(btn => {
+                btn.classList.remove('active');
+                btn.style.background = '';
+            });
+            const activeBtn = document.querySelector(`[data-category="${slug}"]`);
+            activeBtn.classList.add('active');
+            activeBtn.style.background = `linear-gradient(135deg, ${cat.dark || cat.color}, ${cat.color})`;
+
+            // Update active panel
+            document.querySelectorAll('.upload-tab-panel').forEach(panel => {
+                panel.classList.remove('active');
+            });
+            document.getElementById(`panel-${slug}`).classList.add('active');
+        }
+
+        // ─── Upload Files ─────────────────────────────────────────────────────
+
+        async function uploadFiles(slug) {
+            const fileInput = document.getElementById(`fileInput-${slug}`);
+            const files = fileInput.files;
+
+            if (files.length === 0) {
+                showStatus(slug, 'โปรดเลือกไฟล์', 'error');
+                return;
+            }
+
+            let fileList = Array.from(files).map(f => f.name).join(', ');
+            let confirmMsg = `อัปโหลด ${files.length} ไฟล์:\n${fileList}`;
+
+            showConfirmDialog(
+                'ยืนยันการอัปโหลด',
+                confirmMsg,
+                async () => {
+                    await performUpload(slug, files);
+                }
+            );
+        }
+
+        async function performUpload(slug, files) {
+            const formData = new FormData();
+            Array.from(files).forEach(file => {
+                formData.append('files', file);
+            });
+
+            showStatus(slug, 'กำลังอัปโหลด...', 'loading');
+
+            try {
+                const response = await fetch(`${API_BASE}/api/upload/${slug}`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.error || 'Upload failed');
+                }
+
+                const errors = result.errors || [];
+                const successes = result.results || [];
+
+                if (errors.length > 0) {
+                    const failMsg = errors.map(e => `${e.filename}: ${e.error}`).join('\n');
+                    showStatus(slug, `${successes.length} ไฟล์สำเร็จ, ${errors.length} ไฟล์ล้มเหลว`, 'error');
+                    addLog(`Upload ${slug} บางส่วนล้มเหลว:\n${failMsg}`, 'error');
+                } else {
+                    showStatus(slug, `อัปโหลดสำเร็จ ${successes.length} ไฟล์`, 'success');
+                    addLog(`Upload ${slug} สำเร็จ (${Array.from(files).map(f => f.name).join(', ')})`, 'success');
+                }
+
+                // Clear input
+                document.getElementById(`fileInput-${slug}`).value = '';
+                document.getElementById(`uploadBtn-${slug}`).disabled = true;
+
+                // Reload data
+                await loadData();
+            } catch (error) {
+                showStatus(slug, `ข้อผิดพลาด: ${error.message}`, 'error');
+                addLog(`Upload ${slug} ล้มเหลว: ${error.message}`, 'error');
+            }
+        }
+
+        function showStatus(slug, message, type) {
+            const statusEl = document.getElementById(`uploadStatus-${slug}`);
+            statusEl.textContent = message;
+            statusEl.className = `upload-status show ${type}`;
+        }
+
+        // ─── Load Data ────────────────────────────────────────────────────────
+
+        async function loadData() {
+            try {
+                const response = await fetch(`${API_BASE}/api/data`);
+                if (!response.ok) {
+                    throw new Error('Failed to load data');
+                }
+
+                const data = await response.json();
+                cachedData = data.inventory || {};
+
+                // Update tab counts
+                Object.keys(CATEGORIES).forEach(slug => {
+                    const count = cachedData[slug]?.count || 0;
+                    document.getElementById(`${slug}-count`).textContent = count;
+                });
+
+                // Render management panel
+                renderManagementPanel();
+
+                addLog('โหลดข้อมูลจากเซิร์ฟเวอร์สำเร็จ', 'info');
+            } catch (error) {
+                addLog(`ข้อผิดพลาด: ${error.message}`, 'error');
+            }
+        }
+
+        function renderManagementPanel() {
+            const container = document.getElementById('management-content');
+            container.innerHTML = '';
+
+            let hasData = false;
+
+            Object.keys(CATEGORIES).forEach(slug => {
+                const cat = CATEGORIES[slug];
+                const catData = cachedData[slug];
+                if (!catData) return;
+
+                const files = catData.files || [];
+                if (files.length === 0) return;
+
+                hasData = true;
+
+                const lastMod = catData.last_modified;
+                const section = document.createElement('div');
+                section.className = 'category-section';
+                section.innerHTML = `
+                    <div class="category-section-title" style="background: linear-gradient(135deg, ${cat.dark || cat.color}, ${cat.color});">
+                        ${cat.icon} ${cat.thai} (${files.length})
+                    </div>
+                    ${lastMod ? `<span style="font-size:11px;color:#888;margin-left:4px">อัปเดตล่าสุด: ${lastMod}</span>` : ''}
+                    <div class="file-chips" id="chips-${slug}"></div>
+                `;
+                container.appendChild(section);
+
+                // Add file chips with category color
+                const chipsDiv = section.querySelector(`#chips-${slug}`);
+                files.forEach(filename => {
+                    const chip = document.createElement('div');
+                    chip.className = 'chip';
+                    chip.style.borderColor = cat.color + '60';
+                    chip.style.background = cat.color + '0a';
+                    chip.innerHTML = `
+                        <span class="chip-label" style="color:${cat.color}">${filename}</span>
+                        <button class="chip-btn chip-delete" title="ลบ" onclick="deleteFile('${slug}', '${filename}')">✕</button>
+                    `;
+                    chipsDiv.appendChild(chip);
+                });
+            });
+
+            if (!hasData) {
+                container.innerHTML = '<div class="empty-state">📭 ไม่มีไฟล์ข้อมูลอยู่</div>';
+            }
+        }
+
+        async function deleteFile(slug, filename) {
+            showConfirmDialog(
+                'ยืนยันการลบไฟล์',
+                `คุณต้องการลบ ${filename} หรือไม่?`,
+                async () => {
+                    try {
+                        const response = await fetch(`${API_BASE}/api/data/${slug}/${encodeURIComponent(filename)}`, {
+                            method: 'DELETE'
+                        });
+
+                        if (!response.ok) {
+                            throw new Error('Delete failed');
+                        }
+
+                        addLog(`ลบไฟล์สำเร็จ: ${filename}`, 'success');
+                        await loadData();
+                    } catch (error) {
+                        addLog(`ลบไฟล์ล้มเหลว: ${error.message}`, 'error');
+                    }
+                }
+            );
+        }
+
+        // ─── Folder Operations ────────────────────────────────────────────────
+
+        async function openFolder() {
+            try {
+                await fetch(`${API_BASE}/api/open-folder`, { method: 'POST' });
+                addLog('เปิดโฟลเดอร์ข้อมูลสำเร็จ', 'info');
+            } catch (error) {
+                addLog(`เปิดโฟลเดอร์ล้มเหลว: ${error.message}`, 'error');
+            }
+        }
+
+        async function rebuildDashboard() {
+            showConfirmDialog(
+                '⚠️ สร้าง Dashboard ใหม่',
+                'ระบบจะรัน build_dashboard.py เพื่อประมวลผลข้อมูล กระบวนการนี้อาจใช้เวลาสักครู่',
+                async () => {
+                    try {
+                        const response = await fetch(`${API_BASE}/api/rebuild`, { method: 'POST' });
+                        const result = await response.json();
+
+                        if (result.ok) {
+                            addLog('สร้าง Dashboard สำเร็จ! ⚡', 'success');
+                            showConfirmDialog('สำเร็จ', 'Dashboard ได้อัปเดตเรียบร้อยแล้ว!', () => {});
+                        } else {
+                            addLog(`Build ล้มเหลว: ${result.message}`, 'error');
+                        }
+                    } catch (error) {
+                        addLog(`Build ล้มเหลว: ${error.message}`, 'error');
+                    }
+                }
+            );
+        }
+
+        // ─── Logging ──────────────────────────────────────────────────────────
+
+        function addLog(message, type = 'info') {
+            const logContent = document.getElementById('logContent');
+            if (logContent.querySelector('.empty-state')) {
+                logContent.innerHTML = '';
+            }
+
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            const time = new Date().toLocaleTimeString('th-TH');
+            entry.innerHTML = `<span class="log-time">[${time}]</span> ${message}`;
+            logContent.appendChild(entry);
+            logContent.scrollTop = logContent.scrollHeight;
+        }
+
+        // ─── Modal Dialogs ────────────────────────────────────────────────────
+
+        function showConfirmDialog(title, message, callback) {
+            document.getElementById('confirmTitle').textContent = title;
+            document.getElementById('confirmMessage').textContent = message;
+            confirmCallback = callback;
+            document.getElementById('confirmModal').classList.add('active');
+        }
+
+        function closeConfirmDialog() {
+            document.getElementById('confirmModal').classList.remove('active');
+            confirmCallback = null;
+        }
+
+        function confirmAction() {
+            if (confirmCallback) {
+                confirmCallback();
+            }
+            closeConfirmDialog();
+        }
+
+        // Close modal on background click
+        document.getElementById('confirmModal').addEventListener('click', (e) => {
+            if (e.target.id === 'confirmModal') {
+                closeConfirmDialog();
+            }
+        });
+    </script>
+</body>
+</html>

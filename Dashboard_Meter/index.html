@@ -99,17 +99,11 @@ body.dark .main-tab-bar{background:#1a0a30}
 
 <!-- ===== HEADER ===== -->
 <div class="header">
-    <a href="../index.html" style="position:absolute;left:18px;top:50%;transform:translateY(-50%);text-decoration:none;color:white;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;transition:background 0.2s" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">&larr; หน้าหลัก</a>
+    <a href="../index.html" onclick="if(location.protocol!=='file:'){fetch('/api/open-main',{method:'POST'});return false;}" style="position:absolute;left:18px;top:50%;transform:translateY(-50%);text-decoration:none;color:white;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;transition:background 0.2s" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">&larr; หน้าหลัก</a>
     <h1>Dashboard งานมาตรวัดน้ำ</h1>
     <p>งานมาตรวัดน้ำ กองระบบจำหน่าย กปภ.ข.1</p>
     <div style="position:absolute;top:50%;right:32px;transform:translateY(-50%);display:flex;align-items:center;gap:12px">
-        <div style="display:flex;align-items:center;gap:8px">
-            <label style="font-size:13px;font-weight:600;color:#fff">แหล่งข้อมูล</label>
-            <div class="ymt" style="border-color:rgba(255,255,255,.5)">
-                <button class="ymb" id="headerInfoShow" onclick="toggleInfo(true)" style="background:rgba(255,255,255,.15);color:#fff;padding:5px 14px;font-size:12px">แสดง</button>
-                <button class="ymb active" id="headerInfoHide" onclick="toggleInfo(false)" style="background:rgba(255,255,255,.4);color:#fff;padding:5px 14px;font-size:12px">ซ่อน</button>
-            </div>
-        </div>
+        <a href="manage.html" onclick="if(location.protocol==='file:'){location.href='http://localhost:5003/manage.html';return false;}" style="text-decoration:none;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.4);color:#fff;padding:7px 18px;border-radius:8px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;transition:background .2s;cursor:pointer" onmouseover="this.style.background='rgba(255,255,255,.35)'" onmouseout="this.style.background='rgba(255,255,255,.18)'">&#9881; จัดการแหล่งข้อมูล</a>
         <div class="theme-toggle" onclick="toggleTheme()" style="position:static;transform:none">
             <span>&#9788;</span>
             <div class="theme-switch" id="themeSwitch"></div>

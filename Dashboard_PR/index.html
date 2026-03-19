@@ -7,6 +7,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
 <script>
 // Load PptxGenJS with fallback CDN URLs
@@ -121,9 +122,6 @@
   .container{max-width:1400px;margin:0 auto;padding:24px}
 
   /* Info section */
-  .info-section{position:relative}
-  .info-content{transition:max-height .3s ease,opacity .3s ease,margin .3s ease;overflow:hidden}
-  .info-content.collapsed{max-height:0!important;opacity:0;margin-bottom:0!important}
   .toggle-info-btn{position:absolute;top:0;right:0;padding:6px 16px;border:none;border-radius:20px;background:var(--info-btn-bg);color:var(--info-btn-color);font-size:12px;font-weight:600;cursor:pointer;transition:all .2s;z-index:3}
   .toggle-info-btn:hover{background:var(--accent);color:#fff}
 
@@ -364,17 +362,11 @@
 <body>
 
 <div class="header">
-  <a href="../index.html" style="position:absolute;left:18px;top:50%;transform:translateY(-50%);text-decoration:none;color:white;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;transition:background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">&larr; หน้าหลัก</a>
+  <a href="../index.html" onclick="if(location.protocol!=='file:'){fetch('/api/open-main',{method:'POST'});return false;}" style="position:absolute;left:18px;top:50%;transform:translateY(-50%);text-decoration:none;color:white;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;transition:background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">&larr; หน้าหลัก</a>
   <h1>Dashboard งานลูกค้าสัมพันธ์</h1>
   <p>งานลูกค้าสัมพันธ์ กองระบบจำหน่าย กปภ.ข.1</p>
   <div style="position:absolute;top:50%;right:32px;transform:translateY(-50%);display:flex;align-items:center;gap:12px">
-    <div style="display:flex;align-items:center;gap:8px">
-      <label style="font-size:13px;font-weight:600;color:#fff">แหล่งข้อมูล</label>
-      <div class="ymt" style="border-color:rgba(255,255,255,.5)">
-        <button class="ymb" id="headerInfoShow" onclick="toggleInfo(true)" style="background:rgba(255,255,255,.15);color:#fff;padding:5px 14px;font-size:12px">แสดง</button>
-        <button class="ymb active" id="headerInfoHide" onclick="toggleInfo(false)" style="background:rgba(255,255,255,.4);color:#fff;padding:5px 14px;font-size:12px">ซ่อน</button>
-      </div>
-    </div>
+    <a href="manage.html" onclick="if(location.protocol==='file:'){location.href='http://localhost:5000/manage.html';return false;}" style="text-decoration:none;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.4);color:#fff;padding:7px 18px;border-radius:8px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;transition:background .2s;cursor:pointer" onmouseover="this.style.background='rgba(255,255,255,.35)'" onmouseout="this.style.background='rgba(255,255,255,.18)'">&#9881; จัดการแหล่งข้อมูล</a>
     <div class="theme-toggle" onclick="toggleTheme()" style="position:static;transform:none">
       <span class="theme-icon" id="themeIcon">&#9788;</span>
       <div class="theme-switch" id="themeSwitch"></div>
@@ -383,116 +375,7 @@
   </div>
 </div>
 <div class="container">
-  <div class="info-section">
-    <div class="info-content collapsed" id="infoContent" style="max-height:0">
-      <div style="background:var(--card-bg,#fff);border-radius:12px;padding:20px 24px;margin-bottom:24px;box-shadow:0 2px 8px rgba(0,0,0,.08)">
-        <h3 style="margin-bottom:12px;color:var(--heading,#1a365d)">ข้อมูลที่โหลดแล้ว</h3>
-        <div id="prFileList"></div>
-        <div style="margin-top:16px;margin-bottom:8px;display:flex;align-items:center;gap:8px">
-          <label style="font-size:13px;font-weight:600;color:var(--heading,#1a365d)">สรุปข้อมูลที่มี</label>
-          <select id="prDatasetYearMode" onchange="buildPRDatasetTable()" style="padding:4px 8px;border:1px solid var(--border,#d1d5db);border-radius:6px;font-size:13px;background:var(--card-bg,#fff);color:var(--text,#333)">
-            <option value="fiscal">ปีงบประมาณ</option>
-            <option value="calendar">ปีปฏิทิน</option>
-          </select>
-          <span style="font-size:12px;color:var(--sub2,#718096)">(ตัวเลข = จำนวนเดือนที่มีข้อมูล)</span>
-        </div>
-        <div id="prStatsRow"></div>
-      </div>
-      <!-- Upload Data Section -->
-      <div style="background:var(--card-bg,#fff);border-radius:12px;padding:20px 24px;margin-bottom:24px;box-shadow:0 2px 8px rgba(0,0,0,.08)">
-        <h3 style="margin-bottom:12px;color:var(--heading,#1a365d)">อัปโหลดข้อมูล</h3>
-        <p style="font-size:13px;color:var(--sub2,#718096);margin-bottom:4px">อัปโหลดไฟล์รูปแบบเดียวกับในโฟลเดอร์ข้อมูลดิบ (.xlsx/.xls/.csv) — ระบบอ่านเดือนอัตโนมัติ เลือกหลายไฟล์พร้อมกันได้</p>
-        <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start">
-          <!-- PR Upload -->
-          <div style="flex:1;min-width:300px;border:2px dashed var(--border,#d1d5db);border-radius:10px;padding:16px;transition:all .2s">
-            <div style="font-weight:700;color:var(--primary,#e65100);font-size:14px;margin-bottom:8px">&#128203; ข้อมูลข้อร้องเรียน (PR)</div>
-            <p style="font-size:12px;color:var(--sub2,#718096);margin-bottom:8px">ระบบจะอ่านเดือนจากชื่อไฟล์ หรือจากข้อมูลในไฟล์อัตโนมัติ<br>หรือระบุเดือนเองก็ได้</p>
-            <details style="margin-bottom:10px;font-size:12px;color:var(--text,#333)">
-              <summary style="cursor:pointer;font-weight:600;color:var(--primary,#e65100);padding:3px 0;font-size:12.5px">&#9432; คำแนะนำการตั้งชื่อไฟล์ PR</summary>
-              <div style="margin-top:6px;padding:10px 14px;background:var(--card-bg,#f0f4f8);border-radius:8px;border-left:4px solid var(--primary,#e65100)">
-                <p style="margin:0 0 4px;color:var(--sub2,#718096)">ระบบจะอ่านเดือนจาก <b>ชื่อไฟล์</b> รูปแบบ <code style="background:#fff3e0;padding:1px 6px;border-radius:4px;font-weight:600">YY-MM</code> (ปี พ.ศ. 2 หลัก - เดือน 2 หลัก)</p>
-                <div style="margin:6px 0 2px;font-weight:600">ตัวอย่างชื่อไฟล์ที่ระบบอ่านได้:</div>
-                <table style="width:100%;font-size:12px;border-collapse:collapse;margin-bottom:4px">
-                  <tr><td style="padding:3px 8px;border-bottom:1px solid var(--border,#d1d5db)"><code>ร้องเรียน_69-04.xlsx</code></td><td style="padding:3px 8px;border-bottom:1px solid var(--border,#d1d5db);color:var(--sub2,#718096)">&#10140; เม.ย. 2569</td></tr>
-                  <tr><td style="padding:3px 8px;border-bottom:1px solid var(--border,#d1d5db)"><code>ร้องเรียน_68-10.xlsx</code></td><td style="padding:3px 8px;border-bottom:1px solid var(--border,#d1d5db);color:var(--sub2,#718096)">&#10140; ต.ค. 2568</td></tr>
-                  <tr><td style="padding:3px 8px;border-bottom:1px solid var(--border,#d1d5db)"><code>PR_69-05.xlsx</code></td><td style="padding:3px 8px;border-bottom:1px solid var(--border,#d1d5db);color:var(--sub2,#718096)">&#10140; พ.ค. 2569</td></tr>
-                  <tr><td style="padding:3px 8px"><code>complaint_69-06.csv</code></td><td style="padding:3px 8px;color:var(--sub2,#718096)">&#10140; มิ.ย. 2569</td></tr>
-                </table>
-                <p style="margin:4px 0 0;color:var(--sub2,#718096);font-size:11.5px">&#128161; ถ้าชื่อไฟล์ไม่มี YY-MM ระบบจะพยายามอ่านจากข้อมูลในไฟล์ (แถวที่ 3 "ระหว่างเดือน...") หรือเลือกโหมด "ระบุเดือนเอง"</p>
-              </div>
-            </details>
-            <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
-              <label style="font-size:12px;font-weight:600;color:var(--heading,#1a365d)">โหมด:</label>
-              <select id="uploadPRMode" onchange="togglePRManualMonth()" style="padding:4px 8px;border:1px solid var(--border,#d1d5db);border-radius:6px;font-size:13px;background:var(--card-bg,#fff);color:var(--text,#333)">
-                <option value="auto">อัตโนมัติ (อ่านจากชื่อไฟล์/ข้อมูลในไฟล์)</option>
-                <option value="manual">ระบุเดือนเอง</option>
-              </select>
-              <span id="prManualMonthWrap" style="display:none;gap:8px;align-items:center">
-                <label style="font-size:12px;font-weight:600;color:var(--heading,#1a365d)">ปี พ.ศ.:</label>
-                <select id="uploadPRYear" style="padding:4px 8px;border:1px solid var(--border,#d1d5db);border-radius:6px;font-size:13px;background:var(--card-bg,#fff);color:var(--text,#333)"></select>
-                <label style="font-size:12px;font-weight:600;color:var(--heading,#1a365d)">เดือน:</label>
-                <select id="uploadPRMonth" style="padding:4px 8px;border:1px solid var(--border,#d1d5db);border-radius:6px;font-size:13px;background:var(--card-bg,#fff);color:var(--text,#333)">
-                  <option value="01">ม.ค.</option><option value="02">ก.พ.</option><option value="03">มี.ค.</option>
-                  <option value="04">เม.ย.</option><option value="05">พ.ค.</option><option value="06">มิ.ย.</option>
-                  <option value="07">ก.ค.</option><option value="08">ส.ค.</option><option value="09">ก.ย.</option>
-                  <option value="10">ต.ค.</option><option value="11">พ.ย.</option><option value="12">ธ.ค.</option>
-                </select>
-              </span>
-            </div>
-            <div style="border:2px dashed var(--border,#d1d5db);border-radius:8px;padding:12px;text-align:center;cursor:pointer;transition:all .2s" id="uploadDropPR" onclick="document.getElementById('uploadFilePR').click()" ondragover="event.preventDefault();this.style.borderColor='var(--primary,#e65100)';this.style.background='rgba(230,81,0,.05)'" ondragleave="this.style.borderColor='var(--border,#d1d5db)';this.style.background=''" ondrop="event.preventDefault();this.style.borderColor='var(--border,#d1d5db)';this.style.background='';handleUploadPR(event.dataTransfer.files)">
-              <input type="file" id="uploadFilePR" accept=".xlsx,.xls,.csv" multiple style="display:none" onchange="handleUploadPR(this.files)">
-              <div style="font-size:12px;color:var(--sub2,#718096)">ลากไฟล์มาวาง หรือคลิกเพื่อเลือกไฟล์ (เลือกหลายไฟล์ได้)</div>
-              <div style="font-size:11px;color:var(--sub2,#718096);margin-top:2px">รูปแบบเดียวกับ ร้องเรียน_YY-MM.xlsx</div>
-            </div>
-            <div id="uploadStatusPR" style="margin-top:8px;font-size:12px;display:none"></div>
-          </div>
-          <!-- AON Upload -->
-          <div style="flex:1;min-width:300px;border:2px dashed var(--border,#d1d5db);border-radius:10px;padding:16px;transition:all .2s">
-            <div style="font-weight:700;color:var(--accent,#ff6d00);font-size:14px;margin-bottom:8px">&#128200; ข้อมูล Always-On (AON)</div>
-            <p style="font-size:12px;color:var(--sub2,#718096);margin-bottom:8px">ระบบจะอ่านทุก Sheet ที่มีคอลัมน์ "always on" อัตโนมัติ<br>หรือระบุเดือนเอง (กรณีไฟล์ไม่มี Sheet แยกเดือน)</p>
-            <details style="margin-bottom:10px;font-size:12px;color:var(--text,#333)">
-              <summary style="cursor:pointer;font-weight:600;color:var(--accent,#ff6d00);padding:3px 0;font-size:12.5px">&#9432; คำแนะนำการตั้งชื่อไฟล์ AON</summary>
-              <div style="margin-top:6px;padding:10px 14px;background:var(--card-bg,#f0f4f8);border-radius:8px;border-left:4px solid var(--accent,#ff6d00)">
-                <p style="margin:0 0 4px;color:var(--sub2,#718096)">ระบบจะอ่านเดือนจาก <b>ชื่อ Sheet</b> และ <b>คอลัมน์ "always on"</b> ในไฟล์อัตโนมัติ — ชื่อไฟล์ไม่จำเป็นต้องเป็นรูปแบบเฉพาะ</p>
-                <div style="margin:6px 0 2px;font-weight:600">ตัวอย่างชื่อไฟล์ที่ใช้ได้:</div>
-                <table style="width:100%;font-size:12px;border-collapse:collapse;margin-bottom:4px">
-                  <tr><td style="padding:3px 8px;border-bottom:1px solid var(--border,#d1d5db)"><code>ข้อมูล PWA Always-on สะสม เดือนกุมภาพันธ์ 2569.xls</code></td><td style="padding:3px 8px;border-bottom:1px solid var(--border,#d1d5db);color:var(--sub2,#718096)">&#10004;</td></tr>
-                  <tr><td style="padding:3px 8px;border-bottom:1px solid var(--border,#d1d5db)"><code>AON_Feb69.xlsx</code></td><td style="padding:3px 8px;border-bottom:1px solid var(--border,#d1d5db);color:var(--sub2,#718096)">&#10004;</td></tr>
-                  <tr><td style="padding:3px 8px"><code>always_on_data.xls</code></td><td style="padding:3px 8px;color:var(--sub2,#718096)">&#10004;</td></tr>
-                </table>
-                <p style="margin:4px 0 0;color:var(--sub2,#718096);font-size:11.5px">&#128161; สิ่งสำคัญคือ <b>ภายในไฟล์</b> ต้องมี Sheet ที่มีคอลัมน์ "always on ..." (เช่น "always on ก.พ.69") — ระบบจะอ่านเดือนจากตรงนั้น</p>
-              </div>
-            </details>
-            <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
-              <label style="font-size:12px;font-weight:600;color:var(--heading,#1a365d)">โหมด:</label>
-              <select id="uploadAONMode" onchange="toggleAONManualMonth()" style="padding:4px 8px;border:1px solid var(--border,#d1d5db);border-radius:6px;font-size:13px;background:var(--card-bg,#fff);color:var(--text,#333)">
-                <option value="auto">อัตโนมัติ (อ่านจากชื่อ Sheet/คอลัมน์)</option>
-                <option value="manual">ระบุเดือนเอง</option>
-              </select>
-              <span id="aonManualMonthWrap" style="display:none;gap:8px;align-items:center">
-                <label style="font-size:12px;font-weight:600;color:var(--heading,#1a365d)">ปี พ.ศ.:</label>
-                <select id="uploadAONYear" style="padding:4px 8px;border:1px solid var(--border,#d1d5db);border-radius:6px;font-size:13px;background:var(--card-bg,#fff);color:var(--text,#333)"></select>
-                <label style="font-size:12px;font-weight:600;color:var(--heading,#1a365d)">เดือน:</label>
-                <select id="uploadAONMonth" style="padding:4px 8px;border:1px solid var(--border,#d1d5db);border-radius:6px;font-size:13px;background:var(--card-bg,#fff);color:var(--text,#333)">
-                  <option value="01">ม.ค.</option><option value="02">ก.พ.</option><option value="03">มี.ค.</option>
-                  <option value="04">เม.ย.</option><option value="05">พ.ค.</option><option value="06">มิ.ย.</option>
-                  <option value="07">ก.ค.</option><option value="08">ส.ค.</option><option value="09">ก.ย.</option>
-                  <option value="10">ต.ค.</option><option value="11">พ.ย.</option><option value="12">ธ.ค.</option>
-                </select>
-              </span>
-            </div>
-            <div style="border:2px dashed var(--border,#d1d5db);border-radius:8px;padding:12px;text-align:center;cursor:pointer;transition:all .2s" id="uploadDropAON" onclick="document.getElementById('uploadFileAON').click()" ondragover="event.preventDefault();this.style.borderColor='var(--accent,#ff6d00)';this.style.background='rgba(255,109,0,.05)'" ondragleave="this.style.borderColor='var(--border,#d1d5db)';this.style.background=''" ondrop="event.preventDefault();this.style.borderColor='var(--border,#d1d5db)';this.style.background='';handleUploadAON(event.dataTransfer.files)">
-              <input type="file" id="uploadFileAON" accept=".xlsx,.xls,.csv" multiple style="display:none" onchange="handleUploadAON(this.files)">
-              <div style="font-size:12px;color:var(--sub2,#718096)">ลากไฟล์มาวาง หรือคลิกเพื่อเลือกไฟล์ (เลือกหลายไฟล์ได้)</div>
-              <div style="font-size:11px;color:var(--sub2,#718096);margin-top:2px">รูปแบบ PWA Always-on .xls/.xlsx</div>
-            </div>
-            <div id="uploadStatusAON" style="margin-top:8px;font-size:12px;display:none"></div>
-          </div>
-        </div>
-        <div id="uploadLog" style="margin-top:12px;display:none;max-height:200px;overflow-y:auto;background:var(--card-bg,#f8f9fa);border:1px solid var(--border,#d1d5db);border-radius:8px;padding:10px;font-size:12px;font-family:monospace"></div>
-      </div>
-    </div>
-  </div>
+  <!-- Upload/management UI moved to manage.html -->
   <div class="main-tab-bar" id="mainTabBar">
     <button class="main-tab-btn active" onclick="switchMainTab('tab-prdata',this)">ข้อมูลข้อร้องเรียน</button>
     <button class="main-tab-btn" onclick="switchMainTab('tab-complaints',this)">รายงานข้อร้องเรียน</button>
@@ -3266,201 +3149,247 @@ function toggleTheme(){
     if(saved==='dark')document.body.classList.add('dark');
 })();
 
-// ==================== INFO TOGGLE ====================
-function toggleInfo(show){
-    var content=document.getElementById('infoContent');
-    if(!content)return;
-    var btnShow=document.getElementById('headerInfoShow');
-    var btnHide=document.getElementById('headerInfoHide');
-    if(show){
-        content.classList.remove('collapsed');
-        content.style.maxHeight=content.scrollHeight+'px';
-        btnShow.classList.add('active');btnShow.style.background='rgba(255,255,255,.4)';
-        btnHide.classList.remove('active');btnHide.style.background='rgba(255,255,255,.15)';
-    } else {
-        content.style.maxHeight='0';
-        content.classList.add('collapsed');
-        btnHide.classList.add('active');btnHide.style.background='rgba(255,255,255,.4)';
-        btnShow.classList.remove('active');btnShow.style.background='rgba(255,255,255,.15)';
-    }
+// INFO TOGGLE removed — upload UI moved to manage.html
+// UPLOAD DATA section removed — moved to manage.html
+
+/* ===== Upload Confirmation Dialog ===== */
+
+/* ===== localStorage Persistence (with LZ-String compression) ===== */
+var PR_UPLOAD_LS_KEY='pr_uploaded_data';
+var AON_UPLOAD_LS_KEY='pr_uploaded_aon';
+
+/* Compress & save helper */
+function lsSaveCompressed(key,obj){
+    var json=JSON.stringify(obj);
+    var compressed=LZString.compressToUTF16(json);
+    localStorage.setItem(key,compressed);
+    var ratio=((1-compressed.length*2/(json.length*2))*100).toFixed(0);
+    uploadLog('บีบอัด '+key+': '+fmtBytes(json.length*2)+' → '+fmtBytes(compressed.length*2)+' (ลด '+ratio+'%)');
 }
 
-function initPRInfo(){
-    // File tags
-    var fl=document.getElementById('prFileList');
-    if(!fl)return;
-    var label=document.createElement('div');
-    label.style.cssText='font-weight:600;font-size:13px;color:var(--heading,#1a365d);margin-bottom:4px';
-    label.textContent='ข้อร้องเรียน (PR):';
-    fl.appendChild(label);
-
-    // Group months by fiscal year
-    var fyMap={};
-    ALL_MONTHS.forEach(function(mk){
-        var parts=mk.split('-');
-        var yy=parseInt(parts[0],10);var mm=parseInt(parts[1],10);
-        var fy=(mm>=10)?(2500+yy+1):(2500+yy);
-        if(!fyMap[fy])fyMap[fy]=0;
-        fyMap[fy]++;
-    });
-    var fyKeys=Object.keys(fyMap).map(Number).sort();
-    fyKeys.forEach(function(fy){
-        var t=document.createElement('span');
-        t.style.cssText='display:inline-block;padding:4px 12px;margin:3px 4px;border:2px solid var(--primary,#e65100);border-radius:20px;font-size:12px;font-weight:600;color:var(--primary,#e65100)';
-        t.textContent='ปีงบ '+fy+' ('+BRANCHES.length+' สาขา, '+fyMap[fy]+' เดือน)';
-        fl.appendChild(t);
-    });
-
-    // AlwayON file tags
-    var aonLabel=document.createElement('div');
-    aonLabel.style.cssText='font-weight:600;font-size:13px;color:var(--heading,#bf360c);margin-bottom:4px;margin-top:12px';
-    aonLabel.textContent='PWA Always-On:';
-    fl.appendChild(aonLabel);
-
-    var aonMonths=Object.keys(AON);
-    var aonFyMap={};
-    aonMonths.forEach(function(mk){
-        var parts=mk.split('-');
-        var yy=parseInt(parts[0],10);var mm=parseInt(parts[1],10);
-        var fy=(mm>=10)?(2500+yy+1):(2500+yy);
-        if(!aonFyMap[fy])aonFyMap[fy]=0;
-        aonFyMap[fy]++;
-    });
-    var aonFyKeys=Object.keys(aonFyMap).map(Number).sort();
-    aonFyKeys.forEach(function(fy){
-        var t=document.createElement('span');
-        t.style.cssText='display:inline-block;padding:4px 12px;margin:3px 4px;border:2px solid var(--accent,#ff6d00);border-radius:20px;font-size:12px;font-weight:600;color:var(--accent,#ff6d00)';
-        t.textContent='ปีงบ '+fy+' ('+AON_BRANCH_ORDER.length+' สาขา, '+aonFyMap[fy]+' เดือน)';
-        fl.appendChild(t);
-    });
-
-    buildPRDatasetTable();
+/* Load & decompress helper (backward-compatible: ถ้าข้อมูลเก่าไม่ได้บีบอัดก็อ่านได้) */
+function lsLoadDecompressed(key){
+    var raw=localStorage.getItem(key);
+    if(!raw)return null;
+    /* Try decompress first */
+    var json=null;
+    try{
+        json=LZString.decompressFromUTF16(raw);
+    }catch(e){}
+    /* If decompress fails or returns null, assume it's plain JSON (old format) */
+    if(!json){
+        /* Check if it's valid JSON as-is */
+        try{JSON.parse(raw);json=raw;}catch(e2){return null;}
+    }
+    try{return JSON.parse(json);}catch(e){return null;}
 }
 
-function buildPRDatasetTable(){
-    var isFiscal=document.getElementById('prDatasetYearMode').value==='fiscal';
-
-    // Collect all year keys from both PR and AON
-    var allYearSet={};
-
-    // PR months
-    var yearMonthCount={};
-    ALL_MONTHS.forEach(function(mk){
-        var parts=mk.split('-');
-        var yy=parseInt(parts[0],10);var mm=parseInt(parts[1],10);
-        var yr;
-        if(isFiscal){
-            yr=(mm>=10)?(2500+yy+1):(2500+yy);
-        } else {
-            yr=2500+yy;
-        }
-        yearMonthCount[yr]=(yearMonthCount[yr]||0)+1;
-        allYearSet[yr]=true;
-    });
-
-    // AON months
-    var aonYearMonthCount={};
-    Object.keys(AON).forEach(function(mk){
-        var parts=mk.split('-');
-        var yy=parseInt(parts[0],10);var mm=parseInt(parts[1],10);
-        var yr;
-        if(isFiscal){
-            yr=(mm>=10)?(2500+yy+1):(2500+yy);
-        } else {
-            yr=2500+yy;
-        }
-        aonYearMonthCount[yr]=(aonYearMonthCount[yr]||0)+1;
-        allYearSet[yr]=true;
-    });
-
-    var yearList=Object.keys(allYearSet).map(Number).sort();
-
-    var isDark=document.body.classList.contains('dark');
-    var thBg=isDark?'#4a2800':'#bf360c';
-    var thBorder=isDark?'#6b3a00':'#e65100';
-    var tblBorder=isDark?'#6b3a00':'#e65100';
-    var tdBorderColor=isDark?'#4a3520':'#eddcd2';
-    var prRowBg=isDark?'rgba(255,152,0,.1)':'#fff3e0';
-    var prLabelColor=isDark?'#ffb74d':'#e65100';
-    var aonRowBg=isDark?'rgba(255,111,0,.08)':'#fff8f0';
-    var aonLabelColor=isDark?'#ff9800':'#ff6d00';
-    var fullColor=isDark?'#66bb6a':'#16a34a';
-    var partialColor=isDark?'#ffb74d':'#e65100';
-    var emptyColor=isDark?'#666':'#9ca3af';
-
-    var thStyle='padding:8px 10px;background:'+thBg+';color:#fff;font-weight:700;font-size:13px;border:1px solid '+thBorder+';white-space:nowrap';
-    var tdBase='padding:6px 10px;border:1px solid '+tdBorderColor+';font-size:13px;';
-    var html='<table style="width:100%;border-collapse:collapse;border:2px solid '+tblBorder+';margin-bottom:8px;border-radius:8px;overflow:hidden">';
-    html+='<thead><tr>';
-    html+='<th style="'+thStyle+';text-align:left">ชุดข้อมูล</th>';
-    for(var i=0;i<yearList.length;i++){
-        html+='<th style="'+thStyle+';text-align:center">ปี '+(yearList[i]%100)+'</th>';
-    }
-    html+='</tr></thead><tbody>';
-
-    // Row 1: PR
-    html+='<tr>';
-    html+='<td style="'+tdBase+'background:'+prRowBg+';font-weight:700;color:'+prLabelColor+';white-space:nowrap">ข้อร้องเรียน (PR)</td>';
-    for(var i=0;i<yearList.length;i++){
-        var mc=yearMonthCount[yearList[i]]||0;
-        var cellColor='',cellWeight='';
-        if(mc===12){cellColor='color:'+fullColor+';';cellWeight='font-weight:700;';}
-        else if(mc>0){cellColor='color:'+partialColor+';';cellWeight='font-weight:700;';}
-        else{cellColor='color:'+emptyColor+';';}
-        html+='<td style="'+tdBase+'background:'+prRowBg+';text-align:center;'+cellColor+cellWeight+'">'+(mc>0?mc:'—')+'</td>';
-    }
-    html+='</tr>';
-
-    // Row 2: AON
-    html+='<tr>';
-    html+='<td style="'+tdBase+'background:'+aonRowBg+';font-weight:700;color:'+aonLabelColor+';white-space:nowrap">PWA Always-On</td>';
-    for(var i=0;i<yearList.length;i++){
-        var mc=aonYearMonthCount[yearList[i]]||0;
-        var cellColor='',cellWeight='';
-        if(mc===12){cellColor='color:'+fullColor+';';cellWeight='font-weight:700;';}
-        else if(mc>0){cellColor='color:'+partialColor+';';cellWeight='font-weight:700;';}
-        else{cellColor='color:'+emptyColor+';';}
-        html+='<td style="'+tdBase+'background:'+aonRowBg+';text-align:center;'+cellColor+cellWeight+'">'+(mc>0?mc:'—')+'</td>';
-    }
-    html+='</tr>';
-
-    html+='</tbody></table>';
-
-    document.getElementById('prStatsRow').innerHTML=html;
-}
-
-// Initialize info section
-initPRInfo();
-
-// ==================== UPLOAD DATA ====================
-/* Populate year selects for upload */
-(function initUploadYearSelects(){
-    var now=new Date();var bey=now.getFullYear()+543;if(now.getMonth()>=9)bey++;/* fiscal year */
-    var years=[];for(var y=bey-5;y<=bey+1;y++)years.push(y);
-    ['uploadPRYear','uploadAONYear'].forEach(function(id){
-        var sel=document.getElementById(id);if(!sel)return;
-        years.forEach(function(y){
-            var opt=document.createElement('option');
-            opt.value=String(y);opt.textContent=String(y);
-            sel.appendChild(opt);
+function saveUploadedDataToLS(){
+    try{
+        var uploadedPR=window._uploadedPRMonths||{};
+        var prSave={};
+        Object.keys(uploadedPR).forEach(function(mk){
+            if(DATA.data[mk])prSave[mk]=DATA.data[mk];
         });
-        sel.value=String(bey);
+        var prMeta={
+            data:prSave,
+            branches:DATA.branches.slice(),
+            months:DATA.months.slice(),
+            all_months:DATA.all_months.slice()
+        };
+        lsSaveCompressed(PR_UPLOAD_LS_KEY,prMeta);
+    }catch(e){
+        uploadLog('ไม่สามารถบันทึก PR ลง localStorage: '+e.message,true);
+    }
+    try{
+        var uploadedAON=window._uploadedAONMonths||{};
+        var aonSave={};
+        Object.keys(uploadedAON).forEach(function(mk){
+            if(AON[mk])aonSave[mk]=AON[mk];
+        });
+        if(Object.keys(aonSave).length>0){
+            lsSaveCompressed(AON_UPLOAD_LS_KEY,aonSave);
+        }
+    }catch(e){
+        uploadLog('ไม่สามารถบันทึก AON ลง localStorage: '+e.message,true);
+    }
+}
+
+function loadUploadedDataFromLS(){
+    var prLoaded=0,aonLoaded=0;
+    try{
+        var prMeta=lsLoadDecompressed(PR_UPLOAD_LS_KEY);
+        if(prMeta&&prMeta.data){
+            window._uploadedPRMonths=window._uploadedPRMonths||{};
+            Object.keys(prMeta.data).forEach(function(mk){
+                DATA.data[mk]=prMeta.data[mk];
+                window._uploadedPRMonths[mk]=true;
+                prLoaded++;
+            });
+            if(prMeta.branches){
+                prMeta.branches.forEach(function(b){
+                    if(DATA.branches.indexOf(b)<0)DATA.branches.push(b);
+                });
+            }
+            if(prMeta.months){
+                prMeta.months.forEach(function(m){
+                    if(DATA.months.indexOf(m)<0)DATA.months.push(m);
+                });
+                DATA.months.sort();
+            }
+            if(prMeta.all_months){
+                prMeta.all_months.forEach(function(m){
+                    if(DATA.all_months.indexOf(m)<0)DATA.all_months.push(m);
+                });
+                DATA.all_months.sort();
+            }
+        }
+    }catch(e){}
+    try{
+        var aonData=lsLoadDecompressed(AON_UPLOAD_LS_KEY);
+        if(aonData){
+            window._uploadedAONMonths=window._uploadedAONMonths||{};
+            Object.keys(aonData).forEach(function(mk){
+                AON[mk]=aonData[mk];
+                window._uploadedAONMonths[mk]=true;
+                aonLoaded++;
+                Object.keys(aonData[mk]).forEach(function(b){
+                    if(AON_BRANCH_ORDER.indexOf(b)<0)AON_BRANCH_ORDER.push(b);
+                });
+            });
+            if(aonLoaded>0){
+                AON_ALL_MONTHS=Object.keys(AON).sort();
+                AON_MONTH_LABELS=(function(){var map={};Object.keys(AON).forEach(function(k){var p=k.split('-');var yy=parseInt(p[0])+2500;var mm=parseInt(p[1]);map[k]=fmtMonthYear(mm,yy);});return map;})();
+            }
+        }
+    }catch(e){}
+    return {pr:prLoaded,aon:aonLoaded};
+}
+
+function clearUploadedDataFromLS(type){
+    if(!type||type==='PR'){
+        localStorage.removeItem(PR_UPLOAD_LS_KEY);
+        window._uploadedPRMonths={};
+    }
+    if(!type||type==='AON'){
+        localStorage.removeItem(AON_UPLOAD_LS_KEY);
+        window._uploadedAONMonths={};
+    }
+}
+
+/* Track which months are uploaded (not embedded) */
+window._uploadedPRMonths={};
+window._uploadedAONMonths={};
+
+
+function updateUploadLSInfo(){ /* removed — UI moved to manage.html */ }
+
+
+
+
+
+/* ===== Server API (Primary) + localStorage Fallback ===== */
+var SERVER_API_BASE=''; /* same origin when served by Flask */
+var _serverAvailable=null; /* null=unknown, true/false */
+
+function _checkServer(){
+    return fetch(SERVER_API_BASE+'/api/ping',{method:'GET',cache:'no-cache'})
+        .then(function(r){_serverAvailable=r.ok;return r.ok;})
+        .catch(function(){_serverAvailable=false;return false;});
+}
+
+function _serverUpload(type,files,mode,manualMK){
+    var fd=new FormData();
+    for(var i=0;i<files.length;i++) fd.append('files',files[i]);
+    fd.append('mode',mode||'auto');
+    if(manualMK) fd.append('manualMK',manualMK);
+    return fetch(SERVER_API_BASE+'/api/upload/'+type.toLowerCase(),{method:'POST',body:fd})
+        .then(function(r){return r.json();});
+}
+
+function _serverGetData(){
+    return fetch(SERVER_API_BASE+'/api/data',{cache:'no-cache'})
+        .then(function(r){return r.json();});
+}
+
+function _serverDelete(type,mk){
+    return fetch(SERVER_API_BASE+'/api/data/'+type.toLowerCase()+'/'+mk,{method:'DELETE'})
+        .then(function(r){return r.json();});
+}
+
+function _serverEdit(type,mk,data){
+    return fetch(SERVER_API_BASE+'/api/data/edit/'+type.toLowerCase(),{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({mk:mk,data:data})
+    }).then(function(r){return r.json();});
+}
+
+function _serverClearAll(){
+    return fetch(SERVER_API_BASE+'/api/data/clear',{method:'DELETE'})
+        .then(function(r){return r.json();});
+}
+
+/* Merge server data into DATA/AON objects */
+function _mergeServerPR(prData,catNames){
+    var count=0;
+    if(!prData)return count;
+    Object.keys(prData).forEach(function(mk){
+        DATA.data[mk]=prData[mk];
+        window._uploadedPRMonths[mk]=true;
+        if(DATA.all_months.indexOf(mk)<0)DATA.all_months.push(mk);
+        if(DATA.months.indexOf(mk)<0)DATA.months.push(mk);
+        Object.keys(prData[mk]).forEach(function(b){
+            if(DATA.branches.indexOf(b)<0)DATA.branches.push(b);
+        });
+        count++;
     });
-    /* Set default month to current */
-    var mm=String(now.getMonth()+1);if(mm.length<2)mm='0'+mm;
-    var prM=document.getElementById('uploadPRMonth');if(prM)prM.value=mm;
-    var aonM=document.getElementById('uploadAONMonth');if(aonM)aonM.value=mm;
-})();
-function togglePRManualMonth(){
-    var mode=document.getElementById('uploadPRMode').value;
-    var wrap=document.getElementById('prManualMonthWrap');
-    if(wrap)wrap.style.display=(mode==='manual')?'inline-flex':'none';
+    if(catNames){
+        catNames.forEach(function(c){if(DATA.cat_names&&DATA.cat_names.indexOf(c)<0)DATA.cat_names.push(c);});
+    }
+    DATA.all_months.sort();DATA.months.sort();
+    return count;
 }
-function toggleAONManualMonth(){
-    var mode=document.getElementById('uploadAONMode').value;
-    var wrap=document.getElementById('aonManualMonthWrap');
-    if(wrap)wrap.style.display=(mode==='manual')?'inline-flex':'none';
+
+function _mergeServerAON(aonData){
+    var count=0;
+    if(!aonData)return count;
+    Object.keys(aonData).forEach(function(mk){
+        AON[mk]=aonData[mk];
+        window._uploadedAONMonths[mk]=true;
+        Object.keys(aonData[mk]).forEach(function(b){
+            if(AON_BRANCH_ORDER.indexOf(b)<0)AON_BRANCH_ORDER.push(b);
+        });
+        count++;
+    });
+    if(count>0){
+        AON_ALL_MONTHS=Object.keys(AON).sort();
+        AON_MONTH_LABELS=(function(){var map={};Object.keys(AON).forEach(function(k){var p=k.split('-');var yy=parseInt(p[0])+2500;var mm=parseInt(p[1]);map[k]=fmtMonthYear(mm,yy);});return map;})();
+    }
+    return count;
 }
+
+/* ===== Uploaded Data Management Panel ===== */
+function renderUploadMgmtPanel(){ /* removed — UI moved to manage.html */ }
+
+function mkToLabel(mk){
+    var MC=['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+    var p=mk.split('-');var yy=p[0];var mm=parseInt(p[1]);
+    return (MC[mm]||mm)+yy;
+}
+
+/* Delete a single uploaded month */
+
+/* ===== Editable Table for uploaded data ===== */
+
+
+
+
+
+
+/* ===== Edit Existing (Embedded) Data ===== */
+
+
+/* Initialize selects on page load */
 
 function uploadLog(msg,isError){
     var el=document.getElementById('uploadLog');
@@ -3633,48 +3562,8 @@ function processSinglePRFile(file,manualMK){
     });
 }
 
-function handleUploadPR(files){
-    if(!files||!files.length)return;
-    var fileList=Array.prototype.slice.call(files);
-    var mode=(document.getElementById('uploadPRMode')||{}).value||'auto';
-    var manualMK=null;
-    if(mode==='manual'){
-        var yearVal=parseInt(document.getElementById('uploadPRYear').value);
-        var monthVal=document.getElementById('uploadPRMonth').value;
-        manualMK=makeMonthKey(yearVal,parseInt(monthVal));
-    }
-    setUploadStatus('uploadStatusPR','กำลังอ่าน '+fileList.length+' ไฟล์...','info');
-    uploadLog('เริ่มอัปโหลด PR: '+fileList.length+' ไฟล์'+(manualMK?' (ระบุเดือน '+manualMK+')':' (อัตโนมัติ)'));
 
-    /* Process files sequentially */
-    var totalCount=0;var processedMonths=[];var errors=[];
-    var chain=Promise.resolve();
-    fileList.forEach(function(file){
-        chain=chain.then(function(){
-            return processSinglePRFile(file,manualMK).then(function(result){
-                totalCount+=result.count;
-                if(processedMonths.indexOf(result.mk)<0)processedMonths.push(result.mk);
-            });
-        }).catch(function(err){
-            uploadLog('ข้อผิดพลาด: '+err.message,true);
-            errors.push(file.name);
-        });
-    });
-    chain.then(function(){
-        DATA.all_months.sort();DATA.months.sort();
-        if(totalCount>0){
-            processedMonths.sort();
-            var msg='สำเร็จ: '+totalCount+' สาขา จาก '+fileList.length+' ไฟล์ ('+processedMonths.join(', ')+')';
-            if(errors.length>0)msg+=' | ผิดพลาด '+errors.length+' ไฟล์';
-            uploadLog('อัปเดตข้อมูล PR เสร็จสิ้น: '+msg);
-            setUploadStatus('uploadStatusPR',msg,errors.length>0?'error':'success');
-            refreshAllAfterUpload();
-        } else {
-            setUploadStatus('uploadStatusPR','ไม่พบข้อมูลที่ถูกต้อง','error');
-        }
-    });
-    document.getElementById('uploadFilePR').value='';
-}
+/* Fallback: client-side SheetJS parsing (เหมือนระบบเดิม) */
 
 /* ===== AON Upload (raw format from ข้อมูลดิบ/AlwayON) ===== */
 /*
@@ -3765,55 +3654,8 @@ function processSingleAONFile(file,mode,manualMK){
     });
 }
 
-function handleUploadAON(files){
-    if(!files||!files.length)return;
-    var fileList=Array.prototype.slice.call(files);
-    var mode=document.getElementById('uploadAONMode').value;
-    var manualMK=null;
-    if(mode==='manual'){
-        var yearVal=parseInt(document.getElementById('uploadAONYear').value);
-        var monthVal=document.getElementById('uploadAONMonth').value;
-        manualMK=makeMonthKey(yearVal,parseInt(monthVal));
-    }
-    setUploadStatus('uploadStatusAON','กำลังอ่าน '+fileList.length+' ไฟล์...','info');
-    uploadLog('เริ่มอัปโหลด AON: '+fileList.length+' ไฟล์'+(manualMK?' (ระบุเดือน '+manualMK+')':' (อัตโนมัติ)'));
 
-    var grandTotal=0;var allMonths=[];var errors=[];
-    var chain=Promise.resolve();
-    fileList.forEach(function(file){
-        chain=chain.then(function(){
-            return processSingleAONFile(file,mode,manualMK).then(function(result){
-                grandTotal+=result.count;
-                result.months.forEach(function(m){if(allMonths.indexOf(m)<0)allMonths.push(m);});
-            });
-        }).catch(function(err){
-            uploadLog('ข้อผิดพลาด: '+err.message,true);
-            errors.push(file.name);
-        });
-    });
-    chain.then(function(){
-        if(grandTotal>0){
-            /* Rebuild AON derived vars */
-            AON_ALL_MONTHS=Object.keys(AON).sort();
-            AON_MONTH_LABELS=(function(){var map={};Object.keys(AON).forEach(function(k){var p=k.split('-');var yy=parseInt(p[0])+2500;var mm=parseInt(p[1]);map[k]=fmtMonthYear(mm,yy);});return map;})();
-            var brSet=new Set(AON_BRANCH_ORDER);
-            AON_ALL_MONTHS.forEach(function(mk3){
-                Object.keys(AON[mk3]).forEach(function(b){
-                    if(!brSet.has(b)){AON_BRANCH_ORDER.push(b);brSet.add(b);}
-                });
-            });
-            allMonths.sort();
-            var msg='สำเร็จ: '+grandTotal+' รายการ จาก '+fileList.length+' ไฟล์ ('+allMonths.join(', ')+')';
-            if(errors.length>0)msg+=' | ผิดพลาด '+errors.length+' ไฟล์';
-            uploadLog('อัปเดตข้อมูล AON เสร็จสิ้น: '+msg);
-            setUploadStatus('uploadStatusAON',msg,errors.length>0?'error':'success');
-            refreshAllAfterUpload();
-        } else {
-            setUploadStatus('uploadStatusAON','ไม่พบข้อมูล always on ที่ถูกต้อง','error');
-        }
-    });
-    document.getElementById('uploadFileAON').value='';
-}
+/* Fallback: client-side SheetJS parsing (เหมือนระบบเดิม) */
 
 function processAONSheet(wb,sheetName,monthKey,forceColumn){
     var ws=wb.Sheets[sheetName];
@@ -3895,9 +3737,7 @@ function refreshAllAfterUpload(){
         if(fl)fl.innerHTML='';
         initPRInfo();
 
-        /* Destroy & re-init PR charts (Tab 1-2) */
-        if(typeof chartWaterQty1!=='undefined'&&chartWaterQty1){chartWaterQty1.destroy();chartWaterQty1=null;}
-        if(typeof chartWaterQty2!=='undefined'&&chartWaterQty2){chartWaterQty2.destroy();chartWaterQty2=null;}
+        /* Destroy & re-init PR charts (Tab 1) */
         /* Clear PR selects before re-init to avoid duplicate options */
         var pr1Unit=document.getElementById('pr1UnitSelect');
         if(pr1Unit){while(pr1Unit.options.length>1)pr1Unit.remove(1);}
@@ -3906,6 +3746,22 @@ function refreshAllAfterUpload(){
         });
         if(typeof pr1Init==='function')pr1Init();
         if(typeof pr2Init==='function')pr2Init();
+
+        /* Update ACTIVE_MONTHS then rebuild Tab 2 charts */
+        if(typeof prMonthRangeUpdate==='function')prMonthRangeUpdate();
+        if(typeof chartWaterQty1!=='undefined'&&chartWaterQty1){chartWaterQty1.destroy();chartWaterQty1=null;}
+        if(typeof chartWaterQty2!=='undefined'&&chartWaterQty2){chartWaterQty2.destroy();chartWaterQty2=null;}
+        if(typeof buildBranchChart==='function'){
+            chartWaterQty1=buildBranchChart('chart-waterQty1',GROUP1,null,'ร้อยละข้อร้องเรียนด้านปริมาณน้ำ ต่อจำนวนลูกค้า (ภาพรวมเขต 1)',false);
+            chartWaterQty2=buildBranchChart('chart-waterQty2',GROUP2,null,'',true);
+        }
+        /* Rebuild pipe charts (Tab 2 card 2) */
+        if(typeof pipeChart1!=='undefined'&&pipeChart1){pipeChart1.destroy();pipeChart1=null;}
+        if(typeof pipeChart2!=='undefined'&&pipeChart2){pipeChart2.destroy();pipeChart2=null;}
+        if(typeof buildPipeChart==='function'){
+            pipeChart1=buildPipeChart('chart-pipe1',GROUP1,null,'ร้อยละข้อร้องเรียนด้านท่อแตกรั่ว ต่อจำนวนลูกค้า (ภาพรวมเขต 1)',false);
+            pipeChart2=buildPipeChart('chart-pipe2',GROUP2,null,'',true);
+        }
 
         /* Re-populate AON selects */
         var aonSel=document.getElementById('aonMonthSelect');
@@ -3958,15 +3814,16 @@ function refreshAllAfterUpload(){
         if(typeof aonCmpRender==='function')aonCmpRender();
         if(typeof aon2Render==='function')aon2Render();
 
-        /* Update infoContent height */
-        var ic=document.getElementById('infoContent');
-        if(ic&&!ic.classList.contains('collapsed'))ic.style.maxHeight=ic.scrollHeight+'px';
+
 
         uploadLog('รีเฟรชเสร็จสิ้น');
     }catch(e){
         uploadLog('เกิดข้อผิดพลาดขณะรีเฟรช: '+e.message,true);
     }
 }
+
+function initPRInfo(){ /* removed — ส่วนข้อมูลที่โหลดแล้วถูกเอาออก */ }
+function buildPRDatasetTable(){ /* removed */ }
 
 /* Helper to refresh AON chart 3 branch checkboxes */
 function initAon2BranchesRefresh(){
@@ -6335,6 +6192,68 @@ function showAxisDialog(canvasId,scaleKey,axisLabel,isNumeric){
     });
     document.addEventListener('mousemove',handleMouseMove);
     document.addEventListener('mouseup',handleMouseUp);
+})();
+
+// ==================== LOAD UPLOADED DATA (Server → localStorage fallback) ====================
+(function(){
+    /* Try server first */
+    _checkServer().then(function(ok){
+        if(ok){
+            console.log('[Upload Restore] Server พร้อม — โหลดข้อมูลจาก server');
+            _serverGetData().then(function(resp){
+                if(!resp.ok)throw new Error('Server returned not ok');
+                var prCount=_mergeServerPR(resp.pr,resp.pr_cat_names);
+                var aonCount=_mergeServerAON(resp.aon);
+                if(prCount>0||aonCount>0){
+                    var msgs=[];
+                    if(prCount>0)msgs.push('PR '+prCount+' เดือน');
+                    if(aonCount>0)msgs.push('AON '+aonCount+' เดือน');
+                    console.log('[Server Restore] โหลดข้อมูลจาก server: '+msgs.join(', '));
+                    setTimeout(function(){
+                        try{refreshAllAfterUpload();}catch(e2){console.warn('Refresh after server load:',e2);}
+                        /* status messages removed — ไม่ต้องแสดงรายชื่อเดือนที่โหลด */
+                        updateUploadLSInfo();
+                        /* Sync to localStorage as backup */
+                        try{saveUploadedDataToLS();}catch(e){}
+                    },200);
+                } else {
+                    /* No server data — try localStorage fallback */
+                    _loadFromLocalStorage();
+                }
+            }).catch(function(err){
+                console.warn('[Server Restore] Error:',err,'— fallback to localStorage');
+                _loadFromLocalStorage();
+            });
+        } else {
+            console.log('[Upload Restore] Server ไม่พร้อม — ใช้ localStorage');
+            _loadFromLocalStorage();
+        }
+    });
+    function _loadFromLocalStorage(){
+        try{
+            var result=loadUploadedDataFromLS();
+            if(result.pr>0||result.aon>0){
+                var msgs=[];
+                if(result.pr>0)msgs.push('PR '+result.pr+' เดือน');
+                if(result.aon>0)msgs.push('AON '+result.aon+' เดือน');
+                console.log('[LS Restore] โหลดข้อมูลจาก localStorage: '+msgs.join(', '));
+                setTimeout(function(){
+                    try{refreshAllAfterUpload();}catch(e2){console.warn('Refresh after LS load:',e2);}
+                    if(result.pr>0){
+                        var prKeys=Object.keys(window._uploadedPRMonths||{}).sort();
+                        setUploadStatus('uploadStatusPR','โหลดข้อมูลที่บันทึกไว้: PR '+prKeys.length+' เดือน','success');
+                    }
+                    if(result.aon>0){
+                        var aonKeys=Object.keys(window._uploadedAONMonths||{}).sort();
+                        setUploadStatus('uploadStatusAON','โหลดข้อมูลที่บันทึกไว้: AON '+aonKeys.length+' เดือน','success');
+                    }
+                    updateUploadLSInfo();
+                },200);
+            } else {
+                setTimeout(function(){updateLSUsageBar();},200);
+            }
+        }catch(e){console.warn('LS load error:',e);}
+    }
 })();
 
 // ==================== SESSION RESTORE (ท้ายสุด — หลัง hooks ทั้งหมด) ====================
