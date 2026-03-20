@@ -9,6 +9,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"></script>
 <script>
 // Load PptxGenJS with fallback CDN URLs
 (function(){
@@ -219,6 +221,18 @@
     text-align: right;
     margin-top: 6px;
   }
+
+  /* Card note box */
+  .card-note-box{margin-top:12px;border-top:1px dashed var(--border);padding-top:10px}
+  .card-note-box label{font-size:12px;font-weight:600;color:var(--sub);display:flex;align-items:center;gap:4px;margin-bottom:4px}
+  .card-note-box textarea{width:100%;min-height:38px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--input-bg);color:var(--text);font-size:13px;font-family:inherit;resize:none;line-height:1.5;overflow:hidden}
+  .card-note-box textarea:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 2px rgba(230,81,0,.12)}
+  .card-note-box textarea::placeholder{color:var(--sub2);font-style:italic}
+  body.dark .card-note-box textarea#note-waterQty{background:#3e2200;border-color:#5a3300}
+  body.dark .card-note-box textarea#note-pipe{background:#0d2740;border-color:#153d5e}
+  body.dark .card-note-box textarea#note-quality{background:#3b1020;border-color:#5a1830}
+  body.dark .card-note-box textarea#note-service{background:#0e2e10;border-color:#1a4a1e}
+  body.dark .card-note-box textarea#note-staff{background:#2a0e35;border-color:#3d1a4e}
 
   /* Export bar */
   .export-bar{display:flex;gap:6px;margin-top:12px;justify-content:flex-end;flex-wrap:wrap}
@@ -479,6 +493,24 @@ function getMonthColors(months,colorOld,colorNew){
 // Pre-computed for initial load (will be recomputed on FY change)
 var MONTH_COLORS=getMonthColors(ACTIVE_MONTHS,FY_COLOR_OLD,FY_COLOR_NEW);
 
+/* ===== ภาพรวมเขต: darken color + bold tick helpers ===== */
+var OVERVIEW_LABEL='ภาพรวมเขต';
+function darkenHex(hex,amount){
+    // amount 0-1, higher = darker
+    hex=hex.replace('#','');
+    var r=parseInt(hex.substring(0,2),16);
+    var g=parseInt(hex.substring(2,4),16);
+    var b=parseInt(hex.substring(4,6),16);
+    r=Math.round(r*(1-amount)); g=Math.round(g*(1-amount)); b=Math.round(b*(1-amount));
+    return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
+}
+function overviewTickFont(ctx){
+    var labels=ctx.chart.data.labels||[];
+    var label=labels[ctx.index]||'';
+    if(label===OVERVIEW_LABEL) return {size:13,weight:'bold'};
+    return {size:11};
+}
+
 </script>
 
 <!-- Tab: PR Data -->
@@ -496,7 +528,7 @@ var MONTH_COLORS=getMonthColors(ACTIVE_MONTHS,FY_COLOR_OLD,FY_COLOR_NEW);
         <div class="pr-control-group">
           <label>เลือกหน่วยงาน</label>
           <select id="pr1UnitSelect" onchange="pr1OnChange()">
-            <option value="รวม เขต 1">ภาพรวมเขต 1</option>
+            <option value="รวม เขต 1">ภาพรวมเขต</option>
           </select>
         </div>
         <div class="pr-control-group">
@@ -1965,7 +1997,7 @@ pr2Init();
         <div class="pr-control-group">
           <label>หน่วยงาน</label>
           <select id="prBranch" onchange="prSharedUpdate()">
-            <option value="__all__">ภาพรวมเขต 1</option>
+            <option value="__all__">ภาพรวมเขต</option>
           </select>
         </div>
         <div class="pr-control-group">
@@ -2007,10 +2039,13 @@ pr2Init();
         <button class="ymb" onclick="summarySetDisplay('table',this)">ตาราง</button>
       </div>
     </div>
-    <div id="summaryChartWrap" class="chart-container" style="height:450px"><canvas id="chart-summary5"></canvas></div>
+    <div id="summaryChartWrap" style="display:flex;gap:12px;align-items:stretch;min-height:420px">
+      <div class="chart-container" style="flex:3;min-width:0;height:420px"><canvas id="chart-summary5"></canvas></div>
+      <div class="chart-container" style="flex:2;min-width:0;height:420px"><canvas id="chart-summary5pie"></canvas></div>
+    </div>
     <div id="summaryTableWrap" style="display:none;overflow-x:auto"></div>
     <div class="export-bar pr-option"><button class="export-btn" onclick="resetChartSize(this)" title="รีเซ็ตขนาดกราฟ">&#8634; รีเซ็ต</button><button class="export-btn" onclick="openFontPopup(this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M9.93 2L4 22h3.2l1.67-5.5h6.26L16.8 22H20L14.07 2H9.93zm-.34 11.5L12 5.88l2.41 7.62H9.59z"/></svg></button><button class="export-btn" onclick="exportPNG('chart-summary5','PR-สรุป5ด้าน')"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></button><button class="export-btn" onclick="copyToClipboard('chart-summary5',this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M16 1H4a2 2 0 00-2 2v14h2V3h12V1zm3 4H8a2 2 0 00-2 2v14a2 2 0 002 2h11a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h11v14z"/></svg></button><button class="export-btn" onclick="exportPPTX('chart-summary5','PR-สรุป5ด้าน')"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#D04423"/><path d="M7 5v14h2v-5h3a4 4 0 000-8H7zm2 2h3a2 2 0 010 4H9V7z" fill="#fff"/></svg></button><button class="export-btn" onclick="exportExcel('summary5')"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button></div>
-    <div class="data-info" id="info-summary5"></div>
+    <div class="data-info" id="info-summary5" style="display:none"></div>
     </div><!-- /pr-card-body -->
   </div>
 
@@ -2030,7 +2065,7 @@ pr2Init();
     </div>
 
     <!-- Chart 1 -->
-    <div id="prChart1Wrap" class="chart-container" style="height:400px"><canvas id="chart-waterQty1"></canvas></div>
+    <div id="prChart1Wrap" class="chart-container" style="height:320px"><canvas id="chart-waterQty1"></canvas></div>
     <div id="prTable1Wrap" style="display:none;overflow-x:auto"></div>
     <div class="export-bar pr-option"><button class="export-btn" onclick="resetChartSize(this)" title="รีเซ็ตขนาดกราฟ">&#8634; รีเซ็ต</button><label class="export-btn" style="cursor:pointer"><input type="checkbox" onchange="toggleDataLabels(this)" style="margin-right:4px">แสดงค่า</label><button class="export-btn" onclick="openFontPopup(this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M9.93 2L4 22h3.2l1.67-5.5h6.26L16.8 22H20L14.07 2H9.93zm-.34 11.5L12 5.88l2.41 7.62H9.59z"/></svg></button><button class="export-btn" onclick="exportPNG('chart-waterQty1','PR-ข้อร้องเรียน-กลุ่ม1')"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></button><button class="export-btn" onclick="copyToClipboard('chart-waterQty1',this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M16 1H4a2 2 0 00-2 2v14h2V3h12V1zm3 4H8a2 2 0 00-2 2v14a2 2 0 002 2h11a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h11v14z"/></svg></button><button class="export-btn" onclick="exportPPTX('chart-waterQty1','PR-ข้อร้องเรียน-กลุ่ม1')"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#D04423"/><path d="M7 5v14h2v-5h3a4 4 0 000-8H7zm2 2h3a2 2 0 010 4H9V7z" fill="#fff"/></svg></button><button class="export-btn" onclick="exportExcel('pr1')"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button></div>
 
@@ -2045,13 +2080,17 @@ pr2Init();
     </div>
 
     <!-- Chart 2 -->
-    <div id="prChart2Wrap" class="chart-container" style="height:400px"><canvas id="chart-waterQty2"></canvas></div>
+    <div id="prChart2Wrap" class="chart-container" style="height:320px"><canvas id="chart-waterQty2"></canvas></div>
     <div id="prTable2Wrap" style="display:none;overflow-x:auto"></div>
     <div class="export-bar pr-option"><button class="export-btn" onclick="resetChartSize(this)" title="รีเซ็ตขนาดกราฟ">&#8634; รีเซ็ต</button><label class="export-btn" style="cursor:pointer"><input type="checkbox" onchange="toggleDataLabels(this)" style="margin-right:4px">แสดงค่า</label><button class="export-btn" onclick="openFontPopup(this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M9.93 2L4 22h3.2l1.67-5.5h6.26L16.8 22H20L14.07 2H9.93zm-.34 11.5L12 5.88l2.41 7.62H9.59z"/></svg></button><button class="export-btn" onclick="exportPNG('chart-waterQty2','PR-ข้อร้องเรียน-กลุ่ม2')"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></button><button class="export-btn" onclick="copyToClipboard('chart-waterQty2',this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M16 1H4a2 2 0 00-2 2v14h2V3h12V1zm3 4H8a2 2 0 00-2 2v14a2 2 0 002 2h11a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h11v14z"/></svg></button><button class="export-btn" onclick="exportPPTX('chart-waterQty2','PR-ข้อร้องเรียน-กลุ่ม2')"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#D04423"/><path d="M7 5v14h2v-5h3a4 4 0 000-8H7zm2 2h3a2 2 0 010 4H9V7z" fill="#fff"/></svg></button><button class="export-btn" onclick="exportExcel('pr2')"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button></div>
 
     </div><!-- /prChart2Section -->
 
-    <div class="data-info" id="info-waterQty"></div>
+    <div class="data-info" id="info-waterQty" style="display:none"></div>
+    <div class="card-note-box">
+      <label>📝 หมายเหตุ</label>
+      <textarea id="note-waterQty" placeholder="เพิ่มหมายเหตุ..." oninput="saveCardNote('waterQty')" style="background:#fff3e0;border-color:#ffe0b2"></textarea>
+    </div>
     </div><!-- /pr-card-body -->
   </div>
 
@@ -2072,7 +2111,7 @@ pr2Init();
   </div>
 
   <!-- Chart 1 -->
-  <div id="pipeChart1Wrap" class="chart-container" style="height:400px"><canvas id="chart-pipe1"></canvas></div>
+  <div id="pipeChart1Wrap" class="chart-container" style="height:320px"><canvas id="chart-pipe1"></canvas></div>
   <div id="pipeTable1Wrap" style="display:none;overflow-x:auto"></div>
   <div class="export-bar pr-option"><button class="export-btn" onclick="resetChartSize(this)" title="รีเซ็ตขนาดกราฟ">&#8634; รีเซ็ต</button><label class="export-btn" style="cursor:pointer"><input type="checkbox" onchange="toggleDataLabels(this)" style="margin-right:4px">แสดงค่า</label><button class="export-btn" onclick="openFontPopup(this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M9.93 2L4 22h3.2l1.67-5.5h6.26L16.8 22H20L14.07 2H9.93zm-.34 11.5L12 5.88l2.41 7.62H9.59z"/></svg></button><button class="export-btn" onclick="exportPNG('chart-pipe1','PR-ท่อแตก-กลุ่ม1')"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></button><button class="export-btn" onclick="copyToClipboard('chart-pipe1',this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M16 1H4a2 2 0 00-2 2v14h2V3h12V1zm3 4H8a2 2 0 00-2 2v14a2 2 0 002 2h11a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h11v14z"/></svg></button><button class="export-btn" onclick="exportPPTX('chart-pipe1','PR-ท่อแตก-กลุ่ม1')"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#D04423"/><path d="M7 5v14h2v-5h3a4 4 0 000-8H7zm2 2h3a2 2 0 010 4H9V7z" fill="#fff"/></svg></button><button class="export-btn" onclick="exportExcel('pipe1')"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button></div>
 
@@ -2087,13 +2126,17 @@ pr2Init();
   </div>
 
   <!-- Chart 2 -->
-  <div id="pipeChart2Wrap" class="chart-container" style="height:400px"><canvas id="chart-pipe2"></canvas></div>
+  <div id="pipeChart2Wrap" class="chart-container" style="height:320px"><canvas id="chart-pipe2"></canvas></div>
   <div id="pipeTable2Wrap" style="display:none;overflow-x:auto"></div>
   <div class="export-bar pr-option"><button class="export-btn" onclick="resetChartSize(this)" title="รีเซ็ตขนาดกราฟ">&#8634; รีเซ็ต</button><label class="export-btn" style="cursor:pointer"><input type="checkbox" onchange="toggleDataLabels(this)" style="margin-right:4px">แสดงค่า</label><button class="export-btn" onclick="openFontPopup(this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M9.93 2L4 22h3.2l1.67-5.5h6.26L16.8 22H20L14.07 2H9.93zm-.34 11.5L12 5.88l2.41 7.62H9.59z"/></svg></button><button class="export-btn" onclick="exportPNG('chart-pipe2','PR-ท่อแตก-กลุ่ม2')"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></button><button class="export-btn" onclick="copyToClipboard('chart-pipe2',this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M16 1H4a2 2 0 00-2 2v14h2V3h12V1zm3 4H8a2 2 0 00-2 2v14a2 2 0 002 2h11a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h11v14z"/></svg></button><button class="export-btn" onclick="exportPPTX('chart-pipe2','PR-ท่อแตก-กลุ่ม2')"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#D04423"/><path d="M7 5v14h2v-5h3a4 4 0 000-8H7zm2 2h3a2 2 0 010 4H9V7z" fill="#fff"/></svg></button><button class="export-btn" onclick="exportExcel('pipe2')"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button></div>
 
   </div><!-- /pipeChart2Section -->
 
-  <div class="data-info" id="info-pipe"></div>
+  <div class="data-info" id="info-pipe" style="display:none"></div>
+  <div class="card-note-box">
+    <label>📝 หมายเหตุ</label>
+    <textarea id="note-pipe" placeholder="เพิ่มหมายเหตุ..." oninput="saveCardNote('pipe')" style="background:#e3f2fd;border-color:#bbdefb"></textarea>
+  </div>
   </div><!-- /pr-card-body -->
 </div>
 
@@ -2115,7 +2158,7 @@ pr2Init();
   </div>
 
   <!-- Chart 1 -->
-  <div id="qualityChart1Wrap" class="chart-container" style="height:400px"><canvas id="chart-quality1"></canvas></div>
+  <div id="qualityChart1Wrap" class="chart-container" style="height:320px"><canvas id="chart-quality1"></canvas></div>
   <div id="qualityTable1Wrap" style="display:none;overflow-x:auto"></div>
   <div class="export-bar pr-option"><button class="export-btn" onclick="resetChartSize(this)" title="รีเซ็ตขนาดกราฟ">&#8634; รีเซ็ต</button><label class="export-btn" style="cursor:pointer"><input type="checkbox" onchange="toggleDataLabels(this)" style="margin-right:4px">แสดงค่า</label><button class="export-btn" onclick="openFontPopup(this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M9.93 2L4 22h3.2l1.67-5.5h6.26L16.8 22H20L14.07 2H9.93zm-.34 11.5L12 5.88l2.41 7.62H9.59z"/></svg></button><button class="export-btn" onclick="exportPNG('chart-quality1','PR-คุณภาพน้ำ-กลุ่ม1')"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></button><button class="export-btn" onclick="copyToClipboard('chart-quality1',this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M16 1H4a2 2 0 00-2 2v14h2V3h12V1zm3 4H8a2 2 0 00-2 2v14a2 2 0 002 2h11a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h11v14z"/></svg></button><button class="export-btn" onclick="exportPPTX('chart-quality1','PR-คุณภาพน้ำ-กลุ่ม1')"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#D04423"/><path d="M7 5v14h2v-5h3a4 4 0 000-8H7zm2 2h3a2 2 0 010 4H9V7z" fill="#fff"/></svg></button><button class="export-btn" onclick="exportExcel('quality1')"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button></div>
 
@@ -2130,13 +2173,17 @@ pr2Init();
   </div>
 
   <!-- Chart 2 -->
-  <div id="qualityChart2Wrap" class="chart-container" style="height:400px"><canvas id="chart-quality2"></canvas></div>
+  <div id="qualityChart2Wrap" class="chart-container" style="height:320px"><canvas id="chart-quality2"></canvas></div>
   <div id="qualityTable2Wrap" style="display:none;overflow-x:auto"></div>
   <div class="export-bar pr-option"><button class="export-btn" onclick="resetChartSize(this)" title="รีเซ็ตขนาดกราฟ">&#8634; รีเซ็ต</button><label class="export-btn" style="cursor:pointer"><input type="checkbox" onchange="toggleDataLabels(this)" style="margin-right:4px">แสดงค่า</label><button class="export-btn" onclick="openFontPopup(this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M9.93 2L4 22h3.2l1.67-5.5h6.26L16.8 22H20L14.07 2H9.93zm-.34 11.5L12 5.88l2.41 7.62H9.59z"/></svg></button><button class="export-btn" onclick="exportPNG('chart-quality2','PR-คุณภาพน้ำ-กลุ่ม2')"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></button><button class="export-btn" onclick="copyToClipboard('chart-quality2',this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M16 1H4a2 2 0 00-2 2v14h2V3h12V1zm3 4H8a2 2 0 00-2 2v14a2 2 0 002 2h11a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h11v14z"/></svg></button><button class="export-btn" onclick="exportPPTX('chart-quality2','PR-คุณภาพน้ำ-กลุ่ม2')"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#D04423"/><path d="M7 5v14h2v-5h3a4 4 0 000-8H7zm2 2h3a2 2 0 010 4H9V7z" fill="#fff"/></svg></button><button class="export-btn" onclick="exportExcel('quality2')"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button></div>
 
   </div><!-- /qualityChart2Section -->
 
-  <div class="data-info" id="info-quality"></div>
+  <div class="data-info" id="info-quality" style="display:none"></div>
+  <div class="card-note-box">
+    <label>📝 หมายเหตุ</label>
+    <textarea id="note-quality" placeholder="เพิ่มหมายเหตุ..." oninput="saveCardNote('quality')" style="background:#fce4ec;border-color:#f8bbd0"></textarea>
+  </div>
   </div><!-- /pr-card-body -->
 </div>
 
@@ -2158,7 +2205,7 @@ pr2Init();
   </div>
 
   <!-- Chart 1 -->
-  <div id="serviceChart1Wrap" class="chart-container" style="height:400px"><canvas id="chart-service1"></canvas></div>
+  <div id="serviceChart1Wrap" class="chart-container" style="height:320px"><canvas id="chart-service1"></canvas></div>
   <div id="serviceTable1Wrap" style="display:none;overflow-x:auto"></div>
   <div class="export-bar pr-option"><button class="export-btn" onclick="resetChartSize(this)" title="รีเซ็ตขนาดกราฟ">&#8634; รีเซ็ต</button><label class="export-btn" style="cursor:pointer"><input type="checkbox" onchange="toggleDataLabels(this)" style="margin-right:4px">แสดงค่า</label><button class="export-btn" onclick="openFontPopup(this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M9.93 2L4 22h3.2l1.67-5.5h6.26L16.8 22H20L14.07 2H9.93zm-.34 11.5L12 5.88l2.41 7.62H9.59z"/></svg></button><button class="export-btn" onclick="exportPNG('chart-service1','PR-บริการ-กลุ่ม1')"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></button><button class="export-btn" onclick="copyToClipboard('chart-service1',this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M16 1H4a2 2 0 00-2 2v14h2V3h12V1zm3 4H8a2 2 0 00-2 2v14a2 2 0 002 2h11a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h11v14z"/></svg></button><button class="export-btn" onclick="exportPPTX('chart-service1','PR-บริการ-กลุ่ม1')"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#D04423"/><path d="M7 5v14h2v-5h3a4 4 0 000-8H7zm2 2h3a2 2 0 010 4H9V7z" fill="#fff"/></svg></button><button class="export-btn" onclick="exportExcel('service1')"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button></div>
 
@@ -2173,13 +2220,17 @@ pr2Init();
   </div>
 
   <!-- Chart 2 -->
-  <div id="serviceChart2Wrap" class="chart-container" style="height:400px"><canvas id="chart-service2"></canvas></div>
+  <div id="serviceChart2Wrap" class="chart-container" style="height:320px"><canvas id="chart-service2"></canvas></div>
   <div id="serviceTable2Wrap" style="display:none;overflow-x:auto"></div>
   <div class="export-bar pr-option"><button class="export-btn" onclick="resetChartSize(this)" title="รีเซ็ตขนาดกราฟ">&#8634; รีเซ็ต</button><label class="export-btn" style="cursor:pointer"><input type="checkbox" onchange="toggleDataLabels(this)" style="margin-right:4px">แสดงค่า</label><button class="export-btn" onclick="openFontPopup(this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M9.93 2L4 22h3.2l1.67-5.5h6.26L16.8 22H20L14.07 2H9.93zm-.34 11.5L12 5.88l2.41 7.62H9.59z"/></svg></button><button class="export-btn" onclick="exportPNG('chart-service2','PR-บริการ-กลุ่ม2')"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></button><button class="export-btn" onclick="copyToClipboard('chart-service2',this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M16 1H4a2 2 0 00-2 2v14h2V3h12V1zm3 4H8a2 2 0 00-2 2v14a2 2 0 002 2h11a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h11v14z"/></svg></button><button class="export-btn" onclick="exportPPTX('chart-service2','PR-บริการ-กลุ่ม2')"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#D04423"/><path d="M7 5v14h2v-5h3a4 4 0 000-8H7zm2 2h3a2 2 0 010 4H9V7z" fill="#fff"/></svg></button><button class="export-btn" onclick="exportExcel('service2')"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button></div>
 
   </div><!-- /serviceChart2Section -->
 
-  <div class="data-info" id="info-service"></div>
+  <div class="data-info" id="info-service" style="display:none"></div>
+  <div class="card-note-box">
+    <label>📝 หมายเหตุ</label>
+    <textarea id="note-service" placeholder="เพิ่มหมายเหตุ..." oninput="saveCardNote('service')" style="background:#e8f5e9;border-color:#c8e6c9"></textarea>
+  </div>
   </div><!-- /pr-card-body -->
 </div>
 
@@ -2201,7 +2252,7 @@ pr2Init();
   </div>
 
   <!-- Chart 1 -->
-  <div id="staffChart1Wrap" class="chart-container" style="height:400px"><canvas id="chart-staff1"></canvas></div>
+  <div id="staffChart1Wrap" class="chart-container" style="height:320px"><canvas id="chart-staff1"></canvas></div>
   <div id="staffTable1Wrap" style="display:none;overflow-x:auto"></div>
   <div class="export-bar pr-option"><button class="export-btn" onclick="resetChartSize(this)" title="รีเซ็ตขนาดกราฟ">&#8634; รีเซ็ต</button><label class="export-btn" style="cursor:pointer"><input type="checkbox" onchange="toggleDataLabels(this)" style="margin-right:4px">แสดงค่า</label><button class="export-btn" onclick="openFontPopup(this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M9.93 2L4 22h3.2l1.67-5.5h6.26L16.8 22H20L14.07 2H9.93zm-.34 11.5L12 5.88l2.41 7.62H9.59z"/></svg></button><button class="export-btn" onclick="exportPNG('chart-staff1','PR-บุคลากร-กลุ่ม1')"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></button><button class="export-btn" onclick="copyToClipboard('chart-staff1',this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M16 1H4a2 2 0 00-2 2v14h2V3h12V1zm3 4H8a2 2 0 00-2 2v14a2 2 0 002 2h11a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h11v14z"/></svg></button><button class="export-btn" onclick="exportPPTX('chart-staff1','PR-บุคลากร-กลุ่ม1')"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#D04423"/><path d="M7 5v14h2v-5h3a4 4 0 000-8H7zm2 2h3a2 2 0 010 4H9V7z" fill="#fff"/></svg></button><button class="export-btn" onclick="exportExcel('staff1')"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button></div>
 
@@ -2216,13 +2267,17 @@ pr2Init();
   </div>
 
   <!-- Chart 2 -->
-  <div id="staffChart2Wrap" class="chart-container" style="height:400px"><canvas id="chart-staff2"></canvas></div>
+  <div id="staffChart2Wrap" class="chart-container" style="height:320px"><canvas id="chart-staff2"></canvas></div>
   <div id="staffTable2Wrap" style="display:none;overflow-x:auto"></div>
   <div class="export-bar pr-option"><button class="export-btn" onclick="resetChartSize(this)" title="รีเซ็ตขนาดกราฟ">&#8634; รีเซ็ต</button><label class="export-btn" style="cursor:pointer"><input type="checkbox" onchange="toggleDataLabels(this)" style="margin-right:4px">แสดงค่า</label><button class="export-btn" onclick="openFontPopup(this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M9.93 2L4 22h3.2l1.67-5.5h6.26L16.8 22H20L14.07 2H9.93zm-.34 11.5L12 5.88l2.41 7.62H9.59z"/></svg></button><button class="export-btn" onclick="exportPNG('chart-staff2','PR-บุคลากร-กลุ่ม2')"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></button><button class="export-btn" onclick="copyToClipboard('chart-staff2',this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M16 1H4a2 2 0 00-2 2v14h2V3h12V1zm3 4H8a2 2 0 00-2 2v14a2 2 0 002 2h11a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h11v14z"/></svg></button><button class="export-btn" onclick="exportPPTX('chart-staff2','PR-บุคลากร-กลุ่ม2')"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#D04423"/><path d="M7 5v14h2v-5h3a4 4 0 000-8H7zm2 2h3a2 2 0 010 4H9V7z" fill="#fff"/></svg></button><button class="export-btn" onclick="exportExcel('staff2')"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button></div>
 
   </div><!-- /staffChart2Section -->
 
-  <div class="data-info" id="info-staff"></div>
+  <div class="data-info" id="info-staff" style="display:none"></div>
+  <div class="card-note-box">
+    <label>📝 หมายเหตุ</label>
+    <textarea id="note-staff" placeholder="เพิ่มหมายเหตุ..." oninput="saveCardNote('staff')" style="background:#f3e5f5;border-color:#e1bee7"></textarea>
+  </div>
   </div><!-- /pr-card-body -->
 </div>
 
@@ -2251,6 +2306,10 @@ pr2Init();
       </select>
       <label style="font-weight:600;font-size:13px;margin-left:12px">ตัวชี้วัด (%):</label>
       <input type="number" id="aonThreshold" value="76.25" step="0.01" min="0" max="100" onchange="aonRender()" style="width:70px;padding:4px 6px;border-radius:4px;border:1px solid #ccc;font-size:13px">
+      <label style="font-weight:600;font-size:13px;margin-left:16px;cursor:pointer;display:inline-flex;align-items:center;gap:4px">
+        <input type="checkbox" id="aonDiffCheck" checked onchange="aonToggleDiff()" style="width:15px;height:15px;cursor:pointer"> แสดงผลต่าง
+      </label>
+      <select id="aonDiffMonthSelect" onchange="aonRender()" style="padding:4px 8px;border-radius:4px;border:1px solid #ccc;font-size:13px"></select>
       <div class="ymt" style="margin-left:auto">
         <button class="ymb active" onclick="aonSetDisplay('chart',this)">กราฟ</button>
         <button class="ymb" onclick="aonSetDisplay('table',this)">ตาราง</button>
@@ -2272,7 +2331,7 @@ pr2Init();
     </div>
 
     <!-- Chart -->
-    <div id="aonChart1Wrap" class="chart-container" style="height:420px;margin-bottom:16px">
+    <div id="aonChart1Wrap" class="chart-container" style="height:504px;margin-bottom:16px">
       <canvas id="aonChart1"></canvas>
     </div>
     <div id="aonTable1Wrap" style="display:none;overflow-x:auto"></div>
@@ -2469,13 +2528,86 @@ var aonThresholdPlugin={
 };
 Chart.register(aonThresholdPlugin);
 
+/* Zero-line plugin for yDiff axis */
+var aonDiffZeroPlugin={
+    id:'aonDiffZero',
+    afterDraw:function(chart){
+        var yDiff=chart.scales.yDiff;if(!yDiff)return;
+        var area=chart.chartArea;
+        var yPx=yDiff.getPixelForValue(0);
+        if(yPx<area.top||yPx>area.bottom)return;
+        var ctx=chart.ctx;
+        ctx.save();
+        ctx.strokeStyle='rgba(0,0,0,0.35)';
+        ctx.lineWidth=1.5;
+        ctx.setLineDash([6,3]);
+        ctx.beginPath();
+        ctx.moveTo(area.left,yPx);
+        ctx.lineTo(area.right,yPx);
+        ctx.stroke();
+        ctx.fillStyle='rgba(0,0,0,0.45)';
+        ctx.font='bold 10px sans-serif';
+        ctx.textAlign='left';
+        ctx.textBaseline='bottom';
+        ctx.fillText('0 (ผลต่าง)',area.left+4,yPx-3);
+        ctx.restore();
+    }
+};
+Chart.register(aonDiffZeroPlugin);
+
+var AON_KEYS_SORTED=Object.keys(AON).sort();
+
+function aonGetPrevMonthKey(monthKey){
+    var idx=AON_KEYS_SORTED.indexOf(monthKey);
+    if(idx<=0)return null;
+    return AON_KEYS_SORTED[idx-1];
+}
+
+/* Populate diff month select with months before current */
+function aonPopulateDiffMonths(currentKey){
+    var sel=document.getElementById('aonDiffMonthSelect');
+    var oldVal=sel.value;
+    sel.innerHTML='';
+    var prev=aonGetPrevMonthKey(currentKey);
+    AON_KEYS_SORTED.forEach(function(k){
+        if(k===currentKey)return;
+        var opt=document.createElement('option');
+        opt.value=k;
+        opt.textContent=AON_MONTH_LABELS[k]||k;
+        sel.appendChild(opt);
+    });
+    /* Default: previous month */
+    if(oldVal&&sel.querySelector('option[value="'+oldVal+'"]')){
+        sel.value=oldVal;
+    }else if(prev){
+        sel.value=prev;
+    }
+}
+
+function aonToggleDiff(){
+    var checked=document.getElementById('aonDiffCheck').checked;
+    document.getElementById('aonDiffMonthSelect').style.display=checked?'':'none';
+    aonRender();
+}
+
 function aonRender(){
     var monthKey=document.getElementById('aonMonthSelect').value;
     var threshold=parseFloat(document.getElementById('aonThreshold').value)||76.25;
     var data=AON[monthKey];if(!data)return;
     var monthLabel=AON_MONTH_LABELS[monthKey]||monthKey;
 
+    /* Populate diff month options */
+    aonPopulateDiffMonths(monthKey);
+    var showDiff=document.getElementById('aonDiffCheck').checked;
+    document.getElementById('aonDiffMonthSelect').style.display=showDiff?'':'none';
+
+    /* Diff month from select */
+    var prevKey=showDiff?document.getElementById('aonDiffMonthSelect').value:null;
+    var prevData=prevKey?AON[prevKey]:null;
+    var prevLabel=prevKey?(AON_MONTH_LABELS[prevKey]||prevKey):'';
+
     var labels=[];var values=[];var bgColors=[];var bdColors=[];
+    var diffValues=[];var diffBg=[];var diffBd=[];
     var passCount=0,failCount=0,total=0;
 
     AON_BRANCH_ORDER.forEach(function(branch){
@@ -2493,12 +2625,24 @@ function aonRender(){
             bdColors.push('#b71c1c');
             failCount++;
         }
+        /* Diff calc */
+        var pv=prevData?prevData[branch]:null;
+        var diff=(pv!=null)?(v-pv):0;
+        diffValues.push(parseFloat(diff.toFixed(2)));
+        if(diff>=0){
+            diffBg.push('rgba(76,175,80,1)');
+            diffBd.push('#388e3c');
+        }else{
+            diffBg.push('rgba(255,152,0,1)');
+            diffBd.push('#e65100');
+        }
     });
 
     var avg=labels.length>0?(total/labels.length):0;
 
     /* Update title */
-    document.getElementById('aonChartTitle').textContent='กราฟที่ 1 : PWA ALWAYS-ON ภาพรวมทั้งเขต เดือน '+monthLabel;
+    var titleSuffix=prevLabel?(' (เทียบกับ '+prevLabel+')'):'';
+    document.getElementById('aonChartTitle').textContent='กราฟที่ 1 : PWA ALWAYS-ON ภาพรวมทั้งเขต เดือน '+monthLabel+titleSuffix;
 
     /* Update stats */
     document.getElementById('aonAvgLabel').textContent='สถิติ Always-on กปภ.ข.1 เดือน'+monthLabel;
@@ -2509,32 +2653,73 @@ function aonRender(){
     /* Destroy old chart */
     if(aonChart1Inst){aonChart1Inst.destroy();aonChart1Inst=null;}
 
+    var datasets=[
+        {
+            label:'Always-On (%)',
+            data:values,
+            backgroundColor:bgColors,
+            borderColor:bdColors,
+            borderWidth:1,
+            borderRadius:0,
+            yAxisID:'y',
+            order:2,
+            categoryPercentage:0.56,
+            barPercentage:1.0,
+            datalabels:{
+                display:true,
+                anchor:'end',align:'end',offset:2,
+                font:{size:10,weight:'bold'},
+                color:function(ctx2){return bdColors[ctx2.dataIndex];},
+                formatter:function(v){return v.toFixed(2);}
+            }
+        }
+    ];
+    if(showDiff){
+        datasets.push({
+            label:'ผลต่าง (%) เทียบ '+prevLabel,
+            data:diffValues,
+            backgroundColor:diffBg,
+            borderColor:diffBd,
+            borderWidth:1,
+            borderRadius:0,
+            yAxisID:'yDiff',
+            order:1,
+            categoryPercentage:0.56,
+            barPercentage:0.64,
+            datalabels:{
+                display:true,
+                anchor:'end',align:function(ctx2){return ctx2.dataset.data[ctx2.dataIndex]>=0?'end':'start';},
+                offset:1,
+                font:{size:9,weight:'bold'},
+                color:'#000',
+                formatter:function(v){return (v>=0?'+':'')+v.toFixed(2);}
+            }
+        });
+    }
+
+    /* yDiff axis: fixed range, 0-line at ~20% of left axis */
+
     var ctx=document.getElementById('aonChart1').getContext('2d');
     aonChart1Inst=new Chart(ctx,{
         type:'bar',
         data:{
             labels:labels,
-            datasets:[{
-                label:'Always-On (%)',
-                data:values,
-                backgroundColor:bgColors,
-                borderColor:bdColors,
-                borderWidth:1,
-                categoryPercentage:0.56,
-                barPercentage:1.0,
-                datalabels:{display:false}
-            }]
+            datasets:datasets
         },
         options:{
             responsive:true,
             maintainAspectRatio:false,
             layout:{padding:{top:30,right:10}},
             plugins:{
-                legend:{display:false},
+                legend:{display:showDiff,position:'top',labels:{font:{size:12},usePointStyle:true,pointStyle:'rect',padding:16}},
                 tooltip:{
                     callbacks:{
                         title:function(items){if(!items.length)return'';return 'สาขา'+items[0].label;},
                         label:function(ctx2){
+                            if(ctx2.datasetIndex===1){
+                                var d=ctx2.parsed.y;
+                                return 'ผลต่าง: '+(d>=0?'+':'')+d.toFixed(2)+'%';
+                            }
                             var v=ctx2.parsed.y;
                             return 'Always-On: '+v.toFixed(2)+'%'+(v>=threshold?' ✓ บรรลุ':' ✗ ไม่บรรลุ');
                         }
@@ -2546,9 +2731,11 @@ function aonRender(){
                 x:{
                     ticks:{font:{size:12},maxRotation:45,minRotation:45},
                     grid:{display:true,color:'rgba(0,0,0,0.1)',drawOnChartArea:true,drawTicks:true},
-                    offset:true
+                    offset:true,
+                    stacked:true
                 },
                 y:{
+                    position:'left',
                     title:{display:true,text:'ร้อยละ (%)',font:{size:12,weight:'bold'}},
                     ticks:{
                         font:{size:11},
@@ -2560,6 +2747,20 @@ function aonRender(){
                     min:0,
                     max:100,
                     grid:{color:'rgba(0,0,0,0.06)'}
+                },
+                yDiff:{
+                    display:showDiff,
+                    type:'linear',
+                    position:'right',
+                    beginAtZero:false,
+                    title:{display:true,text:'ผลต่าง (%) เทียบ '+prevLabel,font:{size:12,weight:'bold'}},
+                    ticks:{
+                        font:{size:11},
+                        callback:function(v){return (v>=0?'+':'')+v.toFixed(2);}
+                    },
+                    min:-5,
+                    max:15,
+                    grid:{display:false}
                 }
             }
         }
@@ -3752,14 +3953,14 @@ function refreshAllAfterUpload(){
         if(typeof chartWaterQty1!=='undefined'&&chartWaterQty1){chartWaterQty1.destroy();chartWaterQty1=null;}
         if(typeof chartWaterQty2!=='undefined'&&chartWaterQty2){chartWaterQty2.destroy();chartWaterQty2=null;}
         if(typeof buildBranchChart==='function'){
-            chartWaterQty1=buildBranchChart('chart-waterQty1',GROUP1,null,'ร้อยละข้อร้องเรียนด้านปริมาณน้ำ ต่อจำนวนลูกค้า (ภาพรวมเขต 1)',false);
+            chartWaterQty1=buildBranchChart('chart-waterQty1',GROUP1,null,'ร้อยละข้อร้องเรียนด้านปริมาณน้ำ ต่อจำนวนลูกค้า (ภาพรวมเขต)',false);
             chartWaterQty2=buildBranchChart('chart-waterQty2',GROUP2,null,'',true);
         }
         /* Rebuild pipe charts (Tab 2 card 2) */
         if(typeof pipeChart1!=='undefined'&&pipeChart1){pipeChart1.destroy();pipeChart1=null;}
         if(typeof pipeChart2!=='undefined'&&pipeChart2){pipeChart2.destroy();pipeChart2=null;}
         if(typeof buildPipeChart==='function'){
-            pipeChart1=buildPipeChart('chart-pipe1',GROUP1,null,'ร้อยละข้อร้องเรียนด้านท่อแตกรั่ว ต่อจำนวนลูกค้า (ภาพรวมเขต 1)',false);
+            pipeChart1=buildPipeChart('chart-pipe1',GROUP1,null,'ร้อยละข้อร้องเรียนด้านท่อแตกรั่ว ต่อจำนวนลูกค้า (ภาพรวมเขต)',false);
             pipeChart2=buildPipeChart('chart-pipe2',GROUP2,null,'',true);
         }
 
@@ -4100,20 +4301,23 @@ function getSelectedCategory(){
 
 // Build chart with given units, title, and legend visibility
 function buildBranchChart(canvasId, units, chartObjRef, titleText, showLegend) {
-  const labels = units.map(u => u === 'รวม เขต 1' ? 'ภาพรวม เขต 1' : u);
+  const labels = units.map(u => u === 'รวม เขต 1' ? 'ภาพรวมเขต' : u);
+  var overviewIdx=labels.indexOf(OVERVIEW_LABEL);
   MONTH_COLORS=getMonthColors(ACTIVE_MONTHS,FY_COLOR_OLD,FY_COLOR_NEW);
 
   const datasets = ACTIVE_MONTHS.map((m, i) => {
     const isFirst = (i === 0);
     const isLast  = (i === ACTIVE_MONTHS.length - 1);
+    var baseColor=MONTH_COLORS[i];
+    var darkColor=darkenHex(baseColor,0.3);
     return {
       label: monthLabel(m),
       data: units.map(u => {
         const val = calcWaterQtyPercent(u, m);
         return Math.round(val * 10000) / 10000;
       }),
-      backgroundColor: MONTH_COLORS[i],
-      borderColor: MONTH_COLORS[i],
+      backgroundColor: function(ctx){return ctx.dataIndex===overviewIdx?darkColor:baseColor;},
+      borderColor: function(ctx){return ctx.dataIndex===overviewIdx?darkColor:baseColor;},
       borderWidth: 1,
       borderRadius: 2,
       datalabels: (isFirst || isLast) ? {
@@ -4122,7 +4326,7 @@ function buildBranchChart(canvasId, units, chartObjRef, titleText, showLegend) {
         anchor: 'end',
         align: 'end',
         offset: 0,
-        color: MONTH_COLORS[i],
+        color: baseColor,
         font: { size: 9, weight: 'bold' },
         formatter: function(v) {
           if (v == null || v === 0) return '';
@@ -4178,7 +4382,7 @@ function buildBranchChart(canvasId, units, chartObjRef, titleText, showLegend) {
       scales: {
         x: {
           ticks: {
-            font: { size: 11 },
+            font: overviewTickFont,
             maxRotation: 0,
             minRotation: 0,
           },
@@ -4203,6 +4407,22 @@ function buildBranchChart(canvasId, units, chartObjRef, titleText, showLegend) {
   return newChart;
 }
 
+/* ===== Sync Y-axis scale ระหว่าง 2 กราฟใน Card เดียวกัน ===== */
+function syncYScale(chartA, chartB){
+    if(!chartA||!chartB) return;
+    // Force Chart.js to compute scales first
+    chartA.update('none');
+    chartB.update('none');
+    var maxA = chartA.scales && chartA.scales.y ? chartA.scales.y.max : 0;
+    var maxB = chartB.scales && chartB.scales.y ? chartB.scales.y.max : 0;
+    var sharedMax = Math.max(maxA, maxB);
+    if(sharedMax <= 0) return;
+    chartA.options.scales.y.max = sharedMax;
+    chartB.options.scales.y.max = sharedMax;
+    chartA.update('none');
+    chartB.update('none');
+}
+
 function getChartObj(canvasId){
     var map={
         'chart-waterQty1':chartWaterQty1,
@@ -4211,6 +4431,7 @@ function getChartObj(canvasId){
         'pr1ContChart':pr1ContChartInst,
         'pr2Chart':pr2ChartInst,
         'chart-summary5':summaryChart5,
+        'chart-summary5pie':summaryPieChart,
         'chart-pipe1':pipeChart1,
         'chart-pipe2':pipeChart2,
         'chart-quality1':qualityChart1,
@@ -4514,27 +4735,32 @@ const arrowPlugin = {
     const numDatasets = data.datasets.length;
     if (numDatasets < 2) return;
 
+    const area = chart.chartArea;
     const numGroups = data.labels.length;
     const firstDs = data.datasets[0];
     const lastDs  = data.datasets[numDatasets - 1];
 
-    const DEG30 = 30 * Math.PI / 180; // 30 degrees in radians
-    const OFFSET_PX = 14;             // pixels above tallest bar
-    const HEAD_LEN = 12;              // arrowhead size
+    const DEG30 = 15 * Math.PI / 180;
+    const OFFSET_PX = 14;
+    const HEAD_LEN = 12;
+
+    // Clip ทั้งหมดให้อยู่ใน chart area
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(area.left, area.top, area.right - area.left, area.bottom - area.top);
+    ctx.clip();
 
     for (let gi = 0; gi < numGroups; gi++) {
       const valFirst = firstDs.data[gi];
       const valLast  = lastDs.data[gi];
       if (valFirst == null || valLast == null) continue;
 
-      // Find the maximum value across all datasets for this group
       let maxVal = 0;
       for (let di = 0; di < numDatasets; di++) {
         const v = data.datasets[di].data[gi];
         if (v != null && v > maxVal) maxVal = v;
       }
 
-      // Get X positions from first & last bar elements
       const metaFirst = chart.getDatasetMeta(0);
       const metaLast  = chart.getDatasetMeta(numDatasets - 1);
       const barFirst  = metaFirst.data[gi];
@@ -4545,45 +4771,35 @@ const arrowPlugin = {
       const x2 = barLast.x;
       const arrowLen = x2 - x1;
 
-      // Y baseline: just above the tallest bar in the group
-      const yTop = y.getPixelForValue(maxVal) - OFFSET_PX;
+      let yTop = y.getPixelForValue(maxVal) - OFFSET_PX;
+      if (yTop < area.top) yTop = area.top;
 
-      // Determine color and tip angle based on trend
       let arrowColor, tipAngle;
-      const epsilon = 0.00005; // tolerance for "equal"
+      const epsilon = 0.00005;
 
       if (valFirst > valLast + epsilon) {
-        // First > Last => decreased => GOOD => green, tip points down 30 deg
         arrowColor = '#27ae60';
-        tipAngle = DEG30;  // tip angles downward from horizontal
+        tipAngle = DEG30;
       } else if (valLast > valFirst + epsilon) {
-        // First < Last => increased => BAD => red, tip points up 30 deg
         arrowColor = '#e74c3c';
-        tipAngle = -DEG30; // tip angles upward from horizontal
+        tipAngle = -DEG30;
       } else {
-        // Equal => yellow, horizontal (0 deg)
         arrowColor = '#f1c40f';
         tipAngle = 0;
       }
 
-      // Calculate arrow endpoints
-      // Start at (x1, yTop), end at (x2, yTop + arrowLen * sin(tipAngle))
-      // But we want the line to go from x1 to x2 with the angle applied
-      const yEnd = yTop + arrowLen * Math.sin(tipAngle);
+      let yEnd = yTop + arrowLen * Math.sin(tipAngle);
 
-      ctx.save();
       ctx.globalAlpha = 0.3;
       ctx.strokeStyle = arrowColor;
       ctx.fillStyle = arrowColor;
       ctx.lineWidth = 2.5;
 
-      // Draw line from start to end
       ctx.beginPath();
       ctx.moveTo(x1, yTop);
       ctx.lineTo(x2, yEnd);
       ctx.stroke();
 
-      // Draw arrowhead at the end point
       const angle = Math.atan2(yEnd - yTop, x2 - x1);
       ctx.beginPath();
       ctx.moveTo(x2, yEnd);
@@ -4591,14 +4807,15 @@ const arrowPlugin = {
       ctx.lineTo(x2 - HEAD_LEN * Math.cos(angle + Math.PI / 6), yEnd - HEAD_LEN * Math.sin(angle + Math.PI / 6));
       ctx.closePath();
       ctx.fill();
-
-      ctx.restore();
     }
+
+    ctx.restore(); // restore clip
   }
 };
 
 // ==================== SUMMARY 5 CATEGORIES ====================
 var summaryChart5=null;
+var summaryPieChart=null;
 var SUMMARY_CATS=[
     {name:'ด้านท่อแตกรั่ว',color:'#1565c0'},
     {name:'ด้านปริมาณน้ำ',color:'#e65100'},
@@ -4624,6 +4841,7 @@ function buildSummary5(branchKey){
     var monthName=monthLabel(lastMonth);
 
     if(summaryChart5){summaryChart5.destroy();summaryChart5=null;}
+    if(summaryPieChart){summaryPieChart.destroy();summaryPieChart=null;}
     var ctx=document.getElementById('chart-summary5').getContext('2d');
     summaryChart5=new Chart(ctx,{
         type:'bar',
@@ -4663,6 +4881,46 @@ function buildSummary5(branchKey){
             scales:{
                 x:{ticks:{font:{size:12,weight:'bold'}},grid:{display:false}},
                 y:{title:{display:false},min:0,max:100,ticks:{font:{size:11},callback:function(v){return v+'%';}},grid:{color:'rgba(0,0,0,0.06)'}}
+            }
+        }
+    });
+
+    /* --- Pie Chart (right side) --- */
+    var pieCtx=document.getElementById('chart-summary5pie').getContext('2d');
+    summaryPieChart=new Chart(pieCtx,{
+        type:'pie',
+        data:{
+            labels:labels,
+            datasets:[{
+                data:counts,
+                backgroundColor:colors,
+                borderColor:'#fff',
+                borderWidth:2,
+                _pcts:pcts
+            }]
+        },
+        options:{
+            responsive:true,maintainAspectRatio:false,
+            plugins:{
+                legend:{display:true,position:'bottom',labels:{font:{size:12},padding:14,usePointStyle:true,pointStyle:'circle'}},
+                title:{display:true,text:['สัดส่วนข้อร้องเรียน 5 ด้าน','รวม '+total.toLocaleString('th-TH')+' เรื่อง'],font:{size:14,weight:'bold'},padding:{bottom:10}},
+                tooltip:{callbacks:{
+                    label:function(ctx2){
+                        var cnt=ctx2.raw;
+                        var pct=ctx2.dataset._pcts[ctx2.dataIndex];
+                        return ctx2.label+': '+cnt.toLocaleString('th-TH')+' เรื่อง ('+pct.toFixed(2)+'%)';
+                    }
+                }},
+                datalabels:{
+                    display:true,
+                    color:'#fff',
+                    font:{size:12,weight:'bold'},
+                    formatter:function(v,ctx2){
+                        var pct=ctx2.dataset._pcts[ctx2.dataIndex];
+                        if(pct<3)return '';
+                        return pct.toFixed(1)+'%';
+                    }
+                }
             }
         }
     });
@@ -4751,7 +5009,7 @@ function prInitControls(){
     // Populate branch selector
     var sel=document.getElementById('prBranch');
     if(sel){
-        sel.innerHTML='<option value="__all__">ภาพรวมเขต 1</option>';
+        sel.innerHTML='<option value="__all__">ภาพรวมเขต</option>';
         BRANCHES.forEach(function(b){
             sel.innerHTML+='<option value="'+b+'">'+b+'</option>';
         });
@@ -4770,20 +5028,21 @@ function prSharedUpdate(){
     // Rebuild charts
     var titleChart1,titleChart2;
     if(brVal==='__all__'){
-        titleChart1='ร้อยละข้อร้องเรียน'+catName+' ต่อจำนวนลูกค้า (ภาพรวมเขต 1)';
+        titleChart1='ร้อยละข้อร้องเรียน'+catName+' ต่อจำนวนลูกค้า (ภาพรวมเขต)';
         titleChart2='';
         if(chartWaterQty1){chartWaterQty1.destroy();chartWaterQty1=null;}
         if(chartWaterQty2){chartWaterQty2.destroy();chartWaterQty2=null;}
         chartWaterQty1=buildBranchChart('chart-waterQty1',GROUP1,null,titleChart1,false);
         chartWaterQty2=buildBranchChart('chart-waterQty2',GROUP2,null,titleChart2,true);
+        syncYScale(chartWaterQty1,chartWaterQty2);
         syncDataLabels('chart-waterQty1');
         syncDataLabels('chart-waterQty2');
         // Show both chart sections
         document.getElementById('prChart2Section').style.display='';
     }else{
-        // Single branch — show only chart 1 with that branch + รวมเขต1
+        // Single branch — show only that branch (no ภาพรวมเขต)
         titleChart1='ร้อยละข้อร้องเรียน'+catName+' ต่อจำนวนลูกค้า ('+brVal+')';
-        var singleUnits=['รวม เขต 1',brVal];
+        var singleUnits=[brVal];
         if(chartWaterQty1){chartWaterQty1.destroy();chartWaterQty1=null;}
         if(chartWaterQty2){chartWaterQty2.destroy();chartWaterQty2=null;}
         chartWaterQty1=buildBranchChart('chart-waterQty1',singleUnits,null,titleChart1,true);
@@ -4895,7 +5154,7 @@ function prUpdateDisplay(chartNum){
         if(exportBar)exportBar.style.display='';
         // Rebuild chart if destroyed
         if(chartNum===1&&!chartWaterQty1){
-            chartWaterQty1=buildBranchChart('chart-waterQty1',GROUP1,null,'ร้อยละข้อร้องเรียนด้านปริมาณน้ำ ต่อจำนวนลูกค้า (ภาพรวมเขต 1)',false);
+            chartWaterQty1=buildBranchChart('chart-waterQty1',GROUP1,null,'ร้อยละข้อร้องเรียนด้านปริมาณน้ำ ต่อจำนวนลูกค้า (ภาพรวมเขต)',false);
             syncDataLabels('chart-waterQty1');
         }
         if(chartNum===2&&!chartWaterQty2){
@@ -4926,7 +5185,7 @@ function prBuildTable(chartNum){
 
     // One row per unit
     units.forEach(function(u,idx){
-        var label=u==='รวม เขต 1'?'ภาพรวม เขต 1':u;
+        var label=u==='รวม เขต 1'?'ภาพรวมเขต':u;
         h+='<tr><td>'+label+'</td>';
         ACTIVE_MONTHS.forEach(function(m){
             var val=calcWaterQtyPercent(u,m);
@@ -4944,7 +5203,7 @@ function prBuildTable(chartNum){
 prInitControls();
 
 // Initialize both charts
-chartWaterQty1 = buildBranchChart('chart-waterQty1', GROUP1, null, 'ร้อยละข้อร้องเรียนด้านปริมาณน้ำ ต่อจำนวนลูกค้า (ภาพรวมเขต 1)', false);
+chartWaterQty1 = buildBranchChart('chart-waterQty1', GROUP1, null, 'ร้อยละข้อร้องเรียนด้านปริมาณน้ำ ต่อจำนวนลูกค้า (ภาพรวมเขต)', false);
 chartWaterQty2 = buildBranchChart('chart-waterQty2', GROUP2, null, '', true);
 syncDataLabels('chart-waterQty1');
 syncDataLabels('chart-waterQty2');
@@ -4970,16 +5229,18 @@ function calcPipePercent(unit,monthKey){
 
 function buildPipeChart(canvasId,units,chartObjRef,titleText,showLegend){
     var PIPE_MONTH_COLORS=getMonthColors(ACTIVE_MONTHS,'#90caf9','#1565c0');
-    var labels=units.map(function(u){return u==='รวม เขต 1'?'ภาพรวม เขต 1':u;});
+    var labels=units.map(function(u){return u==='รวม เขต 1'?'ภาพรวมเขต':u;});
+    var overviewIdx=labels.indexOf(OVERVIEW_LABEL);
     var datasets=ACTIVE_MONTHS.map(function(m,i){
         var isFirst=(i===0), isLast=(i===ACTIVE_MONTHS.length-1);
+        var baseColor=PIPE_MONTH_COLORS[i]; var darkColor=darkenHex(baseColor,0.3);
         return {
             label:monthLabel(m),
             data:units.map(function(u){var val=calcPipePercent(u,m);return Math.round(val*10000)/10000;}),
-            backgroundColor:PIPE_MONTH_COLORS[i],
-            borderColor:PIPE_MONTH_COLORS[i],
+            backgroundColor:function(ctx){return ctx.dataIndex===overviewIdx?darkColor:baseColor;},
+            borderColor:function(ctx){return ctx.dataIndex===overviewIdx?darkColor:baseColor;},
             borderWidth:1,borderRadius:2,
-            datalabels:(isFirst||isLast)?{display:true,rotation:-90,anchor:'end',align:'end',offset:0,color:PIPE_MONTH_COLORS[i],font:{size:9,weight:'bold'},formatter:function(v){if(v==null||v===0)return'';var d=Math.abs(v)<100?2:0;return v.toLocaleString('th-TH',{minimumFractionDigits:d,maximumFractionDigits:d});}}:{display:false}
+            datalabels:(isFirst||isLast)?{display:true,rotation:-90,anchor:'end',align:'end',offset:0,color:baseColor,font:{size:9,weight:'bold'},formatter:function(v){if(v==null||v===0)return'';var d=Math.abs(v)<100?2:0;return v.toLocaleString('th-TH',{minimumFractionDigits:d,maximumFractionDigits:d});}}:{display:false}
         };
     });
     var ctx=document.getElementById(canvasId).getContext('2d');
@@ -4995,7 +5256,7 @@ function buildPipeChart(canvasId,units,chartObjRef,titleText,showLegend){
                 tooltip:{callbacks:{title:function(items){if(!items.length)return'';return items[0].label+' — '+items[0].dataset.label;},label:function(ctx){return ctx.parsed.y.toFixed(4)+'%';}}}
             },
             scales:{
-                x:{ticks:{font:{size:11},maxRotation:0,minRotation:0},grid:{display:true,color:'rgba(0,0,0,0.06)'}},
+                x:{ticks:{font:overviewTickFont,maxRotation:0,minRotation:0},grid:{display:true,color:'rgba(0,0,0,0.06)'}},
                 y:{title:{display:true,text:'ร้อยละต่อจำนวนลูกค้า (%)',font:{size:12,weight:'bold'}},ticks:{font:{size:11},callback:function(v){return v.toFixed(2)+'%';}},beginAtZero:true}
             }
         }
@@ -5010,18 +5271,19 @@ function pipeSharedUpdate(){
     if(titleEl){titleEl.textContent='ร้อยละข้อร้องเรียน'+catName+' ต่อจำนวนลูกค้า';}
     var titleChart1,titleChart2;
     if(brVal==='__all__'){
-        titleChart1='ร้อยละข้อร้องเรียน'+catName+' ต่อจำนวนลูกค้า (ภาพรวมเขต 1)';
+        titleChart1='ร้อยละข้อร้องเรียน'+catName+' ต่อจำนวนลูกค้า (ภาพรวมเขต)';
         titleChart2='';
         if(pipeChart1){pipeChart1.destroy();pipeChart1=null;}
         if(pipeChart2){pipeChart2.destroy();pipeChart2=null;}
         pipeChart1=buildPipeChart('chart-pipe1',GROUP1,null,titleChart1,false);
         pipeChart2=buildPipeChart('chart-pipe2',GROUP2,null,titleChart2,true);
+        syncYScale(pipeChart1,pipeChart2);
         syncDataLabels('chart-pipe1');
         syncDataLabels('chart-pipe2');
         document.getElementById('pipeChart2Section').style.display='';
     }else{
         titleChart1='ร้อยละข้อร้องเรียน'+catName+' ต่อจำนวนลูกค้า ('+brVal+')';
-        var singleUnits=['รวม เขต 1',brVal];
+        var singleUnits=[brVal];
         if(pipeChart1){pipeChart1.destroy();pipeChart1=null;}
         if(pipeChart2){pipeChart2.destroy();pipeChart2=null;}
         pipeChart1=buildPipeChart('chart-pipe1',singleUnits,null,titleChart1,true);
@@ -5054,7 +5316,7 @@ function pipeUpdateDisplay(chartNum){
         chartWrap.style.display='block';tableWrap.style.display='none';
         if(exportBar)exportBar.style.display='';
         if(chartNum===1&&!pipeChart1){
-            pipeChart1=buildPipeChart('chart-pipe1',GROUP1,null,'ร้อยละข้อร้องเรียนด้านท่อแตกรั่ว ต่อจำนวนลูกค้า (ภาพรวมเขต 1)',false);
+            pipeChart1=buildPipeChart('chart-pipe1',GROUP1,null,'ร้อยละข้อร้องเรียนด้านท่อแตกรั่ว ต่อจำนวนลูกค้า (ภาพรวมเขต)',false);
             syncDataLabels('chart-pipe1');
         }
         if(chartNum===2&&!pipeChart2){
@@ -5077,7 +5339,7 @@ function pipeBuildTable(chartNum){
     ACTIVE_MONTHS.forEach(function(m){h+='<th>'+monthLabel(m)+'</th>';});
     h+='</tr></thead><tbody>';
     units.forEach(function(u){
-        var label=u==='รวม เขต 1'?'ภาพรวม เขต 1':u;
+        var label=u==='รวม เขต 1'?'ภาพรวมเขต':u;
         h+='<tr><td>'+label+'</td>';
         ACTIVE_MONTHS.forEach(function(m){h+='<td>'+fv(calcPipePercent(u,m))+'</td>';});
         h+='</tr>';
@@ -5087,7 +5349,7 @@ function pipeBuildTable(chartNum){
 }
 
 // Init
-pipeChart1=buildPipeChart('chart-pipe1',GROUP1,null,'ร้อยละข้อร้องเรียนด้านท่อแตกรั่ว ต่อจำนวนลูกค้า (ภาพรวมเขต 1)',false);
+pipeChart1=buildPipeChart('chart-pipe1',GROUP1,null,'ร้อยละข้อร้องเรียนด้านท่อแตกรั่ว ต่อจำนวนลูกค้า (ภาพรวมเขต)',false);
 pipeChart2=buildPipeChart('chart-pipe2',GROUP2,null,'',true);
 syncDataLabels('chart-pipe1');
 syncDataLabels('chart-pipe2');
@@ -5111,16 +5373,18 @@ function calcQualityPercent(unit,monthKey){
 
 function buildQualityChart(canvasId,units,chartObjRef,titleText,showLegend){
     var QUALITY_MONTH_COLORS=getMonthColors(ACTIVE_MONTHS,'#f48fb1','#c2185b');
-    var labels=units.map(function(u){return u==='รวม เขต 1'?'ภาพรวม เขต 1':u;});
+    var labels=units.map(function(u){return u==='รวม เขต 1'?'ภาพรวมเขต':u;});
+    var overviewIdx=labels.indexOf(OVERVIEW_LABEL);
     var datasets=ACTIVE_MONTHS.map(function(m,i){
         var isFirst=(i===0), isLast=(i===ACTIVE_MONTHS.length-1);
+        var baseColor=QUALITY_MONTH_COLORS[i]; var darkColor=darkenHex(baseColor,0.3);
         return {
             label:monthLabel(m),
             data:units.map(function(u){var val=calcQualityPercent(u,m);return Math.round(val*10000)/10000;}),
-            backgroundColor:QUALITY_MONTH_COLORS[i],
-            borderColor:QUALITY_MONTH_COLORS[i],
+            backgroundColor:function(ctx){return ctx.dataIndex===overviewIdx?darkColor:baseColor;},
+            borderColor:function(ctx){return ctx.dataIndex===overviewIdx?darkColor:baseColor;},
             borderWidth:1,borderRadius:2,
-            datalabels:(isFirst||isLast)?{display:true,rotation:-90,anchor:'end',align:'end',offset:0,color:QUALITY_MONTH_COLORS[i],font:{size:9,weight:'bold'},formatter:function(v){if(v==null||v===0)return'';var d=Math.abs(v)<100?2:0;return v.toLocaleString('th-TH',{minimumFractionDigits:d,maximumFractionDigits:d});}}:{display:false}
+            datalabels:(isFirst||isLast)?{display:true,rotation:-90,anchor:'end',align:'end',offset:0,color:baseColor,font:{size:9,weight:'bold'},formatter:function(v){if(v==null||v===0)return'';var d=Math.abs(v)<100?2:0;return v.toLocaleString('th-TH',{minimumFractionDigits:d,maximumFractionDigits:d});}}:{display:false}
         };
     });
     var ctx=document.getElementById(canvasId).getContext('2d');
@@ -5136,7 +5400,7 @@ function buildQualityChart(canvasId,units,chartObjRef,titleText,showLegend){
                 tooltip:{callbacks:{title:function(items){if(!items.length)return'';return items[0].label+' — '+items[0].dataset.label;},label:function(ctx){return ctx.parsed.y.toFixed(4)+'%';}}}
             },
             scales:{
-                x:{ticks:{font:{size:11},maxRotation:0,minRotation:0},grid:{display:true,color:'rgba(0,0,0,0.06)'}},
+                x:{ticks:{font:overviewTickFont,maxRotation:0,minRotation:0},grid:{display:true,color:'rgba(0,0,0,0.06)'}},
                 y:{title:{display:true,text:'ร้อยละต่อจำนวนลูกค้า (%)',font:{size:12,weight:'bold'}},ticks:{font:{size:11},callback:function(v){return v.toFixed(2)+'%';}},beginAtZero:true}
             }
         }
@@ -5151,18 +5415,19 @@ function qualitySharedUpdate(){
     if(titleEl){titleEl.textContent='ร้อยละข้อร้องเรียน'+catName+' ต่อจำนวนลูกค้า';}
     var titleChart1,titleChart2;
     if(brVal==='__all__'){
-        titleChart1='ร้อยละข้อร้องเรียน'+catName+' ต่อจำนวนลูกค้า (ภาพรวมเขต 1)';
+        titleChart1='ร้อยละข้อร้องเรียน'+catName+' ต่อจำนวนลูกค้า (ภาพรวมเขต)';
         titleChart2='';
         if(qualityChart1){qualityChart1.destroy();qualityChart1=null;}
         if(qualityChart2){qualityChart2.destroy();qualityChart2=null;}
         qualityChart1=buildQualityChart('chart-quality1',GROUP1,null,titleChart1,false);
         qualityChart2=buildQualityChart('chart-quality2',GROUP2,null,titleChart2,true);
+        syncYScale(qualityChart1,qualityChart2);
         syncDataLabels('chart-quality1');
         syncDataLabels('chart-quality2');
         document.getElementById('qualityChart2Section').style.display='';
     }else{
         titleChart1='ร้อยละข้อร้องเรียน'+catName+' ต่อจำนวนลูกค้า ('+brVal+')';
-        var singleUnits=['รวม เขต 1',brVal];
+        var singleUnits=[brVal];
         if(qualityChart1){qualityChart1.destroy();qualityChart1=null;}
         if(qualityChart2){qualityChart2.destroy();qualityChart2=null;}
         qualityChart1=buildQualityChart('chart-quality1',singleUnits,null,titleChart1,true);
@@ -5195,7 +5460,7 @@ function qualityUpdateDisplay(chartNum){
         chartWrap.style.display='block';tableWrap.style.display='none';
         if(exportBar)exportBar.style.display='';
         if(chartNum===1&&!qualityChart1){
-            qualityChart1=buildQualityChart('chart-quality1',GROUP1,null,'ร้อยละข้อร้องเรียนด้านคุณภาพน้ำ ต่อจำนวนลูกค้า (ภาพรวมเขต 1)',false);
+            qualityChart1=buildQualityChart('chart-quality1',GROUP1,null,'ร้อยละข้อร้องเรียนด้านคุณภาพน้ำ ต่อจำนวนลูกค้า (ภาพรวมเขต)',false);
             syncDataLabels('chart-quality1');
         }
         if(chartNum===2&&!qualityChart2){
@@ -5218,7 +5483,7 @@ function qualityBuildTable(chartNum){
     ACTIVE_MONTHS.forEach(function(m){h+='<th>'+monthLabel(m)+'</th>';});
     h+='</tr></thead><tbody>';
     units.forEach(function(u){
-        var label=u==='รวม เขต 1'?'ภาพรวม เขต 1':u;
+        var label=u==='รวม เขต 1'?'ภาพรวมเขต':u;
         h+='<tr><td>'+label+'</td>';
         ACTIVE_MONTHS.forEach(function(m){h+='<td>'+fv(calcQualityPercent(u,m))+'</td>';});
         h+='</tr>';
@@ -5228,7 +5493,7 @@ function qualityBuildTable(chartNum){
 }
 
 // Init
-qualityChart1=buildQualityChart('chart-quality1',GROUP1,null,'ร้อยละข้อร้องเรียนด้านคุณภาพน้ำ ต่อจำนวนลูกค้า (ภาพรวมเขต 1)',false);
+qualityChart1=buildQualityChart('chart-quality1',GROUP1,null,'ร้อยละข้อร้องเรียนด้านคุณภาพน้ำ ต่อจำนวนลูกค้า (ภาพรวมเขต)',false);
 qualityChart2=buildQualityChart('chart-quality2',GROUP2,null,'',true);
 syncDataLabels('chart-quality1');
 syncDataLabels('chart-quality2');
@@ -5252,16 +5517,18 @@ function calcServicePercent(unit,monthKey){
 
 function buildServiceChart(canvasId,units,chartObjRef,titleText,showLegend){
     var SERVICE_MONTH_COLORS=getMonthColors(ACTIVE_MONTHS,'#a5d6a7','#2e7d32');
-    var labels=units.map(function(u){return u==='รวม เขต 1'?'ภาพรวม เขต 1':u;});
+    var labels=units.map(function(u){return u==='รวม เขต 1'?'ภาพรวมเขต':u;});
+    var overviewIdx=labels.indexOf(OVERVIEW_LABEL);
     var datasets=ACTIVE_MONTHS.map(function(m,i){
         var isFirst=(i===0), isLast=(i===ACTIVE_MONTHS.length-1);
+        var baseColor=SERVICE_MONTH_COLORS[i]; var darkColor=darkenHex(baseColor,0.3);
         return {
             label:monthLabel(m),
             data:units.map(function(u){var val=calcServicePercent(u,m);return Math.round(val*10000)/10000;}),
-            backgroundColor:SERVICE_MONTH_COLORS[i],
-            borderColor:SERVICE_MONTH_COLORS[i],
+            backgroundColor:function(ctx){return ctx.dataIndex===overviewIdx?darkColor:baseColor;},
+            borderColor:function(ctx){return ctx.dataIndex===overviewIdx?darkColor:baseColor;},
             borderWidth:1,borderRadius:2,
-            datalabels:(isFirst||isLast)?{display:true,rotation:-90,anchor:'end',align:'end',offset:0,color:SERVICE_MONTH_COLORS[i],font:{size:9,weight:'bold'},formatter:function(v){if(v==null||v===0)return'';var d=Math.abs(v)<100?2:0;return v.toLocaleString('th-TH',{minimumFractionDigits:d,maximumFractionDigits:d});}}:{display:false}
+            datalabels:(isFirst||isLast)?{display:true,rotation:-90,anchor:'end',align:'end',offset:0,color:baseColor,font:{size:9,weight:'bold'},formatter:function(v){if(v==null||v===0)return'';var d=Math.abs(v)<100?2:0;return v.toLocaleString('th-TH',{minimumFractionDigits:d,maximumFractionDigits:d});}}:{display:false}
         };
     });
     var ctx=document.getElementById(canvasId).getContext('2d');
@@ -5277,7 +5544,7 @@ function buildServiceChart(canvasId,units,chartObjRef,titleText,showLegend){
                 tooltip:{callbacks:{title:function(items){if(!items.length)return'';return items[0].label+' — '+items[0].dataset.label;},label:function(ctx){return ctx.parsed.y.toFixed(4)+'%';}}}
             },
             scales:{
-                x:{ticks:{font:{size:11},maxRotation:0,minRotation:0},grid:{display:true,color:'rgba(0,0,0,0.06)'}},
+                x:{ticks:{font:overviewTickFont,maxRotation:0,minRotation:0},grid:{display:true,color:'rgba(0,0,0,0.06)'}},
                 y:{title:{display:true,text:'ร้อยละต่อจำนวนลูกค้า (%)',font:{size:12,weight:'bold'}},ticks:{font:{size:11},callback:function(v){return v.toFixed(2)+'%';}},beginAtZero:true}
             }
         }
@@ -5292,18 +5559,19 @@ function serviceSharedUpdate(){
     if(titleEl){titleEl.textContent='ร้อยละข้อร้องเรียน'+catName+' ต่อจำนวนลูกค้า';}
     var titleChart1,titleChart2;
     if(brVal==='__all__'){
-        titleChart1='ร้อยละข้อร้องเรียน'+catName+' ต่อจำนวนลูกค้า (ภาพรวมเขต 1)';
+        titleChart1='ร้อยละข้อร้องเรียน'+catName+' ต่อจำนวนลูกค้า (ภาพรวมเขต)';
         titleChart2='';
         if(serviceChart1){serviceChart1.destroy();serviceChart1=null;}
         if(serviceChart2){serviceChart2.destroy();serviceChart2=null;}
         serviceChart1=buildServiceChart('chart-service1',GROUP1,null,titleChart1,false);
         serviceChart2=buildServiceChart('chart-service2',GROUP2,null,titleChart2,true);
+        syncYScale(serviceChart1,serviceChart2);
         syncDataLabels('chart-service1');
         syncDataLabels('chart-service2');
         document.getElementById('serviceChart2Section').style.display='';
     }else{
         titleChart1='ร้อยละข้อร้องเรียน'+catName+' ต่อจำนวนลูกค้า ('+brVal+')';
-        var singleUnits=['รวม เขต 1',brVal];
+        var singleUnits=[brVal];
         if(serviceChart1){serviceChart1.destroy();serviceChart1=null;}
         if(serviceChart2){serviceChart2.destroy();serviceChart2=null;}
         serviceChart1=buildServiceChart('chart-service1',singleUnits,null,titleChart1,true);
@@ -5336,7 +5604,7 @@ function serviceUpdateDisplay(chartNum){
         chartWrap.style.display='block';tableWrap.style.display='none';
         if(exportBar)exportBar.style.display='';
         if(chartNum===1&&!serviceChart1){
-            serviceChart1=buildServiceChart('chart-service1',GROUP1,null,'ร้อยละข้อร้องเรียนด้านการบริการ ต่อจำนวนลูกค้า (ภาพรวมเขต 1)',false);
+            serviceChart1=buildServiceChart('chart-service1',GROUP1,null,'ร้อยละข้อร้องเรียนด้านการบริการ ต่อจำนวนลูกค้า (ภาพรวมเขต)',false);
             syncDataLabels('chart-service1');
         }
         if(chartNum===2&&!serviceChart2){
@@ -5359,7 +5627,7 @@ function serviceBuildTable(chartNum){
     ACTIVE_MONTHS.forEach(function(m){h+='<th>'+monthLabel(m)+'</th>';});
     h+='</tr></thead><tbody>';
     units.forEach(function(u){
-        var label=u==='รวม เขต 1'?'ภาพรวม เขต 1':u;
+        var label=u==='รวม เขต 1'?'ภาพรวมเขต':u;
         h+='<tr><td>'+label+'</td>';
         ACTIVE_MONTHS.forEach(function(m){h+='<td>'+fv(calcServicePercent(u,m))+'</td>';});
         h+='</tr>';
@@ -5369,7 +5637,7 @@ function serviceBuildTable(chartNum){
 }
 
 // Init
-serviceChart1=buildServiceChart('chart-service1',GROUP1,null,'ร้อยละข้อร้องเรียนด้านการบริการ ต่อจำนวนลูกค้า (ภาพรวมเขต 1)',false);
+serviceChart1=buildServiceChart('chart-service1',GROUP1,null,'ร้อยละข้อร้องเรียนด้านการบริการ ต่อจำนวนลูกค้า (ภาพรวมเขต)',false);
 serviceChart2=buildServiceChart('chart-service2',GROUP2,null,'',true);
 syncDataLabels('chart-service1');
 syncDataLabels('chart-service2');
@@ -5392,16 +5660,18 @@ function calcStaffCount(unit,monthKey){
 
 function buildStaffChart(canvasId,units,chartObjRef,titleText,showLegend){
     var STAFF_MONTH_COLORS=getMonthColors(ACTIVE_MONTHS,'#ce93d8','#7b1fa2');
-    var labels=units.map(function(u){return u==='รวม เขต 1'?'ภาพรวม เขต 1':u;});
+    var labels=units.map(function(u){return u==='รวม เขต 1'?'ภาพรวมเขต':u;});
+    var overviewIdx=labels.indexOf(OVERVIEW_LABEL);
     var datasets=ACTIVE_MONTHS.map(function(m,i){
         var isFirst=(i===0), isLast=(i===ACTIVE_MONTHS.length-1);
+        var baseColor=STAFF_MONTH_COLORS[i]; var darkColor=darkenHex(baseColor,0.3);
         return {
             label:monthLabel(m),
             data:units.map(function(u){return calcStaffCount(u,m);}),
-            backgroundColor:STAFF_MONTH_COLORS[i],
-            borderColor:STAFF_MONTH_COLORS[i],
+            backgroundColor:function(ctx){return ctx.dataIndex===overviewIdx?darkColor:baseColor;},
+            borderColor:function(ctx){return ctx.dataIndex===overviewIdx?darkColor:baseColor;},
             borderWidth:1,borderRadius:2,
-            datalabels:(isFirst||isLast)?{display:true,rotation:-90,anchor:'end',align:'end',offset:0,color:STAFF_MONTH_COLORS[i],font:{size:9,weight:'bold'},formatter:function(v){if(v==null||v===0)return'';return v.toLocaleString('th-TH');}}:{display:false}
+            datalabels:(isFirst||isLast)?{display:true,rotation:-90,anchor:'end',align:'end',offset:0,color:baseColor,font:{size:9,weight:'bold'},formatter:function(v){if(v==null||v===0)return'';return v.toLocaleString('th-TH');}}:{display:false}
         };
     });
     var ctx=document.getElementById(canvasId).getContext('2d');
@@ -5417,7 +5687,7 @@ function buildStaffChart(canvasId,units,chartObjRef,titleText,showLegend){
                 tooltip:{callbacks:{title:function(items){if(!items.length)return'';return items[0].label+' — '+items[0].dataset.label;},label:function(ctx){return ctx.parsed.y.toLocaleString('th-TH')+' เรื่อง';}}}
             },
             scales:{
-                x:{ticks:{font:{size:11},maxRotation:0,minRotation:0},grid:{display:true,color:'rgba(0,0,0,0.06)'}},
+                x:{ticks:{font:overviewTickFont,maxRotation:0,minRotation:0},grid:{display:true,color:'rgba(0,0,0,0.06)'}},
                 y:{title:{display:true,text:'จำนวนเรื่อง',font:{size:12,weight:'bold'}},ticks:{font:{size:11},callback:function(v){return v.toLocaleString('th-TH');}},beginAtZero:true}
             }
         }
@@ -5432,24 +5702,26 @@ function staffSharedUpdate(){
     if(titleEl){titleEl.textContent='จำนวนข้อร้องเรียน'+catName;}
     var titleChart1,titleChart2;
     if(brVal==='__all__'){
-        titleChart1='จำนวนข้อร้องเรียน'+catName+' (ภาพรวมเขต 1)';
+        titleChart1='จำนวนข้อร้องเรียน'+catName+' (ภาพรวมเขต)';
         titleChart2='';
         if(staffChart1){staffChart1.destroy();staffChart1=null;}
         if(staffChart2){staffChart2.destroy();staffChart2=null;}
         staffChart1=buildStaffChart('chart-staff1',GROUP1,null,titleChart1,false);
         staffChart2=buildStaffChart('chart-staff2',GROUP2,null,titleChart2,true);
+        syncYScale(staffChart1,staffChart2);
         syncDataLabels('chart-staff1');
         syncDataLabels('chart-staff2');
         document.getElementById('staffChart2Section').style.display='';
     }else{
         titleChart1='จำนวนข้อร้องเรียน'+catName+' ('+brVal+')';
-        var singleUnits=['รวม เขต 1',brVal];
+        var singleUnits=[brVal];
         if(staffChart1){staffChart1.destroy();staffChart1=null;}
         if(staffChart2){staffChart2.destroy();staffChart2=null;}
         staffChart1=buildStaffChart('chart-staff1',singleUnits,null,titleChart1,true);
         syncDataLabels('chart-staff1');
         document.getElementById('staffChart2Section').style.display='none';
     }
+    syncDataLabels('chart-staff1');
     if(staffDisplay1==='table')staffBuildTable(1);
     if(staffDisplay2==='table')staffBuildTable(2);
     document.getElementById('info-staff').textContent='ข้อมูล '+monthLabel(ACTIVE_MONTHS[0])+' - '+monthLabel(ACTIVE_MONTHS[ACTIVE_MONTHS.length-1])+' ('+ACTIVE_MONTHS.length+' เดือน)';
@@ -5476,7 +5748,7 @@ function staffUpdateDisplay(chartNum){
         chartWrap.style.display='block';tableWrap.style.display='none';
         if(exportBar)exportBar.style.display='';
         if(chartNum===1&&!staffChart1){
-            staffChart1=buildStaffChart('chart-staff1',GROUP1,null,'จำนวนข้อร้องเรียนด้านบุคลากร (ภาพรวมเขต 1)',false);
+            staffChart1=buildStaffChart('chart-staff1',GROUP1,null,'จำนวนข้อร้องเรียนด้านบุคลากร (ภาพรวมเขต)',false);
             syncDataLabels('chart-staff1');
         }
         if(chartNum===2&&!staffChart2){
@@ -5499,7 +5771,7 @@ function staffBuildTable(chartNum){
     ACTIVE_MONTHS.forEach(function(m){h+='<th>'+monthLabel(m)+'</th>';});
     h+='</tr></thead><tbody>';
     units.forEach(function(u){
-        var label=u==='รวม เขต 1'?'ภาพรวม เขต 1':u;
+        var label=u==='รวม เขต 1'?'ภาพรวมเขต':u;
         h+='<tr><td>'+label+'</td>';
         ACTIVE_MONTHS.forEach(function(m){h+='<td>'+fv(calcStaffCount(u,m))+'</td>';});
         h+='</tr>';
@@ -5509,7 +5781,7 @@ function staffBuildTable(chartNum){
 }
 
 // Init
-staffChart1=buildStaffChart('chart-staff1',GROUP1,null,'จำนวนข้อร้องเรียนด้านบุคลากร (ภาพรวมเขต 1)',false);
+staffChart1=buildStaffChart('chart-staff1',GROUP1,null,'จำนวนข้อร้องเรียนด้านบุคลากร (ภาพรวมเขต)',false);
 staffChart2=buildStaffChart('chart-staff2',GROUP2,null,'',true);
 syncDataLabels('chart-staff1');
 syncDataLabels('chart-staff2');
@@ -6109,8 +6381,15 @@ function showAxisDialog(canvasId,scaleKey,axisLabel,isNumeric){
             if(!item.scale._origMin&&item.scale._origMin!==0){
                 item.scale._origMin=curMin;item.scale._origMax=curMax;
             }
-            var org=getAxisMin(canvas.id,item.key);
-            item.scale.min=org;item.scale.max=org+newRange;
+            /* yDiff: zoom around center, don't fix origin at 0 */
+            if(item.key==='yDiff'){
+                var center=(curMin+curMax)/2;
+                item.scale.min=center-newRange/2;
+                item.scale.max=center+newRange/2;
+            }else{
+                var org=getAxisMin(canvas.id,item.key);
+                item.scale.min=org;item.scale.max=org+newRange;
+            }
         });
         chart.update('none');
     }
@@ -6170,11 +6449,17 @@ function showAxisDialog(canvasId,scaleKey,axisLabel,isNumeric){
             var match=allY.find(function(s){return s.key===info.key;});if(!match)return;
             var valRange=info.startMax-info.startMin;
             var pxRange=info.pxRange||1;var valPerPx=valRange/pxRange;var shift=dy*valPerPx;
-            var org=getAxisMin(panState.canvas.id,info.key);
-            match.scale.min=org;
-            var newMax=info.startMax+shift;
-            if(newMax<=org)newMax=org+0.1;
-            match.scale.max=newMax;
+            /* yDiff: pan both min and max freely (don't fix origin at 0) */
+            if(info.key==='yDiff'){
+                match.scale.min=info.startMin+shift;
+                match.scale.max=info.startMax+shift;
+            }else{
+                var org=getAxisMin(panState.canvas.id,info.key);
+                match.scale.min=org;
+                var newMax=info.startMax+shift;
+                if(newMax<=org)newMax=org+0.1;
+                match.scale.max=newMax;
+            }
         });
         chart.update('none');
     }
@@ -6255,6 +6540,35 @@ function showAxisDialog(canvasId,scaleKey,axisLabel,isNumeric){
         }catch(e){console.warn('LS load error:',e);}
     }
 })();
+
+// ==================== CARD NOTES (หมายเหตุท้ายกราฟ) ====================
+var CARD_NOTE_KEYS=['waterQty','pipe','quality','service','staff'];
+function autoResizeNote(el){
+    el.style.height='auto';
+    el.style.height=el.scrollHeight+'px';
+}
+function saveCardNote(key){
+    try{
+        var el=document.getElementById('note-'+key);
+        if(el){
+            localStorage.setItem('pr_note_'+key, el.value);
+            autoResizeNote(el);
+        }
+    }catch(e){}
+}
+function loadCardNotes(){
+    CARD_NOTE_KEYS.forEach(function(key){
+        try{
+            var el=document.getElementById('note-'+key);
+            var saved=localStorage.getItem('pr_note_'+key);
+            if(el&&saved){
+                el.value=saved;
+                autoResizeNote(el);
+            }
+        }catch(e){}
+    });
+}
+loadCardNotes();
 
 // ==================== SESSION RESTORE (ท้ายสุด — หลัง hooks ทั้งหมด) ====================
 (function(){
