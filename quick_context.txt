@@ -1,0 +1,32 @@
+================================================================================
+  Quick Context — Dashboard กปภ.ข.1 (อ่านไฟล์นี้แทน README+prompt_history)
+  อัปเดตล่าสุด: 20 มี.ค. 2569
+================================================================================
+
+โปรเจค: 4 Dashboard + 1 Landing Page (index.html ราก)
+ทุก Dashboard: standalone HTML + server.py (Flask) + manage.html
+
+Dashboard         | Port | Theme           | index.html
+------------------|------|-----------------|------------
+Dashboard_PR      | 5000 | ส้ม #c43e00     | ~1.6MB
+Dashboard_Leak    | 5001 | น้ำเงิน #1e3a5f | ~4.7MB
+Dashboard_GIS     | 5002 | Teal #004d40    | ~146KB
+Dashboard_Meter   | 5003 | ม่วง #4a148c    | ~22KB
+
+ข้อตกลงสำคัญ (ดูรายละเอียดใน PROJECT_README.md):
+  - ทุกกราฟต้องมี: export bar, scroll/zoom, context menu, toggle กราฟ/ตาราง
+  - ประเภทกราฟ: เส้นโค้ง → เส้นตรง → แท่ง → พื้นที่
+  - ลงทะเบียน getChartObj, CTX_CHART_TYPE_MAP, CTX_CHART_UPDATE_MAP
+  - ตัวเลข: th-TH locale, <100 → 2 ทศนิยม, >=100 → comma
+  - X-axis: maxRotation:60, font 12, ชื่อเดือนย่อ "ต.ค.68"
+  - max-width: 1400px ทุก Dashboard
+  - Dark mode: localStorage sync ระหว่าง index.html ↔ manage.html
+  - ปุ่มจัดการแหล่งข้อมูล: smart onclick (file:// / localhost / GitHub alert)
+  - ปุ่มหน้าหลัก: smart pattern (file:// = href, localhost = API)
+
+งานค้าง:
+  1. WSC-R Chart 1 กราฟพื้นที่ปีก่อน — opacity 60% (ยังไม่แก้)
+  2. ตรวจสอบ scale sync กราฟ volume — อาจต้องปรับ rounding
+
+หมายเหตุ: ยกเลิกการบันทึก prompt_history แล้ว ไม่ต้องเขียนเพิ่ม
+================================================================================

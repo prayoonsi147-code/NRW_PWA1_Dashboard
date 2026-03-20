@@ -196,7 +196,7 @@ body.dark .main-tab-bar{background:#00363a}
 <div class="main-tab-content active" id="mainTab-kpi">
 <div class="chart-card">
   <div class="card-header">
-    <h3 style="color:var(--heading)">&#x1F5FA; KPI จุดซ่อมท่อ ในระบบ PWA SMART 1662</h3>
+    <h3 style="color:var(--heading)">&#x1F5FA; กราฟที่ 1 : KPI จุดซ่อมท่อ ในระบบ PWA SMART 1662</h3>
     <div style="display:flex;gap:12px;align-items:center">
       <div class="ymt">
         <button class="ymb active" onclick="gisToggleView('chart',this)">กราฟ</button>
@@ -269,7 +269,7 @@ body.dark .main-tab-bar{background:#00363a}
 <!-- Card 2: สรุปภาพรวม KPI (same tab) -->
 <div class="chart-card">
   <div class="card-header">
-    <h3 style="color:var(--heading)">&#x1F4CA; สรุปข้อมูลคะแนน KPI จุดซ่อมท่อ ในระบบ PWA SMART 1662 กปภ.ข.1</h3>
+    <h3 style="color:var(--heading)">&#x1F4CA; กราฟที่ 2 : สรุปข้อมูลคะแนน KPI จุดซ่อมท่อ ในระบบ PWA SMART 1662</h3>
     <div style="display:flex;gap:12px;align-items:center">
       <div class="ymt">
         <button class="ymb active" onclick="sumToggleView('chart',this)">กราฟ</button>
@@ -282,12 +282,12 @@ body.dark .main-tab-bar{background:#00363a}
     <div id="sumSubtitle" style="text-align:center;color:var(--sub);font-size:14px;margin-bottom:8px"></div>
 
     <!-- Chart Row 1: branches 1-11 -->
-    <div class="chart-container" style="height:380px;margin-bottom:16px" id="sumChartsWrap">
-      <div>
+    <div id="sumChartsWrap">
+      <div class="chart-container" style="height:336px;margin-bottom:16px">
         <canvas id="sumChart1"></canvas>
       </div>
       <!-- Chart Row 2: branches 12-22 -->
-      <div style="height:380px;margin-top:16px">
+      <div class="chart-container" style="height:336px;margin-top:16px">
         <canvas id="sumChart2"></canvas>
       </div>
     </div>
@@ -296,6 +296,7 @@ body.dark .main-tab-bar{background:#00363a}
     <div id="sumTableContainer" style="margin-top:24px;overflow-x:auto;display:none"></div>
 
     <div class="export-bar">
+      <button class="export-btn" onclick="sumResetChart()" title="รีเซ็ตขนาดกราฟ">&#8634; รีเซ็ต</button>
       <label class="export-btn" style="cursor:pointer"><input type="checkbox" id="sumShowValues" onchange="sumRender()" style="margin-right:4px">แสดงค่า</label>
       <button class="export-btn" onclick="openFontPopup(this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M9.93 2L4 22h3.2l1.67-5.5h6.26L16.8 22H20L14.07 2H9.93zm-.34 11.5L12 5.88l2.41 7.62H9.59z"/></svg></button>
       <button class="export-btn" onclick="sumExportPNG()"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></button>
@@ -314,7 +315,7 @@ body.dark .main-tab-bar{background:#00363a}
 <div class="main-tab-content" id="mainTab-pressure">
 <div class="chart-card">
   <div class="card-header">
-    <h3 style="color:var(--heading)">💧 ข้อมูลแรงดันน้ำจากระบบ OIS</h3>
+    <h3 style="color:var(--heading)">💧 กราฟที่ 1 : ข้อมูลแรงดันน้ำจากระบบ OIS</h3>
     <div style="display:flex;gap:12px;align-items:center">
       <div class="ymt">
         <button class="ymb active" onclick="pressureToggleView('chart',this)">กราฟ</button>
@@ -362,17 +363,14 @@ body.dark .main-tab-bar{background:#00363a}
     </div>
   </div>
 </div>
-</div><!-- /mainTab-pressure end -->
-
-<!-- Tab Content: งานค้างซ่อม -->
-<div class="main-tab-content" id="mainTab-pending">
+<!-- ─── กราฟที่ 2 : เปรียบเทียบแรงดันน้ำรายเดือน ─── -->
 <div class="chart-card">
   <div class="card-header">
-    <h3 style="color:var(--heading)">🔨 งานค้างซ่อมสะสม ปีงบประมาณ 2569</h3>
+    <h3 style="color:var(--heading)">💧 กราฟที่ 2 : เปรียบเทียบแรงดันน้ำรายเดือน</h3>
     <div style="display:flex;gap:12px;align-items:center">
       <div class="ymt">
-        <button class="ymb active" onclick="pendingToggleView('chart',this)">กราฟ</button>
-        <button class="ymb" onclick="pendingToggleView('table',this)">ตาราง</button>
+        <button class="ymb active" onclick="press2ToggleView('chart',this)">กราฟ</button>
+        <button class="ymb" onclick="press2ToggleView('table',this)">ตาราง</button>
       </div>
       <button class="card-toggle" onclick="toggleCard(this)">&#9650;</button>
     </div>
@@ -380,88 +378,124 @@ body.dark .main-tab-bar{background:#00363a}
   <div class="card-body">
     <div class="controls">
       <div class="control-group">
+        <label>ประเภทกราฟ</label>
+        <select id="press2ChartType" onchange="press2Render()">
+          <option value="line">เส้นโค้ง</option>
+          <option value="straight">เส้นตรง</option>
+          <option value="bar" selected>แท่ง</option>
+          <option value="area">พื้นที่</option>
+        </select>
+      </div>
+      <div class="control-group">
         <label>แกน X</label>
-        <select id="pendingXAxis" onchange="pendingRender()">
+        <select id="press2XAxis" onchange="press2Render()">
           <option value="time">ช่วงเวลา</option>
           <option value="branch" selected>สาขา</option>
         </select>
       </div>
       <div class="control-group">
-        <label>ประเภทกราฟ</label>
-        <select id="pendingChartType" onchange="pendingRender()">
-          <option value="line">เส้นโค้ง</option>
-          <option value="straight">เส้นตรง</option>
-          <option value="bar">แท่ง</option>
-          <option value="area">พื้นที่</option>
-        </select>
+        <label>มุมมองช่วงเวลา</label>
+        <div class="ymt">
+          <button class="ymb active" onclick="press2SetViewMode('monthly',this)">รายเดือน</button>
+          <button class="ymb" onclick="press2SetViewMode('yearly',this)">รายปี</button>
+        </div>
       </div>
-      <div class="control-group" id="pendingRangeGroup">
-        <label>จากเดือน</label>
-        <select id="pendingMonthFrom" onchange="pendingRender()"></select>
+      <div class="control-group">
+        <label>รูปแบบปี</label>
+        <div class="ymt">
+          <button class="ymb active" onclick="press2SetYearMode('fiscal',this)">ปีงบประมาณ</button>
+          <button class="ymb" onclick="press2SetYearMode('calendar',this)">ปีปฏิทิน</button>
+        </div>
       </div>
-      <div class="control-group" id="pendingRangeGroup2">
-        <label>ถึงเดือน</label>
-        <select id="pendingMonthTo" onchange="pendingRender()"></select>
+      <div class="control-group" id="press2YearRangeGroup">
+        <label>ช่วงปี</label>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <select id="press2YearFrom" onchange="press2OnYearRangeChange()" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--input-bg);color:var(--text)"></select>
+          <span style="font-size:13px;color:var(--sub2)">ถึง</span>
+          <select id="press2YearTo" onchange="press2OnYearRangeChange()" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--input-bg);color:var(--text)"></select>
+        </div>
+      </div>
+      <div class="control-group">
+        <label>เกณฑ์ (แรงดัน)</label>
+        <input type="number" id="press2Threshold" value="0.85" step="0.01" min="0" onchange="press2Render()" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--input-bg);color:var(--text)">
       </div>
     </div>
 
     <!-- เลือกสาขา: 3 โหมด -->
-    <div id="pendingBranchSection" style="margin-bottom:12px">
+    <div id="press2BranchSection" style="margin-bottom:12px">
       <label style="font-size:13px;font-weight:600;color:var(--sub);display:block;margin-bottom:6px">เลือกสาขา</label>
       <div style="display:flex;gap:0;margin-bottom:8px">
-        <div class="ymt" id="pendingBranchMode">
-          <button class="ymb" onclick="pendingSetBranchMode('single',this)">สาขาเดียว</button>
-          <button class="ymb active" onclick="pendingSetBranchMode('some',this)">บางสาขา</button>
-          <button class="ymb" onclick="pendingSetBranchMode('all',this)">ทุกสาขา</button>
+        <div class="ymt" id="press2BranchModeBar">
+          <button class="ymb" onclick="press2SetBranchMode('single',this)">สาขาเดียว</button>
+          <button class="ymb active" onclick="press2SetBranchMode('some',this)">บางสาขา</button>
+          <button class="ymb" onclick="press2SetBranchMode('all',this)">ทุกสาขา</button>
         </div>
       </div>
       <!-- สาขาเดียว: dropdown -->
-      <div id="pendingSingleBranch" style="display:none;margin-bottom:8px">
-        <select id="pendingSingleSel" onchange="pendingRender()" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--input-bg);color:var(--text)"></select>
+      <div id="press2SingleBranch" style="display:none;margin-bottom:8px">
+        <select id="press2SingleSel" onchange="press2Render()" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--input-bg);color:var(--text)"></select>
       </div>
       <!-- บางสาขา: checkboxes -->
-      <div id="pendingBranchCheckboxes" style="display:flex;flex-wrap:wrap;gap:8px">
-        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="ชลบุรี" style="accent-color:#e74c3c"> ชลบุรี</label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="พัทยา" style="accent-color:#e67e22"> พัทยา</label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="พนัสนิคม" style="accent-color:#f1c40f"> พนัสนิคม</label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="บ้านบึง" style="accent-color:#2ecc71"> บ้านบึง</label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="ศรีราชา" style="accent-color:#1abc9c"> ศรีราชา</label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="แหลมฉบัง" style="accent-color:#3498db"> แหลมฉบัง</label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="ฉะเชิงเทรา" style="accent-color:#2980b9"> ฉะเชิงเทรา</label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="บางปะกง" style="accent-color:#9b59b6"> บางปะกง</label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="บางคล้า" style="accent-color:#8e44ad"> บางคล้า</label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="พนมสารคาม" style="accent-color:#34495e"> พนมสารคาม</label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="ระยอง" style="accent-color:#c0392b"> ระยอง</label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="บ้านฉาง" style="accent-color:#d35400"> บ้านฉาง</label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="ปากน้ำประแสร์" style="accent-color:#f39c12"> ปากน้ำประแสร์</label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="จันทบุรี" style="accent-color:#27ae60"> จันทบุรี</label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="ขลุง" style="accent-color:#16a085"> ขลุง</label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="ตราด" style="accent-color:#2c3e50"> ตราด</label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="คลองใหญ่" style="accent-color:#7f8c8d"> คลองใหญ่</label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="สระแก้ว" style="accent-color:#e91e63"> สระแก้ว</label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="วัฒนานคร" style="accent-color:#00bcd4"> วัฒนานคร</label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="อรัญประเทศ" style="accent-color:#4caf50"> อรัญประเทศ</label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="ปราจีนบุรี" style="accent-color:#ff9800"> ปราจีนบุรี</label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="กบินทร์บุรี" style="accent-color:#795548"> กบินทร์บุรี</label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="ไม่ระบุ" style="accent-color:#607d8b"> ไม่ระบุ</label>
+      <div id="press2BranchCheckboxes" style="display:flex;flex-wrap:wrap;gap:8px">
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="press2Render()" class="press2Branch" value="ชลบุรี" style="accent-color:#e74c3c"> ชลบุรี</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="press2Render()" class="press2Branch" value="บ้านบึง" style="accent-color:#2ecc71"> บ้านบึง</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="press2Render()" class="press2Branch" value="พนัสนิคม" style="accent-color:#f1c40f"> พนัสนิคม</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="press2Render()" class="press2Branch" value="ศรีราชา" style="accent-color:#1abc9c"> ศรีราชา</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="press2Render()" class="press2Branch" value="แหลมฉบัง" style="accent-color:#3498db"> แหลมฉบัง</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="press2Render()" class="press2Branch" value="พัทยา" style="accent-color:#e67e22"> พัทยา</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="press2Render()" class="press2Branch" value="ฉะเชิงเทรา" style="accent-color:#2980b9"> ฉะเชิงเทรา</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="press2Render()" class="press2Branch" value="บางปะกง" style="accent-color:#9b59b6"> บางปะกง</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="press2Render()" class="press2Branch" value="บางคล้า" style="accent-color:#8e44ad"> บางคล้า</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="press2Render()" class="press2Branch" value="พนมสารคาม" style="accent-color:#34495e"> พนมสารคาม</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="press2Render()" class="press2Branch" value="ระยอง" style="accent-color:#c0392b"> ระยอง</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="press2Render()" class="press2Branch" value="บ้านฉาง" style="accent-color:#d35400"> บ้านฉาง</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="press2Render()" class="press2Branch" value="ปากน้ำประแสร์" style="accent-color:#f39c12"> ปากน้ำประแสร์</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="press2Render()" class="press2Branch" value="จันทบุรี" style="accent-color:#27ae60"> จันทบุรี</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="press2Render()" class="press2Branch" value="ขลุง" style="accent-color:#16a085"> ขลุง</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="press2Render()" class="press2Branch" value="ตราด" style="accent-color:#2c3e50"> ตราด</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="press2Render()" class="press2Branch" value="คลองใหญ่" style="accent-color:#7f8c8d"> คลองใหญ่</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="press2Render()" class="press2Branch" value="สระแก้ว" style="accent-color:#e91e63"> สระแก้ว</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="press2Render()" class="press2Branch" value="วัฒนานคร" style="accent-color:#00bcd4"> วัฒนานคร</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="press2Render()" class="press2Branch" value="อรัญประเทศ" style="accent-color:#4caf50"> อรัญประเทศ</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="press2Render()" class="press2Branch" value="ปราจีนบุรี" style="accent-color:#ff9800"> ปราจีนบุรี</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="press2Render()" class="press2Branch" value="กบินทร์บุรี" style="accent-color:#795548"> กบินทร์บุรี</label>
       </div>
     </div>
 
-    <div class="chart-container" id="pendingChartWrap">
-      <canvas id="pendingChart"></canvas>
+    <div class="chart-container" id="press2ChartWrap">
+      <canvas id="press2Chart"></canvas>
     </div>
 
-    <!-- Table Container for Pending Repairs -->
-    <div id="pendingTableContainer" style="margin-top:24px;overflow-x:auto;display:none"></div>
+    <div id="press2TableContainer" style="margin-top:24px;overflow-x:auto;display:none"></div>
 
     <div class="export-bar">
-      <button class="export-btn" onclick="pendingResetChart()" title="รีเซ็ตขนาดกราฟ">&#8634; รีเซ็ต</button>
-      <label class="export-btn" style="cursor:pointer"><input type="checkbox" id="pendingShowValues" checked onchange="pendingRender()" style="margin-right:4px">แสดงค่า</label>
+      <button class="export-btn" onclick="press2ResetChart()" title="รีเซ็ตขนาดกราฟ">&#8634; รีเซ็ต</button>
+      <label class="export-btn" style="cursor:pointer"><input type="checkbox" id="press2ShowValues" onchange="press2Render()" style="margin-right:4px">แสดงค่า</label>
       <button class="export-btn" onclick="openFontPopup(this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M9.93 2L4 22h3.2l1.67-5.5h6.26L16.8 22H20L14.07 2H9.93zm-.34 11.5L12 5.88l2.41 7.62H9.59z"/></svg></button>
-      <button class="export-btn" onclick="pendingExportPNG()"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></button>
-      <button class="export-btn" onclick="pendingCopyChart()"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M16 1H4a2 2 0 00-2 2v14h2V3h12V1zm3 4H8a2 2 0 00-2 2v14a2 2 0 002 2h11a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h11v14z"/></svg></button>
-      <button class="export-btn" onclick="pendingExportExcel()"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button>
-      <button class="export-btn" onclick="pendingExportPPTX()"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#D04423"/><path d="M7 5v14h2v-5h3a4 4 0 000-8H7zm2 2h3a2 2 0 010 4H9V7z" fill="#fff"/></svg></button>
+      <button class="export-btn" onclick="press2ExportPNG()"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></button>
+      <button class="export-btn" onclick="press2CopyChart()"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M16 1H4a2 2 0 00-2 2v14h2V3h12V1zm3 4H8a2 2 0 00-2 2v14a2 2 0 002 2h11a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h11v14z"/></svg></button>
+      <button class="export-btn" onclick="press2ExportExcel()"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button>
+    </div>
+  </div>
+</div>
+</div><!-- /mainTab-pressure end -->
+
+<!-- Tab Content: งานค้างซ่อม -->
+<div class="main-tab-content" id="mainTab-pending">
+<div class="chart-card">
+  <div class="card-header">
+    <h3 style="color:var(--heading)">🔨 งานค้างซ่อมสะสม</h3>
+    <button class="card-toggle" onclick="toggleCard(this)">&#9650;</button>
+  </div>
+  <div class="card-body">
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;color:var(--sub);gap:16px">
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.4">
+        <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/>
+      </svg>
+      <div style="text-align:center">
+        <div style="font-size:20px;font-weight:700;color:var(--heading);margin-bottom:8px">อยู่ระหว่างการพัฒนา</div>
+        <div style="font-size:14px;opacity:0.7">กำลังปรับปรุงโครงสร้างข้อมูลจากแหล่งข้อมูลใหม่</div>
+      </div>
     </div>
   </div>
 </div>
@@ -491,12 +525,15 @@ function switchMainTab(tabId,btn){
             else{if(sumChart1Obj)sumChart1Obj.resize();if(sumChart2Obj)sumChart2Obj.resize();}
         }
         if(tabId==='pressure'){
-            if(!pressureInitialized)pressureInit();
-            else if(pressureChartObj)pressureChartObj.resize();
+            if(!pressureInitialized){pressureInit();press2Init();}
+            else{
+                if(pressureChartObj)pressureChartObj.resize();
+                if(!press2Initialized)press2Init();
+                else if(press2ChartObj)press2ChartObj.resize();
+            }
         }
         if(tabId==='pending'){
-            if(!pendingInitialized)pendingInit();
-            else if(pendingChartObj)pendingChartObj.resize();
+            /* อยู่ระหว่างการพัฒนา — ยังไม่ต้อง init กราฟ */
         }
     },50);
 }
@@ -690,7 +727,7 @@ function gisRender(){
         label:'คะแนน KPI',data:scoreArr,
         borderColor:'#e53935',backgroundColor:'rgba(229,57,53,0.1)',
         type:'line',yAxisID:'y1',tension:0.3,fill:false,
-        pointRadius:5,pointBackgroundColor:function(ctx2){
+        pointRadius:function(ctx2){return ctx2.raw>=100?10:5;},pointBackgroundColor:function(ctx2){
             var v=ctx2.raw;
             if(v>=th2) return '#4caf50';
             if(v>=th1) return '#ff9800';
@@ -887,12 +924,13 @@ var sumInitialized=false;
 
 // Month bar colors matching reference image
 var MONTH_COLORS=[
-    {bg:'#003d33',border:'#002a23'},  // ต.ค. deep teal
-    {bg:'#00695c',border:'#004d40'},  // พ.ย. dark teal
-    {bg:'#00897b',border:'#00695c'},  // ธ.ค. teal
-    {bg:'#26a69a',border:'#00897b'},  // ม.ค. medium teal
-    {bg:'#4dd0e1',border:'#26c6da'},  // ก.พ. cyan
-    {bg:'#80deea',border:'#4dd0e1'}   // (reserve for future months)
+    {bg:'#b2dfdb',border:'#80cbc4'},  // เดือนแรก (จางสุด)
+    {bg:'#80cbc4',border:'#4db6ac'},
+    {bg:'#4db6ac',border:'#26a69a'},
+    {bg:'#26a69a',border:'#00897b'},
+    {bg:'#00897b',border:'#00695c'},
+    {bg:'#00695c',border:'#004d40'},  // เดือนล่าสุด (เข้มสุด)
+    {bg:'#004d40',border:'#003d33'}   // (reserve)
 ];
 
 function sumInit(){
@@ -951,11 +989,22 @@ function sumRender(){
                 }
             });
             var col=MONTH_COLORS[mi%MONTH_COLORS.length];
+            // Red tones for same gradient position
+            var redColors=MONTH_COLORS.length>1?[
+                {bg:'#ffcdd2',border:'#ef9a9a'},
+                {bg:'#ef9a9a',border:'#e57373'},
+                {bg:'#e57373',border:'#ef5350'},
+                {bg:'#ef5350',border:'#e53935'},
+                {bg:'#e53935',border:'#c62828'},
+                {bg:'#c62828',border:'#b71c1c'},
+                {bg:'#b71c1c',border:'#8e0000'}
+            ]:[];
+            var redCol=redColors[mi%redColors.length]||{bg:'#e53935',border:'#c62828'};
             datasets.push({
                 label:monthLabels[mi],
                 data:scores,
-                backgroundColor:col.bg,
-                borderColor:col.border,
+                backgroundColor:function(ctx2){var v=ctx2.raw;if(v<th1)return redColors[ctx2.datasetIndex%redColors.length].bg;return MONTH_COLORS[ctx2.datasetIndex%MONTH_COLORS.length].bg;},
+                borderColor:function(ctx2){var v=ctx2.raw;if(v<th1)return redColors[ctx2.datasetIndex%redColors.length].border;return MONTH_COLORS[ctx2.datasetIndex%MONTH_COLORS.length].border;},
                 borderWidth:1,
                 barPercentage:1.0,
                 categoryPercentage:0.7
@@ -996,13 +1045,13 @@ function sumRender(){
                 responsive:true,
                 maintainAspectRatio:false,
                 plugins:{
-                    legend:{display:showLegend,position:'top',labels:{font:{size:12},boxWidth:14}},
+                    legend:{display:showLegend,position:'bottom',labels:{font:{size:12},boxWidth:14}},
                     tooltip:{callbacks:{label:function(c){var v=c.parsed.y;if(v==null)return 'ไม่มีข้อมูล';return (c.dataset.label||'')+': '+v.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2})+'%';}}},
                     datalabels:{display:showVals,color:'#333',font:{size:10,weight:'bold'},anchor:'end',align:'top',formatter:function(v){if(v==null||v===0)return '';return v.toLocaleString('th-TH',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';}},
                     title:{display:false}
                 },
                 scales:{
-                    x:{ticks:{font:{size:12,weight:function(ctx2){return ctx2.tick&&ctx2.tick.label==='ภาพรวม กปภ.ข.1'?'bold':'normal';}},color:function(ctx2){return ctx2.tick&&ctx2.tick.label==='ภาพรวม กปภ.ข.1'?'#004d40':'#666';}},grid:{display:true,color:'rgba(0,0,0,0.1)',drawOnChartArea:true,drawTicks:true},offset:true},
+                    x:{ticks:{maxRotation:0,minRotation:0,autoSkip:false,font:{size:11,weight:function(ctx2){return ctx2.tick&&ctx2.tick.label==='ภาพรวม กปภ.ข.1'?'bold':'normal';}},color:function(ctx2){return ctx2.tick&&ctx2.tick.label==='ภาพรวม กปภ.ข.1'?'#004d40':'#666';}},grid:{display:true,color:'rgba(0,0,0,0.1)',drawOnChartArea:true,drawTicks:true},offset:true},
                     y:{min:0,max:100,ticks:{callback:function(v){return v.toLocaleString('th-TH',{minimumFractionDigits:0,maximumFractionDigits:0})+'%';},stepSize:20},title:{display:false},grid:{color:'rgba(0,0,0,0.06)'}}
                 }
             },
@@ -1090,10 +1139,16 @@ function sumRenderBottom(th1,th2){
 
     // KPI total score bar
     html+='<div style="margin-top:12px;background:linear-gradient(135deg,#004d40,#00838f);border-radius:12px;padding:16px 24px;color:#fff;text-align:center">';
-    html+='<div style="font-size:16px;font-weight:700">คะแนน KPI จุดซ่อมท่อ กปภ.ข.1 ไตรมาส '+quarter+'/'+(fiscalYear<100?fiscalYear:(fiscalYear%100))+' <span style="font-size:36px;margin-left:12px">'+kpiTotal.toFixed(0)+'%</span></div>';
+    html+='<div style="font-size:16px;font-weight:700">คะแนน KPI จุดซ่อมท่อ กปภ.ข.1 ไตรมาส '+quarter+'/'+(fiscalYear<100?fiscalYear:(fiscalYear%100))+' <span style="font-size:36px;margin-left:12px">'+kpiTotal.toFixed(2)+'%</span></div>';
     html+='</div>';
 
     document.getElementById('sumBottomSection').innerHTML=html;
+}
+
+function sumResetChart(){
+    if(sumChart1Obj){Object.keys(axisSettings).forEach(function(k){if(k.indexOf('sumChart1')===0)delete axisSettings[k];});sumChart1Obj.resetZoom&&sumChart1Obj.resetZoom();}
+    if(sumChart2Obj){Object.keys(axisSettings).forEach(function(k){if(k.indexOf('sumChart2')===0)delete axisSettings[k];});sumChart2Obj.resetZoom&&sumChart2Obj.resetZoom();}
+    sumRender();
 }
 
 function sumExportPNG(){
@@ -1807,6 +1862,400 @@ function pressureExportPPTX(){
     pptx.writeFile({fileName:'แรงดันน้ำ_OIS.pptx'});
 }
 
+// ==================== PRESSURE CHART 2 (เปรียบเทียบรายเดือน) ====================
+var press2ChartObj=null;
+var press2Initialized=false;
+var press2BranchMode='some'; // 'single','some','all'
+var press2ViewMode='monthly'; // 'monthly' or 'yearly'
+var press2YearMode='fiscal'; // 'fiscal' or 'calendar'
+
+// สี gradient: จาง→เข้ม = เก่า→ใหม่
+var PRESS2_COLORS=[
+    {bg:'#b2dfdb',border:'#80cbc4'},
+    {bg:'#80cbc4',border:'#4db6ac'},
+    {bg:'#4db6ac',border:'#26a69a'},
+    {bg:'#26a69a',border:'#00897b'},
+    {bg:'#00897b',border:'#00695c'},
+    {bg:'#00695c',border:'#004d40'},
+    {bg:'#004d40',border:'#003d33'}
+];
+var PRESS2_RED=[
+    {bg:'#ffcdd2',border:'#ef9a9a'},
+    {bg:'#ef9a9a',border:'#e57373'},
+    {bg:'#e57373',border:'#ef5350'},
+    {bg:'#ef5350',border:'#e53935'},
+    {bg:'#e53935',border:'#c62828'},
+    {bg:'#c62828',border:'#b71c1c'},
+    {bg:'#b71c1c',border:'#7f0000'}
+];
+
+// สีสาขา (ใช้ร่วมกับ pending)
+var PRESS2_BRANCH_COLORS={
+    'ชลบุรี':'#e74c3c','พัทยา':'#e67e22','พนัสนิคม':'#f1c40f','บ้านบึง':'#2ecc71',
+    'ศรีราชา':'#1abc9c','แหลมฉบัง':'#3498db','ฉะเชิงเทรา':'#2980b9','บางปะกง':'#9b59b6',
+    'บางคล้า':'#8e44ad','พนมสารคาม':'#34495e','ระยอง':'#c0392b','บ้านฉาง':'#d35400',
+    'ปากน้ำประแสร์':'#f39c12','จันทบุรี':'#27ae60','ขลุง':'#16a085','ตราด':'#2c3e50',
+    'คลองใหญ่':'#7f8c8d','สระแก้ว':'#e91e63','วัฒนานคร':'#00bcd4','อรัญประเทศ':'#4caf50',
+    'ปราจีนบุรี':'#ff9800','กบินทร์บุรี':'#795548'
+};
+
+function press2SetBranchMode(mode,btn){
+    press2BranchMode=mode;
+    document.querySelectorAll('#press2BranchModeBar .ymb').forEach(function(b){b.classList.remove('active');});
+    if(btn)btn.classList.add('active');
+    document.getElementById('press2SingleBranch').style.display=(mode==='single')?'':'none';
+    document.getElementById('press2BranchCheckboxes').style.display=(mode==='some')?'flex':'none';
+    press2Render();
+}
+
+function press2GetSelectedBranches(){
+    if(press2BranchMode==='all') return BRANCHES.slice();
+    if(press2BranchMode==='single'){
+        var v=document.getElementById('press2SingleSel').value;
+        return v?[v]:[];
+    }
+    // some
+    var checked=[];
+    document.querySelectorAll('.press2Branch:checked').forEach(function(cb){checked.push(cb.value);});
+    return checked;
+}
+
+// ── ปีงบประมาณ: ต.ค.(YY-1) ถึง ก.ย.YY → ปี พ.ศ. = 2500+YY
+// ── ปีปฏิทิน: ม.ค.YY ถึง ธ.ค.YY → ปี พ.ศ. = 2500+YY (ค.ศ.=1957+YY)
+function press2MonthToFiscalYear(mk){
+    var p=mk.split('-');var yy=parseInt(p[0],10);var mm=parseInt(p[1],10);
+    // ปีงบประมาณ: ต.ค.=เดือน 10 → ปีงบถัดไป
+    if(mm>=10) return 2500+yy+1;
+    return 2500+yy;
+}
+function press2MonthToCalendarYear(mk){
+    var p=mk.split('-');var yy=parseInt(p[0],10);
+    return 2500+yy;
+}
+function press2GetAvailableYears(){
+    var years=[];
+    PRESSURE_MONTHS.forEach(function(mk){
+        var y=(press2YearMode==='fiscal')?press2MonthToFiscalYear(mk):press2MonthToCalendarYear(mk);
+        if(years.indexOf(y)<0) years.push(y);
+    });
+    return years.sort();
+}
+function press2BuildYearSelects(){
+    var years=press2GetAvailableYears();
+    var fromSel=document.getElementById('press2YearFrom');
+    var toSel=document.getElementById('press2YearTo');
+    var oldFrom=parseInt(fromSel.value)||0;
+    var oldTo=parseInt(toSel.value)||0;
+    fromSel.innerHTML='';toSel.innerHTML='';
+    years.forEach(function(y){
+        var o1=document.createElement('option');o1.value=y;o1.textContent=y;fromSel.appendChild(o1);
+        var o2=document.createElement('option');o2.value=y;o2.textContent=y;toSel.appendChild(o2);
+    });
+    var lastY=years[years.length-1]||0;
+    var firstY=years[0]||0;
+    if(oldFrom&&years.indexOf(oldFrom)>=0) fromSel.value=oldFrom; else fromSel.value=firstY;
+    if(oldTo&&years.indexOf(oldTo)>=0) toSel.value=oldTo; else toSel.value=lastY;
+    if(parseInt(fromSel.value)>parseInt(toSel.value)) toSel.value=fromSel.value;
+}
+function press2OnYearRangeChange(){
+    var from=parseInt(document.getElementById('press2YearFrom').value);
+    var to=parseInt(document.getElementById('press2YearTo').value);
+    if(from>to) document.getElementById('press2YearTo').value=document.getElementById('press2YearFrom').value;
+    press2Render();
+}
+function press2SetViewMode(mode,btn){
+    press2ViewMode=mode;
+    btn.parentElement.querySelectorAll('.ymb').forEach(function(b){b.classList.remove('active');});
+    btn.classList.add('active');
+    press2BuildYearSelects();
+    press2Render();
+}
+function press2SetYearMode(mode,btn){
+    press2YearMode=mode;
+    btn.parentElement.querySelectorAll('.ymb').forEach(function(b){b.classList.remove('active');});
+    btn.classList.add('active');
+    press2BuildYearSelects();
+    press2Render();
+}
+// กรองเดือนตามช่วงปีที่เลือก
+function press2GetFilteredMonths(){
+    var from=parseInt(document.getElementById('press2YearFrom').value)||0;
+    var to=parseInt(document.getElementById('press2YearTo').value)||9999;
+    return PRESSURE_MONTHS.filter(function(mk){
+        var y=(press2YearMode==='fiscal')?press2MonthToFiscalYear(mk):press2MonthToCalendarYear(mk);
+        return y>=from&&y<=to;
+    });
+}
+
+function press2Init(){
+    press2Initialized=true;
+    // populate single branch dropdown
+    var ssel=document.getElementById('press2SingleSel');
+    ssel.innerHTML='';
+    BRANCHES.forEach(function(b){
+        var opt=document.createElement('option');opt.value=b;opt.textContent=b;
+        ssel.appendChild(opt);
+    });
+    press2BuildYearSelects();
+    press2Render();
+}
+
+function press2FmtMonth(mk){
+    var p=mk.split('-');var mm=parseInt(p[1],10);var yy=parseInt(p[0],10);
+    return MONTH_NAMES[mm<10?'0'+mm:''+mm]+yy;
+}
+
+// รวมค่าเฉลี่ยแรงดันรายปี (ค่าแรงดันเป็น rate → ใช้ค่าเฉลี่ย)
+function press2AggregateYearly(filteredMonths,branchList){
+    var yearMap={};
+    filteredMonths.forEach(function(mk){
+        var y=(press2YearMode==='fiscal')?press2MonthToFiscalYear(mk):press2MonthToCalendarYear(mk);
+        if(!yearMap[y]) yearMap[y]={months:[],label:String(y)};
+        yearMap[y].months.push(mk);
+    });
+    var yearKeys=Object.keys(yearMap).sort();
+    var result={labels:[],yearData:{}};
+    yearKeys.forEach(function(yk){
+        result.labels.push(yearMap[yk].label);
+        branchList.forEach(function(b){
+            if(!result.yearData[b]) result.yearData[b]=[];
+            var sum=0,cnt=0;
+            yearMap[yk].months.forEach(function(mk){
+                var v=(PRESSURE_DATA[mk]||{})[b];
+                if(v!==undefined&&v!==null){sum+=v;cnt++;}
+            });
+            result.yearData[b].push(cnt>0?parseFloat((sum/cnt).toFixed(2)):0);
+        });
+    });
+    return result;
+}
+
+function press2Render(){
+    var threshold=parseFloat(document.getElementById('press2Threshold').value)||0.85;
+    var showValues=document.getElementById('press2ShowValues').checked;
+    var chartType=document.getElementById('press2ChartType').value||'bar';
+    var xAxis=document.getElementById('press2XAxis').value||'time';
+    var canvas=document.getElementById('press2Chart');
+    if(!canvas)return;
+    var isDark=document.body.classList.contains('dark');
+    var textColor=isDark?'#e0e0e0':'#333';
+    var titleColor=isDark?'#4dd0e1':'#004d40';
+
+    var selectedBranches=press2GetSelectedBranches();
+    var filteredMonths=press2GetFilteredMonths();
+
+    // แสดงตัวเลือกสาขาเสมอ (ทั้ง xAxis=time และ branch)
+    // Force bar when xAxis=branch
+    if(xAxis==='branch') chartType='bar';
+
+    var labels,datasets,chartTitle;
+    var MONTH_PALETTE=['#1e88e5','#43a047','#fb8c00','#e53935','#8e24aa','#00acc1','#6d4c41'];
+    var viewLabel=(press2ViewMode==='yearly')?'รายปี':'รายเดือน';
+    var yearLabel=(press2YearMode==='fiscal')?'ปีงบประมาณ':'ปีปฏิทิน';
+
+    if(xAxis==='time'){
+        if(press2ViewMode==='monthly'){
+            // === รายเดือน: แกน X = เดือน ===
+            labels=filteredMonths.map(press2FmtMonth);
+            datasets=[];
+            selectedBranches.forEach(function(branch){
+                var col=PRESS2_BRANCH_COLORS[branch]||'#888';
+                var values=filteredMonths.map(function(mk){return (PRESSURE_DATA[mk]||{})[branch]||0;});
+                var ds={label:branch,data:values,borderColor:col,backgroundColor:hexToRgba(col,0.8),borderWidth:2,pointRadius:4,pointBackgroundColor:col,tension:0.3,fill:false};
+                if(chartType==='bar'){
+                    ds.type='bar';
+                    ds.backgroundColor=function(ctx){var v=ctx.raw;if(v<threshold)return hexToRgba('#e53935',0.7);return hexToRgba(col,0.8);};
+                    ds.borderColor=function(ctx){var v=ctx.raw;if(v<threshold)return '#c62828';return col;};
+                    ds.borderWidth=1;ds.tension=undefined;ds.pointRadius=undefined;ds.pointBackgroundColor=undefined;
+                } else if(chartType==='straight'){ds.type='line';ds.tension=0;ds.fill=false;
+                } else if(chartType==='area'){ds.type='line';ds.tension=0.3;ds.fill=true;ds.backgroundColor=hexToRgba(col,0.15);
+                } else {ds.type='line';ds.tension=0.3;ds.fill=false;}
+                datasets.push(ds);
+            });
+            chartTitle='เปรียบเทียบแรงดันน้ำ '+viewLabel;
+            if(selectedBranches.length===1) chartTitle+=' — สาขา'+selectedBranches[0];
+            else chartTitle+=' ('+selectedBranches.length+' สาขา)';
+
+        } else {
+            // === รายปี: แกน X = ปี (ค่าเฉลี่ย) ===
+            var agg=press2AggregateYearly(filteredMonths,selectedBranches);
+            labels=agg.labels;
+            datasets=[];
+            selectedBranches.forEach(function(branch){
+                var col=PRESS2_BRANCH_COLORS[branch]||'#888';
+                var values=agg.yearData[branch]||[];
+                var ds={label:branch,data:values,borderColor:col,backgroundColor:hexToRgba(col,0.8),borderWidth:2,pointRadius:4,pointBackgroundColor:col,tension:0.3,fill:false};
+                if(chartType==='bar'){
+                    ds.type='bar';
+                    ds.backgroundColor=function(ctx){var v=ctx.raw;if(v<threshold)return hexToRgba('#e53935',0.7);return hexToRgba(col,0.8);};
+                    ds.borderColor=function(ctx){var v=ctx.raw;if(v<threshold)return '#c62828';return col;};
+                    ds.borderWidth=1;ds.tension=undefined;ds.pointRadius=undefined;ds.pointBackgroundColor=undefined;
+                } else if(chartType==='straight'){ds.type='line';ds.tension=0;ds.fill=false;
+                } else if(chartType==='area'){ds.type='line';ds.tension=0.3;ds.fill=true;ds.backgroundColor=hexToRgba(col,0.15);
+                } else {ds.type='line';ds.tension=0.3;ds.fill=false;}
+                datasets.push(ds);
+            });
+            chartTitle='เปรียบเทียบแรงดันน้ำ '+viewLabel+' ('+yearLabel+', ค่าเฉลี่ย)';
+            if(selectedBranches.length===1) chartTitle+=' — สาขา'+selectedBranches[0];
+        }
+
+    } else {
+        // === แกน X = สาขา: ใช้โทนสีเดียว ไล่จาง→เข้ม (เก่า→ใหม่) ===
+        var branchLabels=selectedBranches.length>0?selectedBranches:BRANCHES;
+        labels=branchLabels;
+        datasets=[];
+        if(press2ViewMode==='monthly'){
+            filteredMonths.forEach(function(mk,mi){
+                var monthData=PRESSURE_DATA[mk]||{};
+                var values=branchLabels.map(function(b){return monthData[b]||0;});
+                var gc=PRESS2_COLORS[mi%PRESS2_COLORS.length];
+                var gr=PRESS2_RED[mi%PRESS2_RED.length];
+                datasets.push({
+                    label:press2FmtMonth(mk),data:values,
+                    backgroundColor:function(ctx){var v=ctx.raw;if(v<threshold)return gr.bg;return gc.bg;},
+                    borderColor:function(ctx){var v=ctx.raw;if(v<threshold)return gr.border;return gc.border;},
+                    borderWidth:1
+                });
+            });
+            chartTitle='เปรียบเทียบแรงดันน้ำ — '+viewLabel+' ('+branchLabels.length+' สาขา)';
+        } else {
+            var aggAll=press2AggregateYearly(filteredMonths,branchLabels);
+            aggAll.labels.forEach(function(yl,yi){
+                var values=branchLabels.map(function(b){return (aggAll.yearData[b]||[])[yi]||0;});
+                var gc=PRESS2_COLORS[yi%PRESS2_COLORS.length];
+                var gr=PRESS2_RED[yi%PRESS2_RED.length];
+                datasets.push({
+                    label:yl,data:values,
+                    backgroundColor:function(ctx){var v=ctx.raw;if(v<threshold)return gr.bg;return gc.bg;},
+                    borderColor:function(ctx){var v=ctx.raw;if(v<threshold)return gr.border;return gc.border;},
+                    borderWidth:1
+                });
+            });
+            chartTitle='เปรียบเทียบแรงดันน้ำ — '+viewLabel+' ('+yearLabel+', '+branchLabels.length+' สาขา)';
+        }
+    }
+
+    var resolvedType=(xAxis==='branch'||chartType==='bar')?'bar':(chartType==='area'?'line':chartType==='straight'?'line':'line');
+
+    var chartConfig={
+        type:resolvedType,
+        data:{labels:labels,datasets:datasets},
+        options:{
+            responsive:true,maintainAspectRatio:false,
+            interaction:{mode:'index',intersect:false},
+            plugins:{
+                legend:{display:true,position:'bottom',labels:{font:{size:11},boxWidth:14}},
+                tooltip:{
+                    backgroundColor:'rgba(0,0,0,0.8)',titleColor:'#fff',bodyColor:'#fff',
+                    borderColor:'#888',borderWidth:1,padding:12,displayColors:true,
+                    callbacks:{
+                        label:function(ctx){
+                            var v=ctx.parsed.y;
+                            if(v===undefined||v===null)return'ไม่มีข้อมูล';
+                            return(ctx.dataset.label||'')+': '+v.toFixed(2)+' บาร์';
+                        }
+                    }
+                },
+                datalabels:{
+                    display:showValues,
+                    color:function(ctx){
+                        var v=ctx.dataset.data[ctx.dataIndex];
+                        return v<threshold?'#c62828':'#004d40';
+                    },
+                    font:{size:10,weight:'bold'},anchor:'end',align:'top',
+                    formatter:function(v){if(v==null||v===0)return'';return v.toFixed(2);}
+                },
+                title:{
+                    display:true,text:chartTitle,
+                    color:titleColor,font:{size:14,weight:'bold'},padding:{bottom:16}
+                },
+                thresholdLine:{value:threshold}
+            },
+            scales:{
+                y:{
+                    min:0,
+                    ticks:{color:textColor,font:{size:12},callback:function(v){return v.toFixed(2);}},
+                    grid:{color:isDark?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.05)'}
+                },
+                x:{
+                    ticks:{color:textColor,font:{size:11},maxRotation:(xAxis==='branch')?60:0},
+                    grid:{display:false}
+                }
+            }
+        }
+    };
+
+    if(press2ChartObj){press2ChartObj.destroy();}
+    press2ChartObj=new Chart(canvas,chartConfig);
+}
+
+function press2ResetChart(){if(press2ChartObj)press2ChartObj.resetZoom();}
+
+function press2ExportPNG(){
+    var canvas=document.getElementById('press2Chart');if(!canvas)return;
+    var link=document.createElement('a');link.download='แรงดันน้ำ_เปรียบเทียบ.png';
+    link.href=canvas.toDataURL('image/png');link.click();
+}
+function press2CopyChart(){
+    var canvas=document.getElementById('press2Chart');if(!canvas)return;
+    canvas.toBlob(function(blob){
+        navigator.clipboard.write([new ClipboardItem({'image/png':blob})]).then(function(){alert('คัดลอกแล้ว');}).catch(function(){alert('คัดลอกไม่ได้');});
+    });
+}
+function press2ExportExcel(){
+    var selected=press2GetSelectedBranches();
+    var wb=new ExcelJS.Workbook();var ws=wb.addWorksheet('เปรียบเทียบแรงดัน');
+    var header=['สาขา'];PRESSURE_MONTHS.forEach(function(mk){header.push(getMonthDisplayName(mk));});
+    ws.addRow(header);
+    selected.forEach(function(b){
+        var row=[b];PRESSURE_MONTHS.forEach(function(mk){row.push((PRESSURE_DATA[mk]||{})[b]||0);});
+        ws.addRow(row);
+    });
+    ws.getRow(1).font={bold:true};ws.columns.forEach(function(c){c.width=18;});
+    wb.xlsx.writeBuffer().then(function(buf){
+        var blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+        var link=document.createElement('a');link.download='แรงดันน้ำ_เปรียบเทียบ.xlsx';
+        link.href=URL.createObjectURL(blob);link.click();
+    });
+}
+
+function press2ToggleView(mode,btn){
+    var chartWrap=document.getElementById('press2ChartWrap');
+    var tableContainer=document.getElementById('press2TableContainer');
+    var buttons=btn.parentElement.querySelectorAll('.ymb');
+    buttons.forEach(function(b){b.classList.remove('active');});
+    btn.classList.add('active');
+    if(mode==='chart'){
+        chartWrap.style.display='block';tableContainer.style.display='none';
+        setTimeout(function(){if(press2ChartObj)press2ChartObj.resize();},100);
+    } else {
+        chartWrap.style.display='none';tableContainer.style.display='block';
+        press2BuildTable();
+    }
+}
+
+function press2BuildTable(){
+    var selected=press2GetSelectedBranches();
+    var threshold=parseFloat(document.getElementById('press2Threshold').value)||0.85;
+    var thStyle='padding:10px 12px;background:#004d40;color:#fff;text-align:center;font-size:13px;border:1px solid #00695c;font-weight:700';
+    var tdBase='padding:8px 12px;border:1px solid #e0e0e0;font-size:13px;';
+    var tdNum='padding:8px 12px;border:1px solid #e0e0e0;font-size:13px;text-align:center';
+    var html='<table style="width:100%;border-collapse:collapse;border:2px solid #00695c">';
+    html+='<thead><tr><th style="'+thStyle+';text-align:left">สาขา</th>';
+    PRESSURE_MONTHS.forEach(function(mk){html+='<th style="'+thStyle+'">'+getMonthDisplayName(mk)+'</th>';});
+    html+='</tr></thead><tbody>';
+    selected.forEach(function(b){
+        html+='<tr><td style="'+tdBase+'background:#f5f5f5">'+b+'</td>';
+        PRESSURE_MONTHS.forEach(function(mk){
+            var val=(PRESSURE_DATA[mk]||{})[b]||0;var ok=val>=threshold;
+            html+='<td style="'+tdNum+'background:'+(ok?'#e8f5e9':'#ffebee')+';color:'+(ok?'#2e7d32':'#c62828')+'">'+val.toFixed(2)+'</td>';
+        });
+        html+='</tr>';
+    });
+    html+='</tbody></table>';
+    document.getElementById('press2TableContainer').innerHTML=html;
+}
+
 // ==================== CHART/TABLE TOGGLE - PRESSURE CARD ====================
 function pressureToggleView(mode,btn){
     var chartWrap=document.getElementById('pressureChartWrap');
@@ -1875,9 +2324,23 @@ initInfo();
 initMonthSelect();
 gisRender();
 sumInit();
+
+// ── Restore active tab from localStorage on page load ──
+(function(){
+    try{
+        var saved=localStorage.getItem('gis_activeTab');
+        if(saved){
+            var btn=null;
+            document.querySelectorAll('.main-tab-btn').forEach(function(b){
+                if(b.textContent.trim()&&b.getAttribute('onclick')&&b.getAttribute('onclick').indexOf("'"+saved+"'")>=0) btn=b;
+            });
+            if(btn) switchMainTab(saved,btn);
+        }
+    }catch(e){}
+})();
 // ==================== CHART CUSTOMIZATION (right-click + font popup) ====================
 function getChartObj(canvasId){
-    var map={'gisChart':gisChartObj,'sumChart1':sumChart1Obj,'sumChart2':sumChart2Obj,'pressureChart':pressureChartObj,'pendingChart':pendingChartObj};
+    var map={'gisChart':gisChartObj,'sumChart1':sumChart1Obj,'sumChart2':sumChart2Obj,'pressureChart':pressureChartObj,'press2Chart':press2ChartObj,'pendingChart':pendingChartObj};
     return map[canvasId]||null;
 }
 function hexToRgba(hex,alpha){

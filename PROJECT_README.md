@@ -30,6 +30,20 @@
 - เมื่อเลือก "กราฟเส้นโค้ง" (line): ใช้ Chart.js type='line' ตั้ง tension:0.3
 - Context menu (คลิกขวา) ต้องรองรับ straight type ด้วย: ตรวจจับจาก tension===0 และ set tension ตามประเภท
 
+### การจัดเรียงตัวเลือก Controls ของกราฟ (Standard Control Layout)
+- **ลำดับ controls (ซ้าย→ขวา):** ประเภทกราฟ → แกน X → เกณฑ์ → ตัวเลือกอื่นๆ
+- **ตัวเลือกประเภทกราฟ (`chartType`):** แท่ง, เส้นโค้ง, เส้นตรง, พื้นที่ (ลำดับตามความนิยมของ dashboard นั้น — ถ้าไม่ระบุ ให้เริ่มที่แท่ง)
+- **ตัวเลือกแกน X (`xAxis`):** ช่วงเวลา (`time`), สาขา (`branch`) — เมื่อเลือก "สาขา" บังคับ chartType เป็น bar
+- **ระบบเลือกสาขา (Branch Selector):** ใช้ 3 โหมดเสมอ:
+  1. **สาขาเดียว** — dropdown เลือก 1 สาขา
+  2. **บางสาขา** (default) — checkboxes สีตามสาขา (accent-color) เลือกได้หลายสาขา
+  3. **ทุกสาขา** — แสดงทุกสาขาทันที ไม่ต้องเลือก
+- **Branch Selector แสดงเมื่อ:** xAxis = "ช่วงเวลา" เท่านั้น (ซ่อนเมื่อ xAxis = "สาขา" เพราะแสดงทุกสาขาอยู่แล้ว)
+- **สี checkboxes สาขา:** ใช้ `PENDING_BRANCH_COLORS` / `PRESS2_BRANCH_COLORS` map เป็นมาตรฐาน (22 สี ไม่ซ้ำ)
+- **เกณฑ์ (Threshold):** input type=number พร้อมเส้นประแดง (thresholdLinePlugin) — ถ้ากราฟนั้นมีเกณฑ์
+- **Toggle กราฟ/ตาราง:** ปุ่ม ymt 2 ปุ่ม (กราฟ, ตาราง) อยู่ที่ card-header ขวา
+- **Export bar:** รีเซ็ต → แสดงค่า (checkbox) → font → PNG → คัดลอก → Excel → PowerPoint (ถ้ามี)
+
 ## ภาพรวม
 Dashboard น้ำสูญเสียของ กปภ.ข.1 สร้างจากข้อมูลดิบ Excel โดยใช้ Python script สร้าง index.html แบบ standalone (เปิดในเบราว์เซอร์ได้เลย)
 
@@ -101,8 +115,15 @@ Dashboard_GIS/
 ├── server.py               # Flask server port 5002
 ├── manage.html             # หน้าจัดการข้อมูล (Theme สี teal #004d40)
 └── ข้อมูลดิบ/
-    └── ลงข้อมูลซ่อมท่อ/    # ไฟล์ auto-renamed: GIS_YYMMDD.xlsx
+    ├── ลงข้อมูลซ่อมท่อ/    # auto-renamed: GIS_YYMMDD.xlsx
+    ├── แรงดันน้ำ/           # auto-renamed: PRESSURE_สาขา.xlsx
+    └── ซ่อมท่อค้างระบบ/     # auto-renamed: PENDING_YYMMDD.xlsx
 ```
+
+**โครงสร้าง index.html (Tab):**
+- Tab 1: จุดซ่อมท่อ — กราฟที่ 1 (KPI จุดซ่อมท่อ), กราฟที่ 2 (สรุปคะแนน KPI)
+- Tab 2: แรงดันน้ำ — กราฟที่ 1 (ข้อมูลแรงดันน้ำจากระบบ OIS, เลือกเดือนเดียว), กราฟที่ 2 (เปรียบเทียบรายเดือน, เลือกสาขา 3 โหมด)
+- Tab 3: งานค้างซ่อม — กราฟงานค้างซ่อมสะสม (เลือก xAxis + สาขา 3 โหมด)
 
 ### Dashboard_Leak/ (งานน้ำสูญเสีย)
 ```

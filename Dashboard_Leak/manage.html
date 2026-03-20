@@ -735,7 +735,7 @@
             'mnf': { thai: 'MNF', icon: '📈', color: '#7b1fa2', dark: '#4a148c',
                 hint: 'ไฟล์ MNF ตั้งชื่อ <code>MNF-ปี.xlsx</code> เช่น <code>MNF-2569.xlsx</code>' },
             'p3': { thai: 'P3', icon: '📍', color: '#3949ab', dark: '#1a237e',
-                hint: 'ไฟล์ P3 แยกรายสาขา (22 ไฟล์) เช่น <code>P3_ชลบุรี.xlsx</code>' },
+                hint: 'ไฟล์ P3 แยกรายสาขา (22 ไฟล์/เดือน) ตั้งชื่อ <code>P3_สาขา_YY-MM.xlsx</code> เช่น <code>P3_ชลบุรี_69-03.xlsx</code> — เลือกหลายไฟล์พร้อมกันได้' },
             'activities': { thai: 'Activities', icon: '📋', color: '#2e7d32', dark: '#1b5e20',
                 hint: 'ไฟล์กิจกรรมลดน้ำสูญเสีย เช่น <code>กิจกรรมลดน้ำสูญเสีย.xlsx</code>' },
             'eu': { thai: 'หน่วยไฟ', icon: '⚡', color: '#f57f17', dark: '#e65100',
@@ -773,7 +773,13 @@
         }
 
         function goBack() {
-            window.location.href = '/';
+            if (location.protocol === 'file:') {
+                window.location.href = 'index.html';
+            } else if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+                window.location.href = 'http://' + location.host + '/';
+            } else {
+                window.location.href = 'index.html';
+            }
         }
 
         // ─── Create Upload Panels ─────────────────────────────────────────────

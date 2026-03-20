@@ -136,13 +136,50 @@ def api_upload(category):
             prefix = PREFIX_MAP.get(category, category.upper())
             name_only = os.path.splitext(filename)[0]
             ext = os.path.splitext(filename)[1] or '.xlsx'
-            m = re.search(r'(\d{6})', name_only)
-            if m:
-                new_name = f"{prefix}_{m.group(1)}{ext}"
+
+            # ── Category-specific auto-rename ──
+            if category == 'repair':
+                # repair: GIS_YYMMDD.xlsx — ดึงตัวเลข 6 หลัก (YYMMDD)
+                m = re.search(r'(\d{6})', name_only)
+                if m:
+                    new_name = f"{prefix}_{m.group(1)}{ext}"
+                else:
+                    # fallback: ใช้วันที่ upload
+                    today = datetime.now().strftime('%y%m%d')
+                    new_name = f"{prefix}_{today}{ext}"
+
+            elif category == 'pressure':
+                # pressure: PRESSURE_สาขา.xlsx — ดึงชื่อสาขา (ภาษาไทย) จากชื่อไฟล์
+                # รูปแบบไฟล์ต้นฉบับ: pwa_pressure_สาขา.xlsx หรือ แรงดัน_สาขา.xlsx
+                thai_m = re.search(r'[\u0e00-\u0e7f]+', name_only)
+                if thai_m:
+                    # ดึงคำไทยสุดท้าย (มักเป็นชื่อสาขา)
+                    thai_parts = re.findall(r'[\u0e00-\u0e7f]+', name_only)
+                    branch_name = thai_parts[-1] if thai_parts else 'unknown'
+                    new_name = f"{prefix}_{branch_name}{ext}"
+                else:
+                    clean = re.sub(r'[^\w\-.]', '_', name_only).strip('_')[:30]
+                    new_name = f"{prefix}_{clean}{ext}"
+
+            elif category == 'pending':
+                # pending: PENDING_YYMMDD.xlsx — ดึงวันที่ หรือใช้วันที่ upload
+                m = re.search(r'(\d{6})', name_only)
+                if m:
+                    new_name = f"{prefix}_{m.group(1)}{ext}"
+                else:
+                    m2 = re.search(r'(\d{2}[-_]\d{2})', name_only)
+                    if m2:
+                        date_part = m2.group(1).replace('-', '').replace('_', '')
+                        new_name = f"{prefix}_{date_part}{ext}"
+                    else:
+                        today = datetime.now().strftime('%y%m%d')
+                        new_name = f"{prefix}_{today}{ext}"
+
             else:
-                m2 = re.search(r'(\d{4})', name_only)
-                if m2:
-                    new_name = f"{prefix}_{m2.group(1)}{ext}"
+                # fallback ทั่วไป
+                m = re.search(r'(\d{6})', name_only)
+                if m:
+                    new_name = f"{prefix}_{m.group(1)}{ext}"
                 else:
                     clean = re.sub(r'[^\w\-.]', '_', name_only).strip('_')[:30]
                     new_name = f"{prefix}_{clean}{ext}"

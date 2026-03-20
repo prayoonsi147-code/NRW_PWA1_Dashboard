@@ -145,25 +145,49 @@ def api_upload(category):
             prefix = PREFIX_MAP.get(category, category.upper())
             name_only = os.path.splitext(filename)[0]
             ext = os.path.splitext(filename)[1] or '.xlsx'
-            # Extract meaningful part: numbers, dates, branch names
             import re
-            # Try to find year (4 digits like 2569) or date code (6 digits like 690218)
-            m = re.search(r'(\d{6})', name_only)  # date code YYMMDD
-            if m:
-                new_name = f"{prefix}_{m.group(1)}{ext}"
-            else:
-                m2 = re.search(r'(\d{4})', name_only)  # year like 2569
-                if m2:
-                    new_name = f"{prefix}_{m2.group(1)}{ext}"
+
+            if category == 'p3':
+                # P3: extract branch name + YY-MM → P3_สาขา_YY-MM.xlsx
+                # Try to find branch name (Thai) and date code
+                branch_name = None
+                date_code = None
+                # Extract YY-MM pattern
+                dm = re.search(r'(\d{2}-\d{2})', name_only)
+                if dm:
+                    date_code = dm.group(1)
+                # Extract branch: try known branches or Thai text between underscores
+                parts = re.split(r'[_\-]', name_only)
+                for p in parts:
+                    p = p.strip()
+                    if p and not re.match(r'^(P3|p3|\d+)$', p) and not re.match(r'^\d{2}-\d{2}$', p):
+                        branch_name = p
+                        break
+                if branch_name and date_code:
+                    new_name = f"{prefix}_{branch_name}_{date_code}{ext}"
+                elif branch_name:
+                    new_name = f"{prefix}_{branch_name}{ext}"
+                elif date_code:
+                    new_name = f"{prefix}_{date_code}{ext}"
                 else:
-                    # Try branch code (4 digits like 1102)
-                    m3 = re.search(r'(\d{3,4})', name_only)
-                    if m3:
-                        new_name = f"{prefix}_{m3.group(1)}{ext}"
+                    clean = re.sub(r'[^\w\-.]', '_', name_only).strip('_')[:30]
+                    new_name = f"{prefix}_{clean}{ext}"
+            else:
+                # Other categories: extract numbers/dates
+                m = re.search(r'(\d{6})', name_only)  # date code YYMMDD
+                if m:
+                    new_name = f"{prefix}_{m.group(1)}{ext}"
+                else:
+                    m2 = re.search(r'(\d{4})', name_only)  # year like 2569
+                    if m2:
+                        new_name = f"{prefix}_{m2.group(1)}{ext}"
                     else:
-                        # Fallback: use prefix + original (cleaned)
-                        clean = re.sub(r'[^\w\-.]', '_', name_only).strip('_')[:30]
-                        new_name = f"{prefix}_{clean}{ext}"
+                        m3 = re.search(r'(\d{3,4})', name_only)
+                        if m3:
+                            new_name = f"{prefix}_{m3.group(1)}{ext}"
+                        else:
+                            clean = re.sub(r'[^\w\-.]', '_', name_only).strip('_')[:30]
+                            new_name = f"{prefix}_{clean}{ext}"
 
             dest_path = os.path.join(folder_path, new_name)
 
