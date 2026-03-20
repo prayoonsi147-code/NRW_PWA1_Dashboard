@@ -99,7 +99,7 @@ body.dark .main-tab-bar{background:#1a0a30}
 
 <!-- ===== HEADER ===== -->
 <div class="header">
-    <a href="../index.html" onclick="if(location.protocol!=='file:'){fetch('/api/open-main',{method:'POST'});return false;}" style="position:absolute;left:18px;top:50%;transform:translateY(-50%);text-decoration:none;color:white;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;transition:background 0.2s" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">&larr; หน้าหลัก</a>
+    <a href="../index.html" onclick="var h=location.hostname;if((h==='localhost'||h==='127.0.0.1')&&location.protocol!=='file:'){fetch('/api/open-main',{method:'POST'});return false;}" style="position:absolute;left:18px;top:50%;transform:translateY(-50%);text-decoration:none;color:white;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;transition:background 0.2s" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">&larr; หน้าหลัก</a>
     <h1>Dashboard งานมาตรวัดน้ำ</h1>
     <p>งานมาตรวัดน้ำ กองระบบจำหน่าย กปภ.ข.1</p>
     <div style="position:absolute;top:50%;right:32px;transform:translateY(-50%);display:flex;align-items:center;gap:12px">
