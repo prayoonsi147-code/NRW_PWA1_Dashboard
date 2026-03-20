@@ -35,6 +35,7 @@ PORT = 5002
 CATEGORY_MAP = {
     'repair': 'ลงข้อมูลซ่อมท่อ',
     'pressure': 'แรงดันน้ำ',
+    'pending': 'ซ่อมท่อค้างระบบ',
 }
 
 # Create directories
@@ -120,7 +121,7 @@ def api_upload(category):
     folder_path = os.path.join(RAW_DATA_DIR, CATEGORY_MAP[category])
     os.makedirs(folder_path, exist_ok=True)
 
-    PREFIX_MAP = { 'repair': 'GIS', 'pressure': 'PRESSURE' }
+    PREFIX_MAP = { 'repair': 'GIS', 'pressure': 'PRESSURE', 'pending': 'PENDING' }
     import re
 
     results = []

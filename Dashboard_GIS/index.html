@@ -188,6 +188,7 @@ body.dark .main-tab-bar{background:#00363a}
 <div class="main-tab-bar" id="mainTabBar">
   <button class="main-tab-btn active" onclick="switchMainTab('kpi',this)">KPI จุดซ่อมท่อ</button>
   <button class="main-tab-btn" onclick="switchMainTab('pressure',this)">แรงดันน้ำ</button>
+  <button class="main-tab-btn" onclick="switchMainTab('pending',this)">งานค้างซ่อม</button>
   <button id="globalCtrlToggle" onclick="toggleGlobalControls(this)" style="margin-left:auto;padding:8px 16px;border:none;border-radius:8px;background:rgba(255,255,255,.18);color:#fff;cursor:pointer;font-size:13px;font-weight:600;transition:all .2s" title="ซ่อนตัวเลือกทุก Card">&#x1F441; ซ่อนตัวเลือก</button>
 </div>
 
@@ -196,7 +197,13 @@ body.dark .main-tab-bar{background:#00363a}
 <div class="chart-card">
   <div class="card-header">
     <h3 style="color:var(--heading)">&#x1F5FA; KPI จุดซ่อมท่อ ในระบบ PWA SMART 1662</h3>
-    <button class="card-toggle" onclick="toggleCard(this)">&#9650;</button>
+    <div style="display:flex;gap:12px;align-items:center">
+      <div class="ymt">
+        <button class="ymb active" onclick="gisToggleView('chart',this)">กราฟ</button>
+        <button class="ymb" onclick="gisToggleView('table',this)">ตาราง</button>
+      </div>
+      <button class="card-toggle" onclick="toggleCard(this)">&#9650;</button>
+    </div>
   </div>
   <div class="card-body">
     <div class="controls">
@@ -263,20 +270,30 @@ body.dark .main-tab-bar{background:#00363a}
 <div class="chart-card">
   <div class="card-header">
     <h3 style="color:var(--heading)">&#x1F4CA; สรุปข้อมูลคะแนน KPI จุดซ่อมท่อ ในระบบ PWA SMART 1662 กปภ.ข.1</h3>
-    <button class="card-toggle" onclick="toggleCard(this)">&#9650;</button>
+    <div style="display:flex;gap:12px;align-items:center">
+      <div class="ymt">
+        <button class="ymb active" onclick="sumToggleView('chart',this)">กราฟ</button>
+        <button class="ymb" onclick="sumToggleView('table',this)">ตาราง</button>
+      </div>
+      <button class="card-toggle" onclick="toggleCard(this)">&#9650;</button>
+    </div>
   </div>
   <div class="card-body">
     <div id="sumSubtitle" style="text-align:center;color:var(--sub);font-size:14px;margin-bottom:8px"></div>
 
     <!-- Chart Row 1: branches 1-11 -->
-    <div class="chart-container" style="height:380px;margin-bottom:16px">
-      <canvas id="sumChart1"></canvas>
+    <div class="chart-container" style="height:380px;margin-bottom:16px" id="sumChartsWrap">
+      <div>
+        <canvas id="sumChart1"></canvas>
+      </div>
+      <!-- Chart Row 2: branches 12-22 -->
+      <div style="height:380px;margin-top:16px">
+        <canvas id="sumChart2"></canvas>
+      </div>
     </div>
 
-    <!-- Chart Row 2: branches 12-22 -->
-    <div class="chart-container" style="height:380px;margin-bottom:16px">
-      <canvas id="sumChart2"></canvas>
-    </div>
+    <!-- Table Container for Sum Card -->
+    <div id="sumTableContainer" style="margin-top:24px;overflow-x:auto;display:none"></div>
 
     <div class="export-bar">
       <label class="export-btn" style="cursor:pointer"><input type="checkbox" id="sumShowValues" onchange="sumRender()" style="margin-right:4px">แสดงค่า</label>
@@ -298,7 +315,13 @@ body.dark .main-tab-bar{background:#00363a}
 <div class="chart-card">
   <div class="card-header">
     <h3 style="color:var(--heading)">💧 ข้อมูลแรงดันน้ำจากระบบ OIS</h3>
-    <button class="card-toggle" onclick="toggleCard(this)">&#9650;</button>
+    <div style="display:flex;gap:12px;align-items:center">
+      <div class="ymt">
+        <button class="ymb active" onclick="pressureToggleView('chart',this)">กราฟ</button>
+        <button class="ymb" onclick="pressureToggleView('table',this)">ตาราง</button>
+      </div>
+      <button class="card-toggle" onclick="toggleCard(this)">&#9650;</button>
+    </div>
   </div>
   <div class="card-body">
     <div class="controls">
@@ -325,6 +348,9 @@ body.dark .main-tab-bar{background:#00363a}
       <canvas id="pressureChart"></canvas>
     </div>
 
+    <!-- Table Container for Pressure Card -->
+    <div id="pressureTableContainer" style="margin-top:24px;overflow-x:auto;display:none"></div>
+
     <div class="export-bar">
       <button class="export-btn" onclick="pressureResetChart()" title="รีเซ็ตขนาดกราฟ">&#8634; รีเซ็ต</button>
       <label class="export-btn" style="cursor:pointer"><input type="checkbox" id="pressureShowValues" checked onchange="pressureRender()" style="margin-right:4px">แสดงค่า</label>
@@ -337,6 +363,109 @@ body.dark .main-tab-bar{background:#00363a}
   </div>
 </div>
 </div><!-- /mainTab-pressure end -->
+
+<!-- Tab Content: งานค้างซ่อม -->
+<div class="main-tab-content" id="mainTab-pending">
+<div class="chart-card">
+  <div class="card-header">
+    <h3 style="color:var(--heading)">🔨 งานค้างซ่อมสะสม ปีงบประมาณ 2569</h3>
+    <div style="display:flex;gap:12px;align-items:center">
+      <div class="ymt">
+        <button class="ymb active" onclick="pendingToggleView('chart',this)">กราฟ</button>
+        <button class="ymb" onclick="pendingToggleView('table',this)">ตาราง</button>
+      </div>
+      <button class="card-toggle" onclick="toggleCard(this)">&#9650;</button>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="controls">
+      <div class="control-group">
+        <label>แกน X</label>
+        <select id="pendingXAxis" onchange="pendingRender()">
+          <option value="time">ช่วงเวลา</option>
+          <option value="branch" selected>สาขา</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label>ประเภทกราฟ</label>
+        <select id="pendingChartType" onchange="pendingRender()">
+          <option value="line">เส้นโค้ง</option>
+          <option value="straight">เส้นตรง</option>
+          <option value="bar">แท่ง</option>
+          <option value="area">พื้นที่</option>
+        </select>
+      </div>
+      <div class="control-group" id="pendingRangeGroup">
+        <label>จากเดือน</label>
+        <select id="pendingMonthFrom" onchange="pendingRender()"></select>
+      </div>
+      <div class="control-group" id="pendingRangeGroup2">
+        <label>ถึงเดือน</label>
+        <select id="pendingMonthTo" onchange="pendingRender()"></select>
+      </div>
+    </div>
+
+    <!-- เลือกสาขา: 3 โหมด -->
+    <div id="pendingBranchSection" style="margin-bottom:12px">
+      <label style="font-size:13px;font-weight:600;color:var(--sub);display:block;margin-bottom:6px">เลือกสาขา</label>
+      <div style="display:flex;gap:0;margin-bottom:8px">
+        <div class="ymt" id="pendingBranchMode">
+          <button class="ymb" onclick="pendingSetBranchMode('single',this)">สาขาเดียว</button>
+          <button class="ymb active" onclick="pendingSetBranchMode('some',this)">บางสาขา</button>
+          <button class="ymb" onclick="pendingSetBranchMode('all',this)">ทุกสาขา</button>
+        </div>
+      </div>
+      <!-- สาขาเดียว: dropdown -->
+      <div id="pendingSingleBranch" style="display:none;margin-bottom:8px">
+        <select id="pendingSingleSel" onchange="pendingRender()" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--input-bg);color:var(--text)"></select>
+      </div>
+      <!-- บางสาขา: checkboxes -->
+      <div id="pendingBranchCheckboxes" style="display:flex;flex-wrap:wrap;gap:8px">
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="ชลบุรี" style="accent-color:#e74c3c"> ชลบุรี</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="พัทยา" style="accent-color:#e67e22"> พัทยา</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="พนัสนิคม" style="accent-color:#f1c40f"> พนัสนิคม</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="บ้านบึง" style="accent-color:#2ecc71"> บ้านบึง</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="ศรีราชา" style="accent-color:#1abc9c"> ศรีราชา</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="แหลมฉบัง" style="accent-color:#3498db"> แหลมฉบัง</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="ฉะเชิงเทรา" style="accent-color:#2980b9"> ฉะเชิงเทรา</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="บางปะกง" style="accent-color:#9b59b6"> บางปะกง</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="บางคล้า" style="accent-color:#8e44ad"> บางคล้า</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="พนมสารคาม" style="accent-color:#34495e"> พนมสารคาม</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="ระยอง" style="accent-color:#c0392b"> ระยอง</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="บ้านฉาง" style="accent-color:#d35400"> บ้านฉาง</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="ปากน้ำประแสร์" style="accent-color:#f39c12"> ปากน้ำประแสร์</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="จันทบุรี" style="accent-color:#27ae60"> จันทบุรี</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="ขลุง" style="accent-color:#16a085"> ขลุง</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="ตราด" style="accent-color:#2c3e50"> ตราด</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="คลองใหญ่" style="accent-color:#7f8c8d"> คลองใหญ่</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="สระแก้ว" style="accent-color:#e91e63"> สระแก้ว</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="วัฒนานคร" style="accent-color:#00bcd4"> วัฒนานคร</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="อรัญประเทศ" style="accent-color:#4caf50"> อรัญประเทศ</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="ปราจีนบุรี" style="accent-color:#ff9800"> ปราจีนบุรี</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="กบินทร์บุรี" style="accent-color:#795548"> กบินทร์บุรี</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" checked onchange="pendingRender()" class="pendingBranch" value="ไม่ระบุ" style="accent-color:#607d8b"> ไม่ระบุ</label>
+      </div>
+    </div>
+
+    <div class="chart-container" id="pendingChartWrap">
+      <canvas id="pendingChart"></canvas>
+    </div>
+
+    <!-- Table Container for Pending Repairs -->
+    <div id="pendingTableContainer" style="margin-top:24px;overflow-x:auto;display:none"></div>
+
+    <div class="export-bar">
+      <button class="export-btn" onclick="pendingResetChart()" title="รีเซ็ตขนาดกราฟ">&#8634; รีเซ็ต</button>
+      <label class="export-btn" style="cursor:pointer"><input type="checkbox" id="pendingShowValues" checked onchange="pendingRender()" style="margin-right:4px">แสดงค่า</label>
+      <button class="export-btn" onclick="openFontPopup(this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M9.93 2L4 22h3.2l1.67-5.5h6.26L16.8 22H20L14.07 2H9.93zm-.34 11.5L12 5.88l2.41 7.62H9.59z"/></svg></button>
+      <button class="export-btn" onclick="pendingExportPNG()"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></button>
+      <button class="export-btn" onclick="pendingCopyChart()"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M16 1H4a2 2 0 00-2 2v14h2V3h12V1zm3 4H8a2 2 0 00-2 2v14a2 2 0 002 2h11a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h11v14z"/></svg></button>
+      <button class="export-btn" onclick="pendingExportExcel()"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button>
+      <button class="export-btn" onclick="pendingExportPPTX()"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#D04423"/><path d="M7 5v14h2v-5h3a4 4 0 000-8H7zm2 2h3a2 2 0 010 4H9V7z" fill="#fff"/></svg></button>
+    </div>
+  </div>
+</div>
+</div><!-- /mainTab-pending end -->
 
 </div>
 
@@ -364,6 +493,10 @@ function switchMainTab(tabId,btn){
         if(tabId==='pressure'){
             if(!pressureInitialized)pressureInit();
             else if(pressureChartObj)pressureChartObj.resize();
+        }
+        if(tabId==='pending'){
+            if(!pendingInitialized)pendingInit();
+            else if(pendingChartObj)pendingChartObj.resize();
         }
     },50);
 }
@@ -725,6 +858,29 @@ function gisExportPPTX(){
     pptx.writeFile({fileName:'KPI_จุดซ่อมท่อ.pptx'});
 }
 
+// ==================== CHART/TABLE TOGGLE - CARD 1 ====================
+function gisToggleView(mode,btn){
+    var chartWrap=document.getElementById('gisChartWrap');
+    var tableContainer=document.getElementById('gisTableContainer');
+    var buttons=btn.parentElement.querySelectorAll('.ymb');
+
+    // Update button states
+    buttons.forEach(function(b){b.classList.remove('active');});
+    btn.classList.add('active');
+
+    if(mode==='chart'){
+        chartWrap.style.display='block';
+        tableContainer.style.display='none';
+        // Resize chart after showing
+        setTimeout(function(){
+            if(gisChartObj)gisChartObj.resize();
+        },100);
+    } else {
+        chartWrap.style.display='none';
+        tableContainer.style.display='block';
+    }
+}
+
 // ==================== SUMMARY TAB (Card 2) ====================
 var sumChart1Obj=null, sumChart2Obj=null;
 var sumInitialized=false;
@@ -997,11 +1153,415 @@ function sumExportPPTX(){
     pptx.writeFile({fileName:'สรุปKPI_จุดซ่อมท่อ.pptx'});
 }
 
+// ==================== CHART/TABLE TOGGLE - CARD 2 ====================
+function sumToggleView(mode,btn){
+    var chartsWrap=document.getElementById('sumChartsWrap');
+    var tableContainer=document.getElementById('sumTableContainer');
+    var buttons=btn.parentElement.querySelectorAll('.ymb');
+
+    // Update button states
+    buttons.forEach(function(b){b.classList.remove('active');});
+    btn.classList.add('active');
+
+    if(mode==='chart'){
+        chartsWrap.style.display='block';
+        tableContainer.style.display='none';
+        // Resize charts after showing
+        setTimeout(function(){
+            if(sumChart1Obj)sumChart1Obj.resize();
+            if(sumChart2Obj)sumChart2Obj.resize();
+        },100);
+    } else {
+        chartsWrap.style.display='none';
+        tableContainer.style.display='block';
+        // Build table if not already built
+        sumBuildTable();
+    }
+}
+
+function sumBuildTable(){
+    var thStyle='padding:10px 12px;background:#004d40;color:#fff;text-align:center;font-size:13px;border:1px solid #00695c;font-weight:700';
+    var tdBase='padding:8px 12px;border:1px solid #e0e0e0;font-size:13px;';
+    var tdNumber='padding:8px 12px;border:1px solid #e0e0e0;font-size:13px;text-align:center';
+
+    var html='<table style="width:100%;border-collapse:collapse;border:2px solid #00695c;margin-bottom:8px">';
+    html+='<thead><tr>';
+    html+='<th style="'+thStyle+';text-align:left">สาขา</th>';
+    MONTHS.forEach(function(mk){
+        var p=mk.split('-');var yy=parseInt(p[0],10);var mm=parseInt(p[1],10);
+        html+='<th style="'+thStyle+'">'+MONTH_NAMES[mm<10?'0'+mm:''+mm]+' '+(2500+yy)+'</th>';
+    });
+    html+='</tr></thead><tbody>';
+
+    // Add overall row first
+    html+='<tr>';
+    html+='<td style="'+tdBase+'background:#e0f2f1;font-weight:700;color:#004d40">ภาพรวม กปภ.ข.1</td>';
+    MONTHS.forEach(function(mk){
+        var md=DATA.data[mk]||{};
+        var tc=0,tco=0;
+        BRANCHES.forEach(function(b){
+            var d=md[b]||{closed:0,complete:0};
+            tc+=d.closed;tco+=d.complete;
+        });
+        var score=tc>0?((tco/tc)*100):0;
+        html+='<td style="'+tdNumber+'background:#e0f2f1;font-weight:700">'+score.toFixed(2)+'%</td>';
+    });
+    html+='</tr>';
+
+    // Add each branch
+    BRANCHES.forEach(function(b){
+        html+='<tr>';
+        html+='<td style="'+tdBase+'background:#f5f5f5">'+b+'</td>';
+        MONTHS.forEach(function(mk){
+            var d=(DATA.data[mk]||{})[b]||{score:0};
+            html+='<td style="'+tdNumber+'">'+d.score.toFixed(2)+'%</td>';
+        });
+        html+='</tr>';
+    });
+
+    html+='</tbody></table>';
+    document.getElementById('sumTableContainer').innerHTML=html;
+}
+
 // ==================== PRESSURE TAB ====================
 var pressureChartObj=null;
 var pressureInitialized=false;
 const PRESSURE_DATA={"68-10":{"กบินทร์บุรี":1.55,"ขลุง":1.6,"คลองใหญ่":1.38,"จันทบุรี":1.25,"ฉะเชิงเทรา":1.67,"ชลบุรี":1.03,"ตราด":1.56,"บางคล้า":0.92,"บางปะกง":1.23,"บ้านฉาง":2.49,"บ้านบึง":1.64,"ปราจีนบุรี":1.54,"ปากน้ำประแสร์":1.29,"พนมสารคาม":2.39,"พนัสนิคม":1.12,"พัทยา":1.36,"ระยอง":1.06,"วัฒนานคร":1.43,"ศรีราชา":2.64,"สระแก้ว":1.65,"อรัญประเทศ":1.25,"แหลมฉบัง":1.77},"68-11":{"กบินทร์บุรี":1.55,"ขลุง":1.6,"คลองใหญ่":1.38,"จันทบุรี":1.25,"ฉะเชิงเทรา":1.68,"ชลบุรี":1.01,"ตราด":1.57,"บางคล้า":0.92,"บางปะกง":1.07,"บ้านฉาง":2.49,"บ้านบึง":1.61,"ปราจีนบุรี":1.54,"ปากน้ำประแสร์":1.29,"พนมสารคาม":2.38,"พนัสนิคม":1.14,"พัทยา":1.24,"ระยอง":1.05,"วัฒนานคร":1.43,"ศรีราชา":2.64,"สระแก้ว":1.65,"อรัญประเทศ":1.24,"แหลมฉบัง":1.79},"68-12":{"กบินทร์บุรี":1.55,"ขลุง":1.6,"คลองใหญ่":1.38,"จันทบุรี":1.25,"ฉะเชิงเทรา":1.68,"ชลบุรี":0.98,"ตราด":1.57,"บางคล้า":0.92,"บางปะกง":1.03,"บ้านฉาง":2.49,"บ้านบึง":1.57,"ปราจีนบุรี":1.54,"ปากน้ำประแสร์":1.29,"พนมสารคาม":2.39,"พนัสนิคม":1.12,"พัทยา":1.03,"ระยอง":1.05,"วัฒนานคร":1.43,"ศรีราชา":2.64,"สระแก้ว":1.66,"อรัญประเทศ":1.23,"แหลมฉบัง":1.76},"69-01":{"กบินทร์บุรี":1.55,"ขลุง":1.6,"คลองใหญ่":1.38,"จันทบุรี":1.25,"ฉะเชิงเทรา":1.65,"ชลบุรี":0.99,"ตราด":1.56,"บางคล้า":1.06,"บางปะกง":0.94,"บ้านฉาง":2.49,"บ้านบึง":1.53,"ปราจีนบุรี":1.54,"ปากน้ำประแสร์":1.29,"พนมสารคาม":2.4,"พนัสนิคม":1.12,"พัทยา":1.15,"ระยอง":1.06,"วัฒนานคร":1.43,"ศรีราชา":2.64,"สระแก้ว":1.66,"อรัญประเทศ":1.19,"แหลมฉบัง":1.79},"69-02":{"กบินทร์บุรี":1.55,"ขลุง":1.6,"คลองใหญ่":1.38,"จันทบุรี":1.25,"ฉะเชิงเทรา":1.67,"ชลบุรี":1.25,"ตราด":1.58,"บางคล้า":1.07,"บางปะกง":0.89,"บ้านฉาง":2.49,"บ้านบึง":1.55,"ปราจีนบุรี":1.54,"ปากน้ำประแสร์":1.29,"พนมสารคาม":2.36,"พนัสนิคม":1.13,"พัทยา":0.95,"ระยอง":1.06,"วัฒนานคร":1.43,"ศรีราชา":2.64,"สระแก้ว":1.64,"อรัญประเทศ":1.24,"แหลมฉบัง":1.75}};
 const PRESSURE_MONTHS=["68-10","68-11","68-12","69-01","69-02"];
+
+// ==================== PENDING REPAIRS DATA ====================
+var pendingChartObj=null;
+var pendingInitialized=false;
+const PENDING_REPAIR_DATA={"68-10":{"ระยอง":8,"ชลบุรี":7,"ไม่ระบุ":3,"สระแก้ว":2},"68-11":{"ชลบุรี":23,"สระแก้ว":5,"ฉะเชิงเทรา":1,"ระยอง":11,"ไม่ระบุ":5},"68-12":{"ไม่ระบุ":7,"ชลบุรี":30,"สระแก้ว":6,"ฉะเชิงเทรา":8,"ระยอง":11},"69-01":{"ไม่ระบุ":15,"ฉะเชิงเทรา":10,"ชลบุรี":32,"ระยอง":15,"สระแก้ว":8},"69-02":{"สระแก้ว":20,"ไม่ระบุ":27,"ฉะเชิงเทรา":25,"พัทยา":2,"ชลบุรี":38,"ระยอง":18},"69-03":{"จันทบุรี":1,"ชลบุรี":226,"พัทยา":44,"ฉะเชิงเทรา":62,"ไม่ระบุ":136,"ปราจีนบุรี":5,"ระยอง":40,"สระแก้ว":33}};
+const PENDING_MONTHS=["68-10","68-11","68-12","69-01","69-02","69-03"];
+
+var PENDING_BRANCH_COLORS={
+    'ชลบุรี':'#e74c3c','พัทยา':'#e67e22','พนัสนิคม':'#f1c40f','บ้านบึง':'#2ecc71',
+    'ศรีราชา':'#1abc9c','แหลมฉบัง':'#3498db','ฉะเชิงเทรา':'#2980b9','บางปะกง':'#9b59b6',
+    'บางคล้า':'#8e44ad','พนมสารคาม':'#34495e','ระยอง':'#c0392b','บ้านฉาง':'#d35400',
+    'ปากน้ำประแสร์':'#f39c12','จันทบุรี':'#27ae60','ขลุง':'#16a085','ตราด':'#2c3e50',
+    'คลองใหญ่':'#7f8c8d','สระแก้ว':'#e91e63','วัฒนานคร':'#00bcd4','อรัญประเทศ':'#4caf50',
+    'ปราจีนบุรี':'#ff9800','กบินทร์บุรี':'#795548','ไม่ระบุ':'#607d8b'
+};
+
+var pendingBranchMode='some'; // 'single','some','all'
+
+function pendingSetBranchMode(mode,btn){
+    pendingBranchMode=mode;
+    document.querySelectorAll('#pendingBranchMode .ymb').forEach(function(b){b.classList.remove('active');});
+    if(btn)btn.classList.add('active');
+    document.getElementById('pendingSingleBranch').style.display=(mode==='single')?'':'none';
+    document.getElementById('pendingBranchCheckboxes').style.display=(mode==='some')?'flex':'none';
+    pendingRender();
+}
+
+function pendingGetSelectedBranches(){
+    var all=BRANCHES.concat(['ไม่ระบุ']);
+    if(pendingBranchMode==='all') return all;
+    if(pendingBranchMode==='single'){
+        var v=document.getElementById('pendingSingleSel').value;
+        return v?[v]:[];
+    }
+    // some
+    var checked=[];
+    document.querySelectorAll('.pendingBranch:checked').forEach(function(cb){checked.push(cb.value);});
+    return checked;
+}
+
+function pendingInit(){
+    pendingInitialized=true;
+    function fillMonthSel(id,defaultIdx){
+        var sel=document.getElementById(id);
+        sel.innerHTML='';
+        PENDING_MONTHS.forEach(function(mk,i){
+            var p=mk.split('-');var yy=parseInt(p[0],10);var mm=parseInt(p[1],10);
+            var opt=document.createElement('option');
+            opt.value=mk;
+            opt.textContent=MONTH_NAMES[mm<10?'0'+mm:''+mm]+' '+(2500+yy);
+            sel.appendChild(opt);
+        });
+        if(PENDING_MONTHS.length>0)sel.value=PENDING_MONTHS[defaultIdx];
+    }
+    fillMonthSel('pendingMonthFrom',0);
+    fillMonthSel('pendingMonthTo',PENDING_MONTHS.length-1);
+    // Single branch dropdown
+    var ssel=document.getElementById('pendingSingleSel');
+    ssel.innerHTML='';
+    BRANCHES.concat(['ไม่ระบุ']).forEach(function(b){
+        var opt=document.createElement('option');opt.value=b;opt.textContent=b;
+        ssel.appendChild(opt);
+    });
+    pendingRender();
+}
+
+function pendingFmtMonth(mk){
+    var p=mk.split('-');var mm=parseInt(p[1],10);var yy=parseInt(p[0],10);
+    return MONTH_NAMES[mm<10?'0'+mm:''+mm]+yy;
+}
+
+function pendingRender(){
+    var xAxis=document.getElementById('pendingXAxis').value||'time';
+    var chartType=document.getElementById('pendingChartType').value||'line';
+    var showValues=document.getElementById('pendingShowValues').checked;
+
+    // Show/hide controls based on X axis
+    document.getElementById('pendingBranchSection').style.display=(xAxis==='time')?'':'none';
+    document.getElementById('pendingRangeGroup').style.display='';
+    document.getElementById('pendingRangeGroup2').style.display='';
+
+    // Force bar chart when X=branch
+    if(xAxis==='branch') chartType='bar';
+
+    // Get filtered months from range
+    var mFrom=document.getElementById('pendingMonthFrom').value||PENDING_MONTHS[0];
+    var mTo=document.getElementById('pendingMonthTo').value||PENDING_MONTHS[PENDING_MONTHS.length-1];
+    var filteredMonths=PENDING_MONTHS.filter(function(m){return m>=mFrom&&m<=mTo;});
+    if(filteredMonths.length===0) filteredMonths=PENDING_MONTHS;
+
+    // Get selected branches
+    var selectedBranches=pendingGetSelectedBranches();
+
+    var canvas=document.getElementById('pendingChart');
+    if(!canvas)return;
+    var isDark=document.body.classList.contains('dark');
+    var textColor=isDark?'#e0e0e0':'#333';
+
+    // Month color palette for branch mode
+    var MONTH_COLORS=['#1e88e5','#43a047','#fb8c00','#e53935','#8e24aa','#00acc1','#6d4c41','#546e7a','#d81b60','#00897b','#7cb342','#f4511e'];
+
+    var labels,datasets;
+
+    if(xAxis==='time'){
+        // === โหมดช่วงเวลา: แกน X = เดือน, แต่ละสาขา = 1 เส้น ===
+        labels=filteredMonths.map(pendingFmtMonth);
+        datasets=[];
+
+        selectedBranches.forEach(function(branch){
+            var values=filteredMonths.map(function(m){return (PENDING_REPAIR_DATA[m]||{})[branch]||0;});
+            var col=PENDING_BRANCH_COLORS[branch]||'#888';
+            var ds={label:branch,data:values,borderColor:col,backgroundColor:col,fill:false,tension:0.3,pointRadius:4,pointBackgroundColor:col,borderWidth:2};
+            if(chartType==='straight')ds.tension=0;
+            else if(chartType==='area'){ds.fill=true;ds.backgroundColor=hexToRgba(col,0.2);}
+            else if(chartType==='bar'){ds.type='bar';ds.tension=undefined;ds.pointRadius=undefined;}
+            datasets.push(ds);
+        });
+
+        // Total line (always shown)
+        var totalValues=filteredMonths.map(function(m){var t=0;Object.values(PENDING_REPAIR_DATA[m]||{}).forEach(function(v){t+=v;});return t;});
+        var totalDs={label:'ภาพรวม',data:totalValues,borderColor:'#000',backgroundColor:isDark?'#fff':'#000',fill:false,tension:0.3,pointRadius:5,pointBackgroundColor:isDark?'#fff':'#000',borderWidth:3,borderColor:isDark?'#fff':'#000'};
+        if(chartType==='straight')totalDs.tension=0;
+        else if(chartType==='area'){totalDs.fill=true;totalDs.backgroundColor=isDark?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.1)';}
+        else if(chartType==='bar'){totalDs.type='bar';totalDs.tension=undefined;totalDs.pointRadius=undefined;}
+        datasets.push(totalDs);
+
+    } else {
+        // === โหมดสาขา: แกน X = สาขา, แต่ละเดือน = 1 dataset (หลายแท่ง) ===
+        var allBranches=BRANCHES.concat(['ไม่ระบุ']);
+        labels=allBranches;
+        datasets=[];
+
+        filteredMonths.forEach(function(mk,mi){
+            var monthData=PENDING_REPAIR_DATA[mk]||{};
+            var values=allBranches.map(function(b){return monthData[b]||0;});
+            var col=MONTH_COLORS[mi%MONTH_COLORS.length];
+            datasets.push({
+                label:pendingFmtMonth(mk),
+                data:values,
+                backgroundColor:hexToRgba(col,0.8),
+                borderColor:col,
+                borderWidth:1
+            });
+        });
+    }
+
+    var chartConfig={
+        type:(xAxis==='branch'||chartType==='bar')?'bar':(chartType==='area'?'line':chartType==='straight'?'line':'line'),
+        data:{labels:labels,datasets:datasets},
+        options:{
+            responsive:true,maintainAspectRatio:false,
+            interaction:{mode:'nearbyNearest'},
+            plugins:{
+                legend:{display:true,position:'bottom',labels:{font:{size:12},boxWidth:14}},
+                tooltip:{backgroundColor:'rgba(0,0,0,0.8)',titleColor:'#fff',bodyColor:'#fff',borderColor:'#888',borderWidth:1,padding:12,displayColors:true,
+                    callbacks:{label:function(ctx){var v=ctx.parsed.y;if(v===undefined||v===null)return'ไม่มีข้อมูล';return(ctx.dataset.label||'')+': '+v+' งาน';}}
+                },
+                datalabels:{display:showValues,
+                    color:function(ctx){
+                        if(xAxis==='time') return ctx.dataset.borderColor;
+                        return ctx.dataset.borderColor;
+                    },
+                    font:{size:10,weight:'bold'},anchor:'end',align:'top',
+                    formatter:function(v){if(v==null||v===0)return'';return v;}
+                },
+                title:{display:false}
+            },
+            scales:{
+                y:{min:0,ticks:{color:textColor,font:{size:12},callback:function(v){if(v<100)return v.toFixed(0);return v.toLocaleString('th-TH');}},grid:{color:isDark?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.05)'}},
+                x:{ticks:{color:textColor,font:{size:12},maxRotation:60},grid:{display:false}}
+            }
+        }
+    };
+
+    if(pendingChartObj){pendingChartObj.destroy();}
+    pendingChartObj=new Chart(canvas,chartConfig);
+}
+
+function pendingToggleAll(cb){
+    var isChecked=cb.checked;
+    document.querySelectorAll('.pendingBranch').forEach(function(c){
+        c.checked=isChecked;
+    });
+    pendingRender();
+}
+
+function pendingToggleView(mode,btn){
+    var chartWrap=document.getElementById('pendingChartWrap');
+    var tableContainer=document.getElementById('pendingTableContainer');
+    var buttons=btn.parentElement.querySelectorAll('.ymb');
+
+    buttons.forEach(function(b){b.classList.remove('active');});
+    btn.classList.add('active');
+
+    if(mode==='chart'){
+        chartWrap.style.display='block';
+        tableContainer.style.display='none';
+        setTimeout(function(){
+            if(pendingChartObj)pendingChartObj.resize();
+        },100);
+    } else {
+        chartWrap.style.display='none';
+        tableContainer.style.display='block';
+        pendingBuildTable();
+    }
+}
+
+function pendingBuildTable(){
+    var thStyle='padding:10px 12px;background:#004d40;color:#fff;text-align:center;font-size:13px;border:1px solid #00695c;font-weight:700';
+    var thStyleLeft='padding:10px 12px;background:#004d40;color:#fff;text-align:left;font-size:13px;border:1px solid #00695c;font-weight:700';
+    var tdBase='padding:8px 12px;border:1px solid #e0e0e0;font-size:13px;';
+    var tdNumber='padding:8px 12px;border:1px solid #e0e0e0;font-size:13px;text-align:center';
+
+    var html='<table style="width:100%;border-collapse:collapse;border:2px solid #00695c">';
+    html+='<thead><tr>';
+    html+='<th style="'+thStyleLeft+'">สาขา</th>';
+
+    PENDING_MONTHS.forEach(function(month){
+        var p=month.split('-');
+        var mm=parseInt(p[1],10);
+        var yy=parseInt(p[0],10);
+        var monthName=MONTH_NAMES[mm<10?'0'+mm:''+mm]+'.'+yy;
+        html+='<th style="'+thStyle+'">'+monthName+'</th>';
+    });
+
+    html+='<th style="'+thStyle+'">รวม</th>';
+    html+='</tr></thead><tbody>';
+
+    // Get all branches
+    var allBranches=new Set();
+    PENDING_MONTHS.forEach(function(month){
+        Object.keys(PENDING_REPAIR_DATA[month]||{}).forEach(function(b){
+            allBranches.add(b);
+        });
+    });
+
+    Array.from(allBranches).sort().forEach(function(branch){
+        html+='<tr>';
+        html+='<td style="'+tdBase+'background:#f5f5f5">'+branch+'</td>';
+
+        var total=0;
+        PENDING_MONTHS.forEach(function(month){
+            var val=PENDING_REPAIR_DATA[month][branch]||0;
+            total+=val;
+            html+='<td style="'+tdNumber+'">'+val+'</td>';
+        });
+
+        html+='<td style="'+tdNumber+'background:#f5f5f5;font-weight:700">'+total+'</td>';
+        html+='</tr>';
+    });
+
+    html+='</tbody></table>';
+    document.getElementById('pendingTableContainer').innerHTML=html;
+}
+
+function pendingResetChart(){
+    if(pendingChartObj)pendingChartObj.resetZoom();
+}
+
+function pendingExportPNG(){
+    var canvas=document.getElementById('pendingChart');
+    if(!canvas)return;
+    var link=document.createElement('a');
+    link.download='งานค้างซ่อม.png';
+    link.href=canvas.toDataURL('image/png');
+    link.click();
+}
+
+function pendingCopyChart(){
+    var canvas=document.getElementById('pendingChart');
+    if(!canvas)return;
+    canvas.toBlob(function(blob){
+        navigator.clipboard.write([
+            new ClipboardItem({'image/png':blob})
+        ]).then(function(){alert('คัดลอกแล้ว');}).catch(function(){alert('คัดลอกไม่ได้');});
+    });
+}
+
+function pendingExportExcel(){
+    var wb=new ExcelJS.Workbook();
+    var ws=wb.addWorksheet('งานค้างซ่อม');
+
+    // Header
+    var header=['สาขา'];
+    PENDING_MONTHS.forEach(function(month){
+        var p=month.split('-');
+        var mm=parseInt(p[1],10);
+        var yy=parseInt(p[0],10);
+        header.push(MONTH_NAMES[mm<10?'0'+mm:''+mm]+'.'+yy);
+    });
+    header.push('รวม');
+    ws.addRow(header);
+
+    // Data rows
+    var allBranches=new Set();
+    PENDING_MONTHS.forEach(function(month){
+        Object.keys(PENDING_REPAIR_DATA[month]||{}).forEach(function(b){
+            allBranches.add(b);
+        });
+    });
+
+    Array.from(allBranches).sort().forEach(function(branch){
+        var row=[branch];
+        var total=0;
+        PENDING_MONTHS.forEach(function(month){
+            var val=PENDING_REPAIR_DATA[month][branch]||0;
+            total+=val;
+            row.push(val);
+        });
+        row.push(total);
+        ws.addRow(row);
+    });
+
+    ws.getRow(1).font={bold:true};
+    ws.columns.forEach(function(c){c.width=16;});
+
+    wb.xlsx.writeBuffer().then(function(buf){
+        var blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+        var link=document.createElement('a');
+        link.download='งานค้างซ่อม.xlsx';
+        link.href=URL.createObjectURL(blob);
+        link.click();
+    });
+}
+
+function pendingExportPPTX(){
+    if(typeof PptxGenJS==='undefined'){alert('PptxGenJS ยังโหลดไม่เสร็จ');return;}
+    var canvas=document.getElementById('pendingChart');
+    if(!canvas)return;
+    var pptx=new PptxGenJS();
+    var slide=pptx.addSlide();
+    slide.addImage({data:canvas.toDataURL('image/png'),x:0.3,y:0.3,w:9.4,h:5.4});
+    pptx.writeFile({fileName:'งานค้างซ่อม.pptx'});
+}
 
 function pressureInit(){
     pressureInitialized=true;
@@ -1247,6 +1807,64 @@ function pressureExportPPTX(){
     pptx.writeFile({fileName:'แรงดันน้ำ_OIS.pptx'});
 }
 
+// ==================== CHART/TABLE TOGGLE - PRESSURE CARD ====================
+function pressureToggleView(mode,btn){
+    var chartWrap=document.getElementById('pressureChartWrap');
+    var tableContainer=document.getElementById('pressureTableContainer');
+    var buttons=btn.parentElement.querySelectorAll('.ymb');
+
+    // Update button states
+    buttons.forEach(function(b){b.classList.remove('active');});
+    btn.classList.add('active');
+
+    if(mode==='chart'){
+        chartWrap.style.display='block';
+        tableContainer.style.display='none';
+        // Resize chart after showing
+        setTimeout(function(){
+            if(pressureChartObj)pressureChartObj.resize();
+        },100);
+    } else {
+        chartWrap.style.display='none';
+        tableContainer.style.display='block';
+        // Build table if not already built
+        pressureBuildTable();
+    }
+}
+
+function pressureBuildTable(){
+    var monthKey=document.getElementById('pressureMonth').value;
+    var monthData=PRESSURE_DATA[monthKey]||{};
+    var threshold=parseFloat(document.getElementById('pressureThreshold').value)||0.85;
+
+    var thStyle='padding:10px 12px;background:#004d40;color:#fff;text-align:center;font-size:13px;border:1px solid #00695c;font-weight:700';
+    var tdBase='padding:8px 12px;border:1px solid #e0e0e0;font-size:13px;';
+    var tdNumber='padding:8px 12px;border:1px solid #e0e0e0;font-size:13px;text-align:center';
+
+    var html='<table style="width:100%;border-collapse:collapse;border:2px solid #00695c">';
+    html+='<thead><tr>';
+    html+='<th style="'+thStyle+';text-align:left">สาขา</th>';
+    html+='<th style="'+thStyle+'">แรงดันน้ำ (บาร์)</th>';
+    html+='<th style="'+thStyle+'">สถานะ</th>';
+    html+='</tr></thead><tbody>';
+
+    BRANCHES.forEach(function(b){
+        var val=monthData[b]||0;
+        var status=val<threshold?'ต่ำกว่าเกณฑ์':'ปกติ';
+        var statusColor=val<threshold?'#ffebee':'#e8f5e9';
+        var statusText=val<threshold?'#c62828':'#2e7d32';
+
+        html+='<tr>';
+        html+='<td style="'+tdBase+'background:#f5f5f5">'+b+'</td>';
+        html+='<td style="'+tdNumber+'">'+val.toFixed(2)+'</td>';
+        html+='<td style="'+tdNumber+'background:'+statusColor+';color:'+statusText+';font-weight:700">'+status+'</td>';
+        html+='</tr>';
+    });
+
+    html+='</tbody></table>';
+    document.getElementById('pressureTableContainer').innerHTML=html;
+}
+
 // ==================== INIT ====================
 if(typeof Chart!=='undefined'&&typeof ChartDataLabels!=='undefined'){
     Chart.register(ChartDataLabels);
@@ -1259,7 +1877,7 @@ gisRender();
 sumInit();
 // ==================== CHART CUSTOMIZATION (right-click + font popup) ====================
 function getChartObj(canvasId){
-    var map={'gisChart':gisChartObj,'sumChart1':sumChart1Obj,'sumChart2':sumChart2Obj,'pressureChart':pressureChartObj};
+    var map={'gisChart':gisChartObj,'sumChart1':sumChart1Obj,'sumChart2':sumChart2Obj,'pressureChart':pressureChartObj,'pendingChart':pendingChartObj};
     return map[canvasId]||null;
 }
 function hexToRgba(hex,alpha){

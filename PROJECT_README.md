@@ -506,6 +506,41 @@ Dashboard_Meter/
 - Dashboard_GIS/index.html:
   - เพิ่มปุ่ม globalCtrlToggle + CSS hide-controls + toggleGlobalControls()
 
+### 2026-03-19 — แก้ไขทั่วไป + Dashboard GIS (Tab แรงดันน้ำ + งานค้างซ่อม)
+- ทุก Dashboard (PR/Leak/GIS/Meter):
+  - ปุ่มจัดการแหล่งข้อมูล: smart onclick ตรวจ protocol/hostname
+    - localhost → เปิดปกติใน Tab เดิม
+    - file:// → redirect ไป localhost ใน Tab เดิม
+    - GitHub Pages / URL อื่น → alert แจ้งใช้ได้เฉพาะ Local
+- Dashboard_Leak/index.html:
+  - Tab P3 ตาราง "สรุปจุดแรงดันอ่อน" เรียงตาม OIS (RLC_STD_BRANCHES, ตัด "(พ)" เมื่อเทียบ)
+  - Tab P3 dropdown หน่วยงาน (p3GetBranches) เรียงตาม OIS
+  - หมายเหตุสาขาที่ไม่มีรายงานจุดแรงดันอ่อน (สีเขียว #16a34a)
+  - p3HideZero default unchecked (แสดงข้อมูลทั้งหมด)
+- Dashboard_GIS — Tab "แรงดันน้ำ" (ใหม่):
+  - สร้างโฟลเดอร์ ข้อมูลดิบ/แรงดันน้ำ/ + category 'pressure' (server.py + manage.html)
+  - Parse 22 ไฟล์ pwa_pressure_*.xlsx คำนวณเฉลี่ยแรงดัน → embed PRESSURE_DATA (5 เดือน)
+  - กราฟแท่ง 22 สาขา + เส้นเกณฑ์แดง (threshold, default 0.85, ปรับได้)
+  - แท่งต่ำกว่าเกณฑ์ = สีแดง, ปกติ = teal + ค่าตัวอักษรสีตามแท่ง
+  - แสดง "เกณฑ์ X.XX" บนเส้นเกณฑ์, min Y=0, default แสดงค่า
+  - ตัวเลือกประเภทกราฟ (เส้นโค้ง/ตรง/แท่ง/พื้นที่) + export bar ครบ
+- Dashboard_GIS — Tab "งานค้างซ่อม" (ใหม่):
+  - สร้าง category 'pending' (server.py + manage.html สีส้ม #e65100)
+  - Parse งานซ่อม_กปภ_เขต1.xlsx → สะสมรายเดือนรายสาขา (547 งาน, จับสาขาจากสถานที่)
+  - Embed PENDING_REPAIR_DATA (6 เดือน) นับทุกแถว (รวม "แก้ไข")
+  - ตัวเลือกแกน X: ช่วงเวลา (เส้นรายสาขา) / สาขา (แท่งรายเดือน)
+  - ตัวเลือกสาขา 3 โหมด: สาขาเดียว (dropdown) / บางสาขา (checkbox) / ทุกสาขา
+  - ช่วงเดือน (จาก-ถึง) ใช้ได้ทั้ง 2 โหมดแกน X
+  - เส้น "ภาพรวม" สีดำหนา, Legend ด้านล่าง, default แกน X = สาขา
+  - Export bar ครบ + Toggle กราฟ/ตาราง
+  - หมายเหตุ: 136/547 แถวจับสาขาไม่ได้ → "ไม่ระบุ" (ไฟล์ไม่มีคอลัมน์สาขา)
+- Dashboard_GIS — Toggle กราฟ/ตาราง ทุก Card ทุก Tab:
+  - Card 1 KPI: gisToggleView (ตารางมีอยู่แล้ว)
+  - Card 2 สรุป: sumToggleView + sumBuildTable()
+  - Card แรงดันน้ำ: pressureToggleView + pressureBuildTable()
+  - Card งานค้างซ่อม: pendingToggleView + pendingBuildTable()
+  - ปุ่ม กราฟ/ตาราง ใช้ .ymt/.ymb pattern
+
 ### 2026-03-17 — Dashboard_GIS (งานแผนที่แนวท่อ / Pipeline Mapping KPI)
 - ปรับปรุง Dashboard_GIS/index.html:
   - เพิ่ม class chart-container ให้ Card 2 charts → right-click menus + font popup ทำงาน
