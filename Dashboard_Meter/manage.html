@@ -768,6 +768,7 @@
                             <div class="drop-zone-text">ลากไฟล์มาวาง หรือคลิกเลือกไฟล์ &nbsp;<span class="drop-zone-hint">(.xlsx, .xls, .csv) เลือกได้หลายไฟล์</span></div>
                         </div>
                         <input type="file" id="fileInput-${slug}" class="file-input" accept=".xlsx,.xls,.csv" multiple>
+                        <div id="fileList-${slug}" style="margin-top:10px;padding-top:10px;border-top:1px dashed ${cat.color}40;display:none"></div>
                     </div>
 
                     <details class="upload-hint" open>
@@ -816,9 +817,53 @@
                     fileInput.dispatchEvent(new Event('change'));
                 });
 
+                // File list state
+                if (!window._fileStore) window._fileStore = {};
+                window._fileStore[slug] = [];
+
+                function renderFileList(s) {
+                    const files = window._fileStore[s];
+                    const listEl = document.getElementById(`fileList-${s}`);
+                    const fi = document.getElementById(`fileInput-${s}`);
+                    const ub = document.getElementById(`uploadBtn-${s}`);
+                    const c = CATEGORIES[s];
+                    if (files.length > 0) {
+                        let html = '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">';
+                        html += '<span style="font-size:12px;color:var(--sub);font-weight:600">ไฟล์ที่เลือก (' + files.length + '):</span>';
+                        files.forEach((f, i) => {
+                            const sizeKB = (f.size / 1024).toFixed(1);
+                            const sizeMB = (f.size / 1024 / 1024).toFixed(2);
+                            const sizeStr = f.size >= 1048576 ? sizeMB + ' MB' : sizeKB + ' KB';
+                            html += `<span style="display:inline-flex;align-items:center;gap:4px;background:${c.color}15;border:1px solid ${c.color}40;border-radius:6px;padding:3px 10px;font-size:12px;color:var(--text)">📄 ${f.name} <span style="color:var(--sub2);font-size:11px">(${sizeStr})</span><button onclick="removeFile('${s}',${i})" style="background:none;border:none;cursor:pointer;color:#e74c3c;font-size:15px;line-height:1;padding:0 0 0 4px" title="ลบไฟล์นี้">&times;</button></span>`;
+                        });
+                        html += '</div>';
+                        listEl.innerHTML = html;
+                        listEl.style.display = 'block';
+                    } else {
+                        listEl.style.display = 'none';
+                        listEl.innerHTML = '';
+                    }
+                    const dt = new DataTransfer();
+                    files.forEach(f => dt.items.add(f));
+                    fi.files = dt.files;
+                    ub.disabled = files.length === 0;
+                }
+
+                window.removeFile = function(s, idx) {
+                    window._fileStore[s].splice(idx, 1);
+                    renderFileList(s);
+                };
+
                 // File input change
                 fileInput.addEventListener('change', () => {
-                    uploadBtn.disabled = fileInput.files.length === 0;
+                    const newFiles = Array.from(fileInput.files);
+                    const existing = window._fileStore[slug];
+                    newFiles.forEach(f => {
+                        if (!existing.some(e => e.name === f.name && e.size === f.size)) {
+                            existing.push(f);
+                        }
+                    });
+                    renderFileList(slug);
                 });
 
                 // Upload button

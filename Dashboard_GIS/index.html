@@ -508,6 +508,7 @@ body.dark .main-tab-bar{background:#00363a}
       </div>
     </div>
     <div id="pd1TableContainer" style="display:none;overflow-x:auto"></div>
+    <div id="pd1Summary" style="display:flex;gap:16px;margin-top:14px;flex-wrap:wrap;justify-content:center;align-items:center"></div>
     <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;justify-content:flex-end">
       <button class="export-btn" onclick="pd1ResetChart()" title="รีเซ็ตขนาดกราฟ">&#8634; รีเซ็ต</button>
       <label class="export-btn" style="cursor:pointer"><input type="checkbox" id="pd1ShowValues" checked onchange="pd1Render()" style="margin-right:4px">แสดงค่า</label>
@@ -539,6 +540,7 @@ body.dark .main-tab-bar{background:#00363a}
       </div>
     </div>
     <div id="pd2TableContainer" style="display:none;overflow-x:auto"></div>
+    <div id="pd2Summary" style="display:flex;gap:16px;margin-top:14px;flex-wrap:wrap;justify-content:center;align-items:center"></div>
     <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;justify-content:flex-end">
       <button class="export-btn" onclick="pd2ResetChart()" title="รีเซ็ตขนาดกราฟ">&#8634; รีเซ็ต</button>
       <label class="export-btn" style="cursor:pointer"><input type="checkbox" id="pd2ShowValues" checked onchange="pd2Render()" style="margin-right:4px">แสดงค่า</label>
@@ -1790,6 +1792,8 @@ function pd1Render(){
             backgroundColor:'rgba(231,76,60,0.75)',
             borderColor:'#e74c3c',
             borderWidth:1,
+            barPercentage:1.0,
+            categoryPercentage:0.68,
             datalabels:{
                 display:showValues,
                 anchor:'end',align:'end',
@@ -1804,6 +1808,8 @@ function pd1Render(){
             backgroundColor:'rgba(52,152,219,0.75)',
             borderColor:'#3498db',
             borderWidth:1,
+            barPercentage:1.0,
+            categoryPercentage:0.68,
             datalabels:{
                 display:showValues,
                 anchor:'end',align:'end',
@@ -1856,6 +1862,27 @@ function pd1Render(){
     config.plugins=[zebrahBgPlugin];
     if(pd1ChartObj)pd1ChartObj.destroy();
     pd1ChartObj=new Chart(canvas,config);
+
+    // Update summary
+    var totalPrev=0,totalCurr=0;
+    prevData.forEach(function(v){totalPrev+=v;});
+    currData.forEach(function(v){totalCurr+=v;});
+    var diff=totalCurr-totalPrev;
+    var diffAbs=Math.abs(diff);
+    var arrow=diff>0?'&#9650;':diff<0?'&#9660;':'&#9654;';
+    var diffColor=diff>0?'#e74c3c':diff<0?'#27ae60':'#888';
+    var diffText=diff>0?'+'+diffAbs.toLocaleString('th-TH'):diff<0?'-'+diffAbs.toLocaleString('th-TH'):'0';
+    var sumEl=document.getElementById('pd1Summary');
+    if(sumEl){
+        sumEl.innerHTML=
+            '<div style="display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 20px;box-shadow:0 1px 4px var(--card-shadow)">'
+            +'<div style="text-align:center"><div style="font-size:11px;color:var(--sub);font-weight:600">'+prevLabel+'</div><div style="font-size:22px;font-weight:800;color:#e74c3c">'+totalPrev.toLocaleString('th-TH')+'</div><div style="font-size:11px;color:var(--sub2)">งาน</div></div>'
+            +'<div style="font-size:28px;color:var(--sub2);padding:0 6px">&#10132;</div>'
+            +'<div style="text-align:center"><div style="font-size:11px;color:var(--sub);font-weight:600">'+currLabel+'</div><div style="font-size:22px;font-weight:800;color:#3498db">'+totalCurr.toLocaleString('th-TH')+'</div><div style="font-size:11px;color:var(--sub2)">งาน</div></div>'
+            +'<div style="text-align:center;border-left:1px solid var(--border);padding-left:14px;margin-left:6px"><div style="font-size:11px;color:var(--sub);font-weight:600">เปลี่ยนแปลง</div><div style="font-size:20px;font-weight:800;color:'+diffColor+'">'+arrow+' '+diffText+'</div><div style="font-size:11px;color:var(--sub2)">งาน</div></div>'
+            +'</div>'
+            +'<div style="font-size:13px;color:#1565c0;font-style:italic;font-weight:700;flex:1;text-align:right">หมายเหตุ - ข้อมูลนับสะสมจากการแจ้งซ่อมหลัง 1 ม.ค. 69 เป็นต้นไปเท่านั้น (ไม่รวมงานค้างซ่อมก่อนปี พ.ศ.2569)</div>';
+    }
 
     // Update table if in table mode
     if(pd1Mode==='table')pd1BuildTable();
@@ -2030,6 +2057,8 @@ function pd2Render(){
             backgroundColor:col+'cc',
             borderColor:col,
             borderWidth:1,
+            barPercentage:1.0,
+            categoryPercentage:0.68,
             datalabels:{
                 display:showValues,
                 anchor:'end',align:'top',
@@ -2089,6 +2118,33 @@ function pd2Render(){
     config.plugins=[zebrahBgPlugin];
     if(pd2ChartObj)pd2ChartObj.destroy();
     pd2ChartObj=new Chart(canvas,config);
+
+    // Update summary — total per month
+    var grandTotal=0;
+    var monthSummaryHtml='';
+    PD2_MONTHS.forEach(function(mk,mi){
+        var md=PD2_DATA[mk]||{};
+        var mTotal=0;
+        branchList.forEach(function(b){mTotal+=(md[b]||0);});
+        grandTotal+=mTotal;
+        var p=mk.split('-');var yy=parseInt(p[0],10);var mm=parseInt(p[1],10);
+        var mLabel=MONTH_NAMES[mm<10?'0'+mm:''+mm]+' '+(2500+yy);
+        var col=monthBarColors[mi%monthBarColors.length];
+        var isLast=(mi===PD2_MONTHS.length-1);
+        if(isLast){
+            monthSummaryHtml+='<div style="text-align:center;padding:6px 18px;border-left:1px solid var(--border);background:var(--total-bg);border-radius:8px;margin-left:2px"><div style="font-size:13px;color:var(--sub);font-weight:700">'+mLabel+'</div><div style="font-size:26px;font-weight:900;color:'+col+'">'+mTotal.toLocaleString('th-TH')+'</div><div style="font-size:10px;color:var(--sub2)">งาน</div></div>';
+        } else {
+            monthSummaryHtml+='<div style="text-align:center;padding:0 10px'+(mi>0?';border-left:1px solid var(--border)':'')+'"><div style="font-size:11px;color:var(--sub);font-weight:600">'+mLabel+'</div><div style="font-size:18px;font-weight:800;color:'+col+'">'+mTotal.toLocaleString('th-TH')+'</div></div>';
+        }
+    });
+    var pd2SumEl=document.getElementById('pd2Summary');
+    if(pd2SumEl){
+        pd2SumEl.innerHTML=
+            '<div style="display:flex;align-items:center;gap:0;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 20px;box-shadow:0 1px 4px var(--card-shadow)">'
+            +monthSummaryHtml
+            +'</div>'
+            +'<div style="font-size:13px;color:#1565c0;font-style:italic;font-weight:700;flex:1;text-align:right">หมายเหตุ - ข้อมูลนับสะสมจากการแจ้งซ่อมหลัง 1 ม.ค. 69 เป็นต้นไปเท่านั้น (ไม่รวมงานค้างซ่อมก่อนปี พ.ศ.2569)</div>';
+    }
 
     if(pd2Mode==='table')pd2BuildTable();
 }

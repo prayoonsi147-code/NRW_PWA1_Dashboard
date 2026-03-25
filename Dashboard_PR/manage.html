@@ -868,129 +868,10 @@
             </div>
         </div>
 
-        <!-- Summary counts (hidden — shown on upload tabs) -->
-        <span id="prCount" style="display:none">-</span>
-        <span id="aonCount" style="display:none">-</span>
-
         <!-- Upload Section — Tabbed -->
         <div class="upload-section">
-            <div class="upload-tabs" id="uploadTabs">
-                <button class="upload-tab active" data-type="pr" onclick="switchUploadTab('pr')">
-                    📋 ข้อร้องเรียน (PR) <span class="tab-count" id="prTabCount">-</span>
-                </button>
-                <button class="upload-tab" data-type="aon" onclick="switchUploadTab('aon')">
-                    📊 Always-On (AON) <span class="tab-count" id="aonTabCount">-</span>
-                </button>
-            </div>
-
-            <!-- PR Panel -->
-            <div class="upload-tab-panel active" id="panel-pr">
-                <div class="mode-selector">
-                    <div class="mode-radio">
-                        <input type="radio" id="prModeAuto" name="prMode" value="auto" checked>
-                        <label for="prModeAuto">อัตโนมัติ</label>
-                    </div>
-                    <div class="mode-radio">
-                        <input type="radio" id="prModeManual" name="prMode" value="manual">
-                        <label for="prModeManual">ระบุเดือนเอง</label>
-                    </div>
-                    <div class="manual-controls" id="prManualControls">
-                        <div class="form-group">
-                            <label for="prYear">ปี</label>
-                            <select id="prYear"><option value="">เลือกปี...</option></select>
-                        </div>
-                        <div class="form-group">
-                            <label for="prMonth">เดือน</label>
-                            <select id="prMonth"><option value="">เลือกเดือน...</option></select>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="drop-zone drop-zone-pr" id="prDropZone">
-                    <div class="drop-zone-content">
-                        <div class="drop-zone-icon">📁</div>
-                        <div class="drop-zone-text">ลากไฟล์มาวาง หรือคลิกเลือกไฟล์ &nbsp;<span class="drop-zone-hint">(.xlsx, .xls, .csv) เลือกได้หลายไฟล์</span></div>
-                    </div>
-                    <input type="file" id="prFileInput" class="file-input" accept=".xlsx,.xls,.csv" multiple>
-                </div>
-
-                <details class="upload-hint pr-hint" open>
-                    <summary>คำแนะนำรูปแบบไฟล์ (โหมดอัตโนมัติ)</summary>
-                    <div class="hint-body">
-                        <p><span class="hint-label">รูปแบบไฟล์:</span> ใช้ไฟล์ GUI_019 (ข้อร้องเรียน) ตามแบบฟอร์ม กปภ. — แถวที่ 3 ระบุช่วงเดือน, แถวที่ 5 เป็น header หมวดหมู่, แถวที่ 7-28 เป็นข้อมูล 22 สาขา</p>
-                        <p><span class="hint-label">ชื่อไฟล์:</span> ตั้งให้มีรหัส <code>ปี-เดือน</code> (YY-MM) อยู่ในชื่อ ระบบจะตรวจจับอัตโนมัติ</p>
-                        <div class="hint-example">
-                            <span class="hint-tag">ร้องเรียน_69-01.xlsx</span>
-                            <span class="hint-tag">PR_69-02.xlsx</span>
-                            <span class="hint-tag">GUI019_69-03.xlsx</span>
-                        </div>
-                        <p class="hint-note">* หากชื่อไฟล์ไม่มีรหัสเดือน ระบบจะลองอ่านจากข้อความในแถวที่ 3 ของไฟล์ เช่น "เดือน มกราคม พ.ศ. 2569"</p>
-                    </div>
-                </details>
-
-                <div class="upload-status" id="prUploadStatus"></div>
-
-                <div class="button-group">
-                    <button class="btn btn-primary" id="prUploadBtn" disabled>อัปโหลดข้อมูล PR</button>
-                </div>
-            </div>
-
-            <!-- AON Panel -->
-            <div class="upload-tab-panel" id="panel-aon">
-                <div class="mode-selector">
-                    <div class="mode-radio">
-                        <input type="radio" id="aonModeAuto" name="aonMode" value="auto" checked>
-                        <label for="aonModeAuto">อัตโนมัติ</label>
-                    </div>
-                    <div class="mode-radio">
-                        <input type="radio" id="aonModeManual" name="aonMode" value="manual">
-                        <label for="aonModeManual">ระบุเดือนเอง</label>
-                    </div>
-                    <div class="manual-controls" id="aonManualControls">
-                        <div class="form-group">
-                            <label for="aonYear">ปี</label>
-                            <select id="aonYear"><option value="">เลือกปี...</option></select>
-                        </div>
-                        <div class="form-group">
-                            <label for="aonMonth">เดือน</label>
-                            <select id="aonMonth"><option value="">เลือกเดือน...</option></select>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="drop-zone drop-zone-aon" id="aonDropZone">
-                    <div class="drop-zone-content">
-                        <div class="drop-zone-icon">📊</div>
-                        <div class="drop-zone-text">ลากไฟล์มาวาง หรือคลิกเลือกไฟล์ &nbsp;<span class="drop-zone-hint">(.xlsx, .xls, .csv) เลือกได้หลายไฟล์</span></div>
-                    </div>
-                    <input type="file" id="aonFileInput" class="file-input" accept=".xlsx,.xls,.csv" multiple>
-                </div>
-
-                <details class="upload-hint" open>
-                    <summary>คำแนะนำรูปแบบไฟล์ (โหมดอัตโนมัติ)</summary>
-                    <div class="hint-body">
-                        <p><span class="hint-label">รูปแบบไฟล์:</span> ใช้ไฟล์ PWA Always-On จาก กลส. — แต่ละ Sheet เป็น 1 เดือน (ชื่อ Sheet เช่น "ต.ค.68") และมีคอลัมน์ที่มีคำว่า <code>always on</code> เป็นค่า % (0-1)</p>
-                        <p><span class="hint-label">ชื่อไฟล์:</span> ตั้งอะไรก็ได้ ระบบอ่านเดือนจากชื่อ Sheet อัตโนมัติ ไฟล์เดียวมีหลาย Sheet (หลายเดือน) ได้</p>
-                        <div class="hint-example">
-                            <span class="hint-tag">PWA Always-on สะสม เดือนมกราคม 2569.xls</span>
-                        </div>
-                        <p><span class="hint-label">ตัวอย่างชื่อ Sheet ที่ระบบอ่านได้:</span></p>
-                        <div class="hint-example">
-                            <span class="hint-tag">ต.ค.68</span>
-                            <span class="hint-tag">พ.ย.68</span>
-                            <span class="hint-tag">ธ.ค.68</span>
-                            <span class="hint-tag">ม.ค.69</span>
-                        </div>
-                        <p class="hint-note">* ไฟล์เดียวอาจมีข้อมูลหลายเดือน (หลาย Sheet) ระบบจะแยก import ให้อัตโนมัติ</p>
-                    </div>
-                </details>
-
-                <div class="upload-status" id="aonUploadStatus"></div>
-
-                <div class="button-group">
-                    <button class="btn btn-primary" id="aonUploadBtn" disabled>อัปโหลดข้อมูล AON</button>
-                </div>
-            </div>
+            <div class="upload-tabs" id="uploadTabs"></div>
+            <div id="uploadPanels"></div>
         </div>
 
         <!-- Management Panel -->
@@ -1048,6 +929,32 @@
         const API_BASE = 'http://localhost:5000';
         const MONTH_NAMES = ['', 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 
+        // CATEGORIES definition
+        const CATEGORIES = {
+            pr: {
+                thai: 'ข้อร้องเรียน (PR)',
+                icon: '📋',
+                color: '#c43e00',
+                dark: '#e67c00',
+                hint: '<p><span class="hint-label">รูปแบบไฟล์:</span> ใช้ไฟล์ GUI_019 (ข้อร้องเรียน) ตามแบบฟอร์ม กปภ. — แถวที่ 3 ระบุช่วงเดือน, แถวที่ 5 เป็น header หมวดหมู่, แถวที่ 7-28 เป็นข้อมูล 22 สาขา</p><p><span class="hint-label">ชื่อไฟล์:</span> ตั้งให้มีรหัส <code>ปี-เดือน</code> (YY-MM) อยู่ในชื่อ ระบบจะตรวจจับอัตโนมัติ</p><div class="hint-example"><span class="hint-tag">ร้องเรียน_69-01.xlsx</span><span class="hint-tag">PR_69-02.xlsx</span><span class="hint-tag">GUI019_69-03.xlsx</span></div><p class="hint-note">* หากชื่อไฟล์ไม่มีรหัสเดือน ระบบจะลองอ่านจากข้อความในแถวที่ 3 ของไฟล์ เช่น "เดือน มกราคม พ.ศ. 2569"</p>',
+                chipClass: 'pr-chip',
+                yearClass: 'pr-year',
+                titleClass: 'pr-title',
+                btnLabel: 'อัปโหลดข้อมูล PR'
+            },
+            aon: {
+                thai: 'Always-On (AON)',
+                icon: '📊',
+                color: '#1565c0',
+                dark: '#1e88e5',
+                hint: '<p><span class="hint-label">รูปแบบไฟล์:</span> ใช้ไฟล์ PWA Always-On จาก กลส. — แต่ละ Sheet เป็น 1 เดือน (ชื่อ Sheet เช่น "ต.ค.68") และมีคอลัมน์ที่มีคำว่า <code>always on</code> เป็นค่า % (0-1)</p><p><span class="hint-label">ชื่อไฟล์:</span> ตั้งอะไรก็ได้ ระบบอ่านเดือนจากชื่อ Sheet อัตโนมัติ ไฟล์เดียวมีหลาย Sheet (หลายเดือน) ได้</p><div class="hint-example"><span class="hint-tag">PWA Always-on สะสม เดือนมกราคม 2569.xls</span></div><p><span class="hint-label">ตัวอย่างชื่อ Sheet ที่ระบบอ่านได้:</span></p><div class="hint-example"><span class="hint-tag">ต.ค.68</span><span class="hint-tag">พ.ย.68</span><span class="hint-tag">ธ.ค.68</span><span class="hint-tag">ม.ค.69</span></div><p class="hint-note">* ไฟล์เดียวอาจมีข้อมูลหลายเดือน (หลาย Sheet) ระบบจะแยก import ให้อัตโนมัติ</p>',
+                chipClass: 'aon-chip',
+                yearClass: 'aon-year',
+                titleClass: 'aon-title',
+                btnLabel: 'อัปโหลดข้อมูล AON'
+            }
+        };
+
         // Theme Toggle (synced with Dashboard PR via localStorage 'pr_theme')
         function toggleTheme() {
             document.body.classList.toggle('dark');
@@ -1069,18 +976,19 @@
         }
 
         // Upload Tab Switching
-        function switchUploadTab(type) {
+        function switchUploadTab(slug) {
             document.querySelectorAll('.upload-tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.upload-tab-panel').forEach(p => p.classList.remove('active'));
-            document.querySelector(`.upload-tab[data-type="${type}"]`).classList.add('active');
-            document.getElementById(`panel-${type}`).classList.add('active');
+            const activeBtn = document.querySelector(`[data-type="${slug}"]`);
+            const cat = CATEGORIES[slug];
+            activeBtn.classList.add('active');
+            activeBtn.style.background = `linear-gradient(135deg, ${cat.dark || cat.color}, ${cat.color})`;
+            document.getElementById(`panel-${slug}`).classList.add('active');
         }
 
-        function updateTabCounts(prCount, aonCount) {
-            const prEl = document.getElementById('prTabCount');
-            const aonEl = document.getElementById('aonTabCount');
-            if (prEl) prEl.textContent = prCount;
-            if (aonEl) aonEl.textContent = aonCount;
+        function updateTabCounts(slug, count) {
+            const el = document.getElementById(`${slug}-count`);
+            if (el) el.textContent = count;
         }
 
         // State
@@ -1100,8 +1008,80 @@
             return MONTH_NAMES.indexOf(label);
         }
 
+        // Build UI from CATEGORIES
+        function buildUI() {
+            const tabsContainer = document.getElementById('uploadTabs');
+            const panelsContainer = document.getElementById('uploadPanels');
+
+            Object.keys(CATEGORIES).forEach((slug, idx) => {
+                const cat = CATEGORIES[slug];
+
+                // Create tab button
+                const tabBtn = document.createElement('button');
+                tabBtn.className = `upload-tab ${idx === 0 ? 'active' : ''}`;
+                tabBtn.setAttribute('data-type', slug);
+                tabBtn.onclick = () => switchUploadTab(slug);
+                tabBtn.innerHTML = `${cat.icon} ${cat.thai} <span class="tab-count" id="${slug}-count">-</span>`;
+                if (idx === 0) {
+                    tabBtn.style.background = `linear-gradient(135deg, ${cat.dark || cat.color}, ${cat.color})`;
+                }
+                tabsContainer.appendChild(tabBtn);
+
+                // Create panel
+                const panel = document.createElement('div');
+                panel.className = `upload-tab-panel ${idx === 0 ? 'active' : ''}`;
+                panel.id = `panel-${slug}`;
+                panel.innerHTML = `
+                    <div class="mode-selector">
+                        <div class="mode-radio">
+                            <input type="radio" id="${slug}ModeAuto" name="${slug}Mode" value="auto" checked>
+                            <label for="${slug}ModeAuto">อัตโนมัติ</label>
+                        </div>
+                        <div class="mode-radio">
+                            <input type="radio" id="${slug}ModeManual" name="${slug}Mode" value="manual">
+                            <label for="${slug}ModeManual">ระบุเดือนเอง</label>
+                        </div>
+                        <div class="manual-controls" id="${slug}ManualControls">
+                            <div class="form-group">
+                                <label for="${slug}Year">ปี</label>
+                                <select id="${slug}Year"><option value="">เลือกปี...</option></select>
+                            </div>
+                            <div class="form-group">
+                                <label for="${slug}Month">เดือน</label>
+                                <select id="${slug}Month"><option value="">เลือกเดือน...</option></select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="drop-zone drop-zone-${slug}" id="dropZone-${slug}">
+                        <div class="drop-zone-content">
+                            <div class="drop-zone-icon">${cat.icon}</div>
+                            <div class="drop-zone-text">ลากไฟล์มาวาง หรือคลิกเลือกไฟล์ &nbsp;<span class="drop-zone-hint">(.xlsx, .xls, .csv) เลือกได้หลายไฟล์</span></div>
+                        </div>
+                        <input type="file" id="fileInput-${slug}" class="file-input" accept=".xlsx,.xls,.csv" multiple>
+                        <div id="fileList-${slug}" style="margin-top:10px;padding-top:10px;border-top:1px dashed ${cat.color}40;display:none"></div>
+                    </div>
+
+                    <details class="upload-hint" open>
+                        <summary>คำแนะนำรูปแบบไฟล์ (โหมดอัตโนมัติ)</summary>
+                        <div class="hint-body">
+                            ${cat.hint}
+                        </div>
+                    </details>
+
+                    <div class="upload-status" id="uploadStatus-${slug}"></div>
+
+                    <div class="button-group">
+                        <button class="btn btn-primary" id="uploadBtn-${slug}" disabled>${cat.btnLabel}</button>
+                    </div>
+                `;
+                panelsContainer.appendChild(panel);
+            });
+        }
+
         // Initialize
         async function init() {
+            buildUI();
             populateYearDropdowns();
             populateMonthDropdowns();
             setupEventListeners();
@@ -1115,7 +1095,8 @@
                 years.push(i);
             }
 
-            [document.getElementById('prYear'), document.getElementById('aonYear')].forEach(select => {
+            Object.keys(CATEGORIES).forEach(slug => {
+                const select = document.getElementById(`${slug}Year`);
                 years.forEach(year => {
                     const option = document.createElement('option');
                     option.value = year;
@@ -1127,7 +1108,8 @@
 
         // Populate month dropdowns
         function populateMonthDropdowns() {
-            [document.getElementById('prMonth'), document.getElementById('aonMonth')].forEach(select => {
+            Object.keys(CATEGORIES).forEach(slug => {
+                const select = document.getElementById(`${slug}Month`);
                 MONTH_NAMES.slice(1).forEach((name, index) => {
                     const option = document.createElement('option');
                     option.value = index + 1;
@@ -1139,35 +1121,77 @@
 
         // Setup event listeners
         function setupEventListeners() {
-            // PR mode toggle
-            document.getElementById('prModeAuto').addEventListener('change', () => {
-                document.getElementById('prManualControls').classList.remove('active');
-            });
-            document.getElementById('prModeManual').addEventListener('change', () => {
-                document.getElementById('prManualControls').classList.add('active');
-            });
+            // File list state
+            if (!window._fileStore) window._fileStore = {};
 
-            // AON mode toggle
-            document.getElementById('aonModeAuto').addEventListener('change', () => {
-                document.getElementById('aonManualControls').classList.remove('active');
-            });
-            document.getElementById('aonModeManual').addEventListener('change', () => {
-                document.getElementById('aonManualControls').classList.add('active');
-            });
+            function renderFileList(slug) {
+                const files = window._fileStore[slug];
+                const listEl = document.getElementById(`fileList-${slug}`);
+                const fi = document.getElementById(`fileInput-${slug}`);
+                const ub = document.getElementById(`uploadBtn-${slug}`);
+                const cat = CATEGORIES[slug];
+                if (files.length > 0) {
+                    let html = '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">';
+                    html += '<span style="font-size:12px;color:var(--sub);font-weight:600">ไฟล์ที่เลือก (' + files.length + '):</span>';
+                    files.forEach((f, i) => {
+                        const sizeKB = (f.size / 1024).toFixed(1);
+                        const sizeMB = (f.size / 1024 / 1024).toFixed(2);
+                        const sizeStr = f.size >= 1048576 ? sizeMB + ' MB' : sizeKB + ' KB';
+                        html += `<span style="display:inline-flex;align-items:center;gap:4px;background:${cat.color}15;border:1px solid ${cat.color}40;border-radius:6px;padding:3px 10px;font-size:12px;color:var(--text)">📄 ${f.name} <span style="color:var(--sub2);font-size:11px">(${sizeStr})</span><button onclick="removeFile('${slug}',${i})" style="background:none;border:none;cursor:pointer;color:#e74c3c;font-size:15px;line-height:1;padding:0 0 0 4px" title="ลบไฟล์นี้">&times;</button></span>`;
+                    });
+                    html += '</div>';
+                    listEl.innerHTML = html;
+                    listEl.style.display = 'block';
+                } else {
+                    listEl.style.display = 'none';
+                    listEl.innerHTML = '';
+                }
+                const dt = new DataTransfer();
+                files.forEach(f => dt.items.add(f));
+                fi.files = dt.files;
+                ub.disabled = files.length === 0;
+            }
 
-            // PR drop zone
-            setupDropZone('prDropZone', 'prFileInput');
-            document.getElementById('prFileInput').addEventListener('change', () => {
-                document.getElementById('prUploadBtn').disabled = document.getElementById('prFileInput').files.length === 0;
-            });
-            document.getElementById('prUploadBtn').addEventListener('click', () => uploadFiles('pr'));
+            window.removeFile = function(slug, idx) {
+                window._fileStore[slug].splice(idx, 1);
+                renderFileList(slug);
+            };
 
-            // AON drop zone
-            setupDropZone('aonDropZone', 'aonFileInput');
-            document.getElementById('aonFileInput').addEventListener('change', () => {
-                document.getElementById('aonUploadBtn').disabled = document.getElementById('aonFileInput').files.length === 0;
+            // Loop over CATEGORIES for event setup
+            Object.keys(CATEGORIES).forEach(slug => {
+                // Initialize file store
+                if (!window._fileStore[slug]) window._fileStore[slug] = [];
+
+                // Mode toggle
+                document.getElementById(`${slug}ModeAuto`).addEventListener('change', () => {
+                    document.getElementById(`${slug}ManualControls`).classList.remove('active');
+                });
+                document.getElementById(`${slug}ModeManual`).addEventListener('change', () => {
+                    document.getElementById(`${slug}ManualControls`).classList.add('active');
+                });
+
+                // Drop zone
+                const dropZone = document.getElementById(`dropZone-${slug}`);
+                const fileInput = document.getElementById(`fileInput-${slug}`);
+                const uploadBtn = document.getElementById(`uploadBtn-${slug}`);
+
+                setupDropZone(`dropZone-${slug}`, `fileInput-${slug}`);
+
+                // File input change
+                fileInput.addEventListener('change', () => {
+                    const newFiles = Array.from(fileInput.files);
+                    const existing = window._fileStore[slug];
+                    newFiles.forEach(f => {
+                        if (!existing.some(e => e.name === f.name && e.size === f.size)) {
+                            existing.push(f);
+                        }
+                    });
+                    renderFileList(slug);
+                });
+
+                // Upload button
+                uploadBtn.addEventListener('click', () => uploadFiles(slug));
             });
-            document.getElementById('aonUploadBtn').addEventListener('click', () => uploadFiles('aon'));
 
             // Clear all (currently hidden)
             const clearBtn = document.getElementById('clearAllBtn');
@@ -1216,25 +1240,25 @@
         }
 
         // Upload files
-        async function uploadFiles(type) {
-            const fileInput = document.getElementById(`${type}FileInput`);
+        async function uploadFiles(slug) {
+            const fileInput = document.getElementById(`fileInput-${slug}`);
             const files = fileInput.files;
 
             if (files.length === 0) {
-                showStatus(type, 'โปรดเลือกไฟล์', 'error');
+                showStatus(slug, 'โปรดเลือกไฟล์', 'error');
                 return;
             }
 
             // Get mode and month key
-            const mode = document.querySelector(`input[name="${type}Mode"]:checked`).value;
+            const mode = document.querySelector(`input[name="${slug}Mode"]:checked`).value;
             let mk = null;
 
             if (mode === 'manual') {
-                const year = document.getElementById(`${type}Year`).value;
-                const month = document.getElementById(`${type}Month`).value;
+                const year = document.getElementById(`${slug}Year`).value;
+                const month = document.getElementById(`${slug}Month`).value;
 
                 if (!year || !month) {
-                    showStatus(type, 'โปรดระบุปี และเดือน', 'error');
+                    showStatus(slug, 'โปรดระบุปี และเดือน', 'error');
                     return;
                 }
 
@@ -1242,7 +1266,7 @@
             }
 
             // Check for existing months
-            const existingMonths = cachedData[type] || {};
+            const existingMonths = cachedData[slug] || {};
             let duplicates = [];
 
             if (mode === 'manual' && mk) {
@@ -1269,14 +1293,14 @@
                 duplicates.length > 0 ? '⚠️ ยืนยันเขียนทับข้อมูลเดิม' : 'ยืนยันการอัปโหลด',
                 confirmMsg,
                 async () => {
-                    await performUpload(type, files, mode, mk);
+                    await performUpload(slug, files, mode, mk);
                 }
             );
         }
 
         // Perform upload
-        async function performUpload(type, files, mode, mk) {
-            const statusEl = document.getElementById(`${type}UploadStatus`);
+        async function performUpload(slug, files, mode, mk) {
+            const statusEl = document.getElementById(`uploadStatus-${slug}`);
             const formData = new FormData();
 
             Array.from(files).forEach(file => {
@@ -1287,10 +1311,10 @@
                 formData.append('manual_mk', mk);
             }
 
-            showStatus(type, 'กำลังอัปโหลด...', 'loading');
+            showStatus(slug, 'กำลังอัปโหลด...', 'loading');
 
             try {
-                const response = await fetch(`${API_BASE}/api/upload/${type}`, {
+                const response = await fetch(`${API_BASE}/api/upload/${slug}`, {
                     method: 'POST',
                     body: formData
                 });
@@ -1307,28 +1331,29 @@
                 if (errFiles.length > 0 && okFiles.length === 0) {
                     // All files failed
                     const userMsg = 'ไฟล์นี้ไม่ใช่รูปแบบที่รองรับ ไม่สามารถ Upload ได้ กรุณาตรวจสอบอีกครั้ง';
-                    showStatus(type, userMsg, 'error');
+                    showStatus(slug, userMsg, 'error');
                     errFiles.forEach(e => addLog(`${e.filename}: ไม่สามารถอ่านได้ (${e.error})`, 'error'));
                 } else if (errFiles.length > 0) {
                     // Some succeeded, some failed
                     const failNames = errFiles.map(e => e.filename).join(', ');
-                    showStatus(type, `บางไฟล์ไม่สามารถ Upload ได้: ${failNames} — กรุณาตรวจสอบอีกครั้ง`, 'error');
+                    showStatus(slug, `บางไฟล์ไม่สามารถ Upload ได้: ${failNames} — กรุณาตรวจสอบอีกครั้ง`, 'error');
                     okFiles.forEach(r => addLog(`อัปโหลดสำเร็จ: ${r.filename || r.mk}`, 'success'));
                     errFiles.forEach(e => addLog(`${e.filename}: ไม่สามารถอ่านได้ (${e.error})`, 'error'));
                 } else {
-                    showStatus(type, `อัปโหลดสำเร็จ ${okFiles.length} ไฟล์`, 'success');
-                    addLog(`อัปโหลด ${type.toUpperCase()} สำเร็จ (${Array.from(files).map(f => f.name).join(', ')})`, 'success');
+                    showStatus(slug, `อัปโหลดสำเร็จ ${okFiles.length} ไฟล์`, 'success');
+                    addLog(`อัปโหลด ${slug.toUpperCase()} สำเร็จ (${Array.from(files).map(f => f.name).join(', ')})`, 'success');
                 }
 
                 // Clear file input and reset controls
-                document.getElementById(`${type}FileInput`).value = '';
-                document.getElementById(`${type}FileInput`).dispatchEvent(new Event('change'));
+                document.getElementById(`fileInput-${slug}`).value = '';
+                window._fileStore[slug] = [];
+                document.getElementById(`fileInput-${slug}`).dispatchEvent(new Event('change'));
 
                 // Reload data
                 await loadData();
             } catch (error) {
                 const userMsg = 'ไฟล์นี้ไม่ใช่รูปแบบที่รองรับ ไม่สามารถ Upload ได้ กรุณาตรวจสอบอีกครั้ง';
-                showStatus(type, userMsg, 'error');
+                showStatus(slug, userMsg, 'error');
                 addLog(`${userMsg} (${error.message})`, 'error');
             }
         }
@@ -1344,12 +1369,11 @@
                 const data = await response.json();
                 cachedData = data;
 
-                // Update summary
-                const prN = Object.keys(data.pr || {}).length;
-                const aonN = Object.keys(data.aon || {}).length;
-                document.getElementById('prCount').textContent = prN;
-                document.getElementById('aonCount').textContent = aonN;
-                updateTabCounts(prN, aonN);
+                // Update tab counts for all categories
+                Object.keys(CATEGORIES).forEach(slug => {
+                    const count = Object.keys(data[slug] || {}).length;
+                    updateTabCounts(slug, count);
+                });
 
                 // Update last modified
                 document.getElementById('prLastMod').textContent = data.pr_last_modified ? `อัปเดตล่าสุด: ${data.pr_last_modified}` : '';
@@ -1659,11 +1683,16 @@
         }
 
         // Show status
-        function showStatus(type, message, status) {
-            const statusEl = document.getElementById(`${type}UploadStatus`);
+        function showStatus(slug, message, status) {
+            const statusEl = document.getElementById(`uploadStatus-${slug}`);
             statusEl.textContent = message;
             statusEl.className = `upload-status show ${status}`;
         }
+
+        // Initialize when DOM is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            init();
+        });
 
         // Show confirm dialog
         function showConfirmDialog(title, message, callback) {
@@ -1699,9 +1728,6 @@
             logContent.appendChild(entry);
             logContent.scrollTop = logContent.scrollHeight;
         }
-
-        // Start
-        init();
     </script>
 </body>
 </html>

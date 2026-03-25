@@ -750,7 +750,6 @@ def api_ping():
     """ตรวจสอบว่า server ทำงานอยู่"""
     return jsonify({'ok': True, 'version': '1.0', 'timestamp': datetime.now().isoformat()})
 
-@app.route('/api/data')
 def _folder_last_modified(folder):
     """หาวันที่แก้ไขล่าสุดของไฟล์ในโฟลเดอร์"""
     latest = None
@@ -763,6 +762,7 @@ def _folder_last_modified(folder):
                     latest = mtime
     return datetime.fromtimestamp(latest).strftime('%d/%m/%Y %H:%M') if latest else None
 
+@app.route('/api/data')
 def api_get_data():
     """คืนข้อมูลทั้งหมดที่ upload ไว้"""
     data = load_data()
