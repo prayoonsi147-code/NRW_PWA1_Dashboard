@@ -7,6 +7,10 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script>
+(function(){var urls=['https://cdn.jsdelivr.net/gh/gitbrent/PptxGenJS@3.12.0/dist/pptxgen.bundle.js','https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js'];function tryLoad(i){if(i>=urls.length)return;var s=document.createElement('script');s.src=urls[i];s.onload=function(){};s.onerror=function(){tryLoad(i+1);};document.head.appendChild(s);}tryLoad(0);})();
+</script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Segoe UI','Noto Sans Thai',Tahoma,sans-serif;background:var(--bg);color:var(--text);transition:background .3s,color .3s}
@@ -71,6 +75,7 @@ body.dark .main-tab-bar{background:#1a0a30}
 .card-toggle{background:none;border:none;cursor:pointer;font-size:18px;color:var(--sub);padding:4px 8px}
 
 /* ===== Table ===== */
+.table-resizable{overflow:auto;resize:both;min-height:120px;min-width:300px;border:1px solid var(--border);border-radius:8px;padding-bottom:4px}
 .data-table{width:100%;border-collapse:collapse;font-size:13px}
 .data-table th{background:var(--th-bg);color:var(--heading);font-weight:700;padding:8px 10px;border:1px solid var(--border);white-space:nowrap;text-align:center}
 .data-table td{padding:6px 10px;border:1px solid var(--border);text-align:center}
@@ -85,6 +90,31 @@ body.dark .main-tab-bar{background:#1a0a30}
 .export-bar{display:flex;gap:6px;padding:8px 0;justify-content:flex-end}
 .export-btn{background:var(--info-btn-bg);color:var(--info-btn-color);border:none;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;font-weight:600;transition:all .2s;display:flex;align-items:center;gap:4px}
 .export-btn:hover{filter:brightness(1.1)}
+
+/* ===== Date Picker ===== */
+.date-picker-wrap{position:relative;display:inline-block;margin-bottom:12px}
+.date-picker-btn{background:var(--info-btn-bg);color:var(--info-btn-color);border:1px solid var(--border);border-radius:8px;padding:8px 16px;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;display:inline-flex;align-items:center;gap:6px;transition:all .2s}
+.date-picker-btn:hover{filter:brightness(1.08);box-shadow:0 2px 8px rgba(0,0,0,.1)}
+.calendar-popup{display:none;position:absolute;top:100%;left:0;z-index:100;background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.15);padding:16px;min-width:300px;margin-top:6px}
+.calendar-popup.show{display:block}
+.cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.cal-header span{font-size:15px;font-weight:700;color:var(--heading);min-width:140px;text-align:center}
+.cal-nav{background:var(--info-btn-bg);color:var(--info-btn-color);border:none;border-radius:6px;width:32px;height:32px;cursor:pointer;font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:center;transition:all .2s}
+.cal-nav:hover{filter:brightness(1.1)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center}
+.cal-dow{font-size:11px;font-weight:700;color:var(--sub2);padding:4px 0}
+.cal-day{font-size:13px;padding:6px 2px;border-radius:6px;cursor:default;color:var(--sub2);transition:all .15s}
+.cal-day.has-data{background:#c8e6c9;color:#1b5e20;font-weight:700;cursor:pointer}
+.cal-day.has-data:hover{background:#a5d6a7;transform:scale(1.1)}
+.cal-day.selected{background:#4a148c!important;color:#fff!important}
+.cal-day.today{border:2px solid var(--accent)}
+.cal-day.other-month{opacity:.3}
+
+/* ===== Hide Controls ===== */
+body.hide-controls .date-picker-wrap,
+body.hide-controls .export-bar,
+body.hide-controls .info-section,
+body.hide-controls .ymt{display:none!important}
 
 /* ===== Responsive ===== */
 @media(max-width:768px){
@@ -119,7 +149,7 @@ body.dark .main-tab-bar{background:#1a0a30}
             <h3>ข้อมูลที่โหลดแล้ว</h3>
             <p style="margin-bottom:8px;font-size:14px;color:var(--sub)"><strong>มาตรวัดน้ำสถานะผิดปกติ (ABNORMAL METER):</strong></p>
             <div>
-                <span class="file-tag">ข้อมูล ณ เดือน ธ.ค. 2568 (22 สาขา)</span>
+                <span class="file-tag">ข้อมูล ณ วันที่ 17 มี.ค. 2569 (22 สาขา)</span>
             </div>
             <p style="margin-top:12px;font-size:12px;color:var(--sub2)">ที่มา: ระบบ CIS Support — โฟลเดอร์ ข้อมูลดิบ/มาตรวัดน้ำผิดปกติ</p>
         </div>
@@ -132,6 +162,7 @@ body.dark .main-tab-bar{background:#1a0a30}
 <!-- Tab Bar -->
 <div class="main-tab-bar" id="mainTabBar">
     <button class="main-tab-btn active" onclick="switchMainTab('deadmeter',this)">มาตรตาย</button>
+    <button id="globalCtrlToggle" onclick="toggleGlobalControls(this)" style="margin-left:auto;padding:8px 16px;border:none;border-radius:8px;background:rgba(255,255,255,.18);color:#fff;cursor:pointer;font-size:13px;font-weight:600;transition:all .2s" title="ซ่อน/แสดงตัวเลือกทุก Card">&#x1F441; ซ่อนตัวเลือก</button>
 </div>
 
 <!-- ==================== Tab: มาตรตาย ==================== -->
@@ -144,9 +175,33 @@ body.dark .main-tab-bar{background:#1a0a30}
             <button class="card-toggle" onclick="toggleCard(this)">&#9650;</button>
         </div>
         <div class="card-body">
-            <p style="font-size:13px;color:var(--sub);margin-bottom:12px">ข้อมูลจากระบบ CIS Support ณ เดือน ธ.ค. 2568 &nbsp;|&nbsp; นิยาม: สภาพมาตร = <strong>มาตรไม่เดิน</strong> และ ยังไม่เปลี่ยนมาตร &nbsp;|&nbsp; กรณีเลขที่ผู้ใช้น้ำซ้ำ ใช้ข้อมูลที่พบครั้งแรก</p>
-            <div id="deadMeterTableWrap" style="overflow-x:auto"></div>
-            <div class="export-bar"><button class="export-btn" onclick="exportExcelDeadMeter()"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg> Excel</button></div>
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap">
+                <div class="date-picker-wrap">
+                    <button class="date-picker-btn" onclick="toggleCalendar()" id="datePickerBtn">
+                        <span style="font-size:16px">&#128197;</span>
+                        <span id="datePickerLabel">เลือกวันที่ข้อมูล</span>
+                        <span style="font-size:10px">&#9660;</span>
+                    </button>
+                    <div class="calendar-popup" id="calendarPopup">
+                        <div class="cal-header">
+                            <button class="cal-nav" onclick="calNav(-1)">&#8249;</button>
+                            <span id="calMonthLabel"></span>
+                            <button class="cal-nav" onclick="calNav(1)">&#8250;</button>
+                        </div>
+                        <div class="cal-grid" id="calGrid"></div>
+                    </div>
+                </div>
+                <p style="font-size:12px;color:var(--sub2);margin:0" id="dataSourceNote">นิยาม: สภาพมาตร = <strong>มาตรไม่เดิน</strong> และ ยังไม่เปลี่ยนมาตร &nbsp;|&nbsp; กรณีเลขที่ผู้ใช้น้ำซ้ำ นับเพียง 1</p>
+            </div>
+            <div id="deadMeterTableWrap" class="table-resizable"></div>
+            <div class="export-bar">
+                <button class="export-btn" onclick="dm1Reset()" title="รีเซ็ตขนาดตาราง">&#8634; รีเซ็ต</button>
+                <button class="export-btn" onclick="openFontPopup(this)" title="ขนาดฟอนต์"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M9.93 2L4 22h3.2l1.67-5.5h6.26L16.8 22H20L14.07 2H9.93zm-.34 11.5L12 5.88l2.41 7.62H9.59z"/></svg></button>
+                <button class="export-btn" onclick="dm1ExportPNG()" title="บันทึกรูป"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></button>
+                <button class="export-btn" onclick="dm1CopyTable()" title="คัดลอก"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M16 1H4a2 2 0 00-2 2v14h2V3h12V1zm3 4H8a2 2 0 00-2 2v14a2 2 0 002 2h11a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h11v14z"/></svg></button>
+                <button class="export-btn" onclick="exportExcelDeadMeter()" title="Excel"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button>
+                <button class="export-btn" onclick="dm1ExportPPTX()" title="PowerPoint"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#D04423"/><path d="M7 5v14h2v-5h3a4 4 0 000-8H7zm2 2h3a2 2 0 010 4H9V7z" fill="#fff"/></svg></button>
+            </div>
         </div>
     </div>
 
@@ -159,13 +214,29 @@ body.dark .main-tab-bar{background:#1a0a30}
 function toggleTheme(){document.body.classList.toggle('dark');localStorage.setItem('meterTheme',document.body.classList.contains('dark')?'dark':'bright');}
 (function(){if(localStorage.getItem('meterTheme')==='dark')document.body.classList.add('dark');})();
 
+// ===== Global Controls Toggle =====
+function toggleGlobalControls(btn){
+    document.body.classList.toggle('hide-controls');
+    var hidden=document.body.classList.contains('hide-controls');
+    btn.innerHTML=hidden?'\u{1F441} แสดงตัวเลือก':'\u{1F441} ซ่อนตัวเลือก';
+}
+
 // ===== Info Toggle =====
 function toggleInfo(show){
     var c=document.getElementById('infoContent');
-    var s=document.getElementById('headerInfoShow');
-    var h=document.getElementById('headerInfoHide');
-    if(show){c.classList.remove('collapsed');c.style.maxHeight=c.scrollHeight+'px';s.classList.add('active');s.style.background='rgba(255,255,255,.4)';h.classList.remove('active');h.style.background='rgba(255,255,255,.15)';}
-    else{c.classList.add('collapsed');s.classList.remove('active');s.style.background='rgba(255,255,255,.15)';h.classList.add('active');h.style.background='rgba(255,255,255,.4)';}
+    var btnShow=document.getElementById('headerInfoShow');
+    var btnHide=document.getElementById('headerInfoHide');
+    if(show){
+        c.classList.remove('collapsed');
+        c.style.maxHeight=c.scrollHeight+'px';
+        btnShow.classList.add('active');btnShow.style.background='rgba(255,255,255,.4)';
+        btnHide.classList.remove('active');btnHide.style.background='rgba(255,255,255,.15)';
+    } else {
+        c.style.maxHeight=c.scrollHeight+'px';
+        requestAnimationFrame(function(){c.classList.add('collapsed');});
+        btnHide.classList.add('active');btnHide.style.background='rgba(255,255,255,.4)';
+        btnShow.classList.remove('active');btnShow.style.background='rgba(255,255,255,.15)';
+    }
 }
 
 // ===== Tab =====
@@ -184,6 +255,13 @@ function toggleCard(btn){
 }
 
 // ===== DATA: มาตรตาย =====
+// เงื่อนไขการนับมาตรตาย:
+//   1. สภาพมาตร (col 12) = "มาตรไม่เดิน" เท่านั้น
+//   2. การเปลี่ยนมาตร (col 16) ≠ "เปลี่ยนแล้ว" (นับเฉพาะยังไม่เปลี่ยน)
+//   3. นับเลขที่ผู้ใช้น้ำ (col 2) ไม่ซ้ำกัน ถ้าซ้ำนับแค่ 1
+// แหล่งข้อมูลมาตรตาย: ไฟล์ Excel ใน ข้อมูลดิบ/มาตรวัดน้ำผิดปกติ/METER_xxxx.xlsx
+// แหล่งข้อมูลมาตรทั้งหมด (TOTAL_METERS): ผู้ใช้น้ำต้นงวดในเดือนนั้นๆ จาก OIS
+// ใช้ script: update_dead_meter.py เพื่ออัปเดตข้อมูลอัตโนมัติ
 var METER_BRANCHES=[
     "ชลบุรี(พ)","พัทยา(พ)","บ้านบึง","พนัสนิคม","ศรีราชา","แหลมฉบัง",
     "ฉะเชิงเทรา","บางปะกง","บางคล้า","พนมสารคาม",
@@ -195,11 +273,11 @@ var METER_BRANCHES=[
 var METER_SIZES=["1/2","3/4","1","1 1/2","2","2 1/2","3","4","6","8"];
 var DEAD_METER={
 "ชลบุรี(พ)":{"total":82,"sizes":{"1/2":68,"3/4":4,"1":1,"1 1/2":5,"2":3,"2 1/2":0,"3":0,"4":1,"6":0,"8":0}},
-"พัทยา(พ)":{"total":304,"sizes":{"1/2":266,"3/4":27,"1":6,"1 1/2":1,"2":3,"2 1/2":0,"3":1,"4":0,"6":0,"8":0}},
-"บ้านบึง":{"total":9,"sizes":{"1/2":7,"3/4":2,"1":0,"1 1/2":0,"2":0,"2 1/2":0,"3":0,"4":0,"6":0,"8":0}},
-"พนัสนิคม":{"total":32,"sizes":{"1/2":30,"3/4":2,"1":0,"1 1/2":0,"2":0,"2 1/2":0,"3":0,"4":0,"6":0,"8":0}},
-"ศรีราชา":{"total":42,"sizes":{"1/2":32,"3/4":7,"1":2,"1 1/2":0,"2":0,"2 1/2":0,"3":0,"4":1,"6":0,"8":0}},
-"แหลมฉบัง":{"total":45,"sizes":{"1/2":39,"3/4":6,"1":0,"1 1/2":0,"2":0,"2 1/2":0,"3":0,"4":0,"6":0,"8":0}},
+"พัทยา(พ)":{"total":9,"sizes":{"1/2":7,"3/4":2,"1":0,"1 1/2":0,"2":0,"2 1/2":0,"3":0,"4":0,"6":0,"8":0}},
+"บ้านบึง":{"total":32,"sizes":{"1/2":30,"3/4":2,"1":0,"1 1/2":0,"2":0,"2 1/2":0,"3":0,"4":0,"6":0,"8":0}},
+"พนัสนิคม":{"total":42,"sizes":{"1/2":32,"3/4":7,"1":2,"1 1/2":0,"2":0,"2 1/2":0,"3":0,"4":1,"6":0,"8":0}},
+"ศรีราชา":{"total":45,"sizes":{"1/2":39,"3/4":6,"1":0,"1 1/2":0,"2":0,"2 1/2":0,"3":0,"4":0,"6":0,"8":0}},
+"แหลมฉบัง":{"total":304,"sizes":{"1/2":266,"3/4":27,"1":6,"1 1/2":1,"2":3,"2 1/2":0,"3":1,"4":0,"6":0,"8":0}},
 "ฉะเชิงเทรา":{"total":0,"sizes":{"1/2":0,"3/4":0,"1":0,"1 1/2":0,"2":0,"2 1/2":0,"3":0,"4":0,"6":0,"8":0}},
 "บางปะกง":{"total":0,"sizes":{"1/2":0,"3/4":0,"1":0,"1 1/2":0,"2":0,"2 1/2":0,"3":0,"4":0,"6":0,"8":0}},
 "บางคล้า":{"total":12,"sizes":{"1/2":7,"3/4":0,"1":4,"1 1/2":0,"2":0,"2 1/2":0,"3":1,"4":0,"6":0,"8":0}},
@@ -212,12 +290,20 @@ var DEAD_METER={
 "ตราด":{"total":2,"sizes":{"1/2":0,"3/4":0,"1":1,"1 1/2":0,"2":1,"2 1/2":0,"3":0,"4":0,"6":0,"8":0}},
 "คลองใหญ่":{"total":0,"sizes":{"1/2":0,"3/4":0,"1":0,"1 1/2":0,"2":0,"2 1/2":0,"3":0,"4":0,"6":0,"8":0}},
 "สระแก้ว":{"total":0,"sizes":{"1/2":0,"3/4":0,"1":0,"1 1/2":0,"2":0,"2 1/2":0,"3":0,"4":0,"6":0,"8":0}},
-"วัฒนานคร":{"total":10,"sizes":{"1/2":9,"3/4":0,"1":0,"1 1/2":0,"2":1,"2 1/2":0,"3":0,"4":0,"6":0,"8":0}},
+"วัฒนานคร":{"total":0,"sizes":{"1/2":0,"3/4":0,"1":0,"1 1/2":0,"2":0,"2 1/2":0,"3":0,"4":0,"6":0,"8":0}},
 "อรัญประเทศ":{"total":0,"sizes":{"1/2":0,"3/4":0,"1":0,"1 1/2":0,"2":0,"2 1/2":0,"3":0,"4":0,"6":0,"8":0}},
 "ปราจีนบุรี":{"total":6,"sizes":{"1/2":3,"3/4":0,"1":0,"1 1/2":1,"2":2,"2 1/2":0,"3":0,"4":0,"6":0,"8":0}},
 "กบินทร์บุรี":{"total":10,"sizes":{"1/2":9,"3/4":0,"1":0,"1 1/2":0,"2":1,"2 1/2":0,"3":0,"4":0,"6":0,"8":0}}
 };
-var DEAD_METER_DATE="ณ วันที่ 16 มกราคม 2569";
+var TOTAL_METERS={
+"ชลบุรี(พ)":137904,"พัทยา(พ)":115763,"บ้านบึง":48646,"พนัสนิคม":64915,"ศรีราชา":55341,"แหลมฉบัง":68144,
+"ฉะเชิงเทรา":33668,"บางปะกง":36440,"บางคล้า":68726,"พนมสารคาม":30327,
+"ระยอง":88902,"บ้านฉาง":110485,"ปากน้ำประแสร์":19338,
+"จันทบุรี":64451,"ขลุง":14628,"ตราด":29675,"คลองใหญ่":4712,
+"สระแก้ว":14975,"วัฒนานคร":5398,"อรัญประเทศ":19867,
+"ปราจีนบุรี":42264,"กบินทร์บุรี":13613
+};
+var DEAD_METER_DATE="ณ วันที่ 17 มีนาคม 2569";
 
 // ===== Render Dead Meter Table =====
 function renderDeadMeterTable(){
@@ -226,11 +312,13 @@ function renderDeadMeterTable(){
 
     // Compute grand totals
     var grandTotal=0;
+    var grandTotalMeters=0;
     var grandSizes={};
     METER_SIZES.forEach(function(s){grandSizes[s]=0;});
     METER_BRANCHES.forEach(function(b){
         var d=DEAD_METER[b];if(!d)return;
         grandTotal+=d.total;
+        grandTotalMeters+=(TOTAL_METERS[b]||0);
         METER_SIZES.forEach(function(s){grandSizes[s]+=(d.sizes[s]||0);});
     });
 
@@ -244,45 +332,169 @@ function renderDeadMeterTable(){
     h+='<thead><tr>';
     h+='<th style="background:'+hdrBg+';color:#fff;padding:8px 6px">ลำดับ</th>';
     h+='<th style="background:'+hdrBg+';color:#fff;padding:8px 10px;text-align:left">ชื่อสาขา</th>';
+    h+='<th style="background:'+hdrBg+';color:#fff;padding:8px 6px">มาตรทั้งหมด<br>(เครื่อง)</th>';
     h+='<th style="background:'+hdrBg+';color:#fff;padding:8px 6px">มาตรตาย<br>(เครื่อง)</th>';
     METER_SIZES.forEach(function(s){
         h+='<th style="background:'+hdrBg+';color:#fff;padding:8px 4px;font-size:12px">'+s+' นิ้ว</th>';
     });
+    h+='<th style="background:'+hdrBg+';color:#fff;padding:8px 6px">%มาตรตาย</th>';
     h+='</tr></thead><tbody>';
 
     // Data rows
-    var altBg1='#f3e5f6'; // light purple
-    var altBg2='#ffffff';
+    var altBg1='#f5f5f5'; // เทาอ่อน
+    var altBg2='#ffffff'; // ขาว
     METER_BRANCHES.forEach(function(bName,bi){
         var d=DEAD_METER[bName]||{total:0,sizes:{}};
         var rowBg=(bi%2===0)?altBg1:altBg2;
         var isZero=(d.total===0);
-        var txtColor=isZero?'#ccc':'var(--text)';
-        var numColor=isZero?'#ccc':'#c62828';
+        var zeroGreen='#2e7d32';
+        var txtColor=isZero?zeroGreen:'var(--text)';
+        var numColor=isZero?zeroGreen:'#c62828';
 
         h+='<tr>';
         h+='<td style="background:'+rowBg+';color:'+txtColor+';font-weight:600">'+(bi+1)+'</td>';
         h+='<td style="background:'+rowBg+';color:'+txtColor+';text-align:left;font-weight:600;white-space:nowrap;padding-left:12px">'+bName+'</td>';
+        var tm=TOTAL_METERS[bName]||0;
+        h+='<td style="background:'+rowBg+';color:'+txtColor+';font-weight:700;font-size:14px">'+(tm===0?'-':tm.toLocaleString())+'</td>';
         h+='<td style="background:'+rowBg+';color:'+numColor+';font-weight:700;font-size:14px">'+( d.total===0?'-':d.total)+'</td>';
         METER_SIZES.forEach(function(s){
             var v=d.sizes[s]||0;
-            h+='<td style="background:'+rowBg+';color:'+(v===0?'#ddd':numColor)+';font-weight:'+(v>0?'600':'400')+'">'+(v===0?'':v)+'</td>';
+            h+='<td style="background:'+rowBg+';color:'+(isZero?zeroGreen:(v===0?'#ddd':numColor))+';font-weight:'+(v>0?'600':'400')+'">'+(v===0?'':v)+'</td>';
         });
+        var pct=(tm>0)?(d.total/tm*100):0;
+        h+='<td style="background:'+rowBg+';color:'+(isZero?zeroGreen:(pct===0?'#ccc':'#c62828'))+';font-weight:700;font-size:14px">'+(tm>0?pct.toFixed(2)+'%':'-')+'</td>';
         h+='</tr>';
     });
 
     // Grand total row
     h+='<tr style="border-top:3px solid var(--accent)">';
     h+='<td style="background:#e1bee7;font-weight:700;color:#4a148c" colspan="2">กปภ.ข.1</td>';
+    h+='<td style="background:#e1bee7;font-weight:700;color:#1565c0;font-size:15px">'+grandTotalMeters.toLocaleString()+'</td>';
     h+='<td style="background:#e1bee7;font-weight:700;color:#4a148c;font-size:15px">'+grandTotal+'</td>';
     METER_SIZES.forEach(function(s){
         var v=grandSizes[s];
         h+='<td style="background:#e1bee7;font-weight:700;color:'+(v===0?'#ccc':'#4a148c')+'">'+( v===0?'-':v)+'</td>';
     });
+    var grandPct=(grandTotalMeters>0)?(grandTotal/grandTotalMeters*100):0;
+    h+='<td style="background:#e1bee7;font-weight:700;color:#4a148c;font-size:15px">'+grandPct.toFixed(2)+'%</td>';
     h+='</tr>';
 
     h+='</tbody></table>';
     wrap.innerHTML=h;
+}
+
+// ===== Reset Table Size =====
+function dm1Reset(){
+    var wrap=document.getElementById('deadMeterTableWrap');
+    if(wrap){wrap.style.width='';wrap.style.height='';}
+}
+
+// ===== Font Size Popup =====
+var _fontPopupEl=null;
+function openFontPopup(btn){
+    if(_fontPopupEl){_fontPopupEl.remove();_fontPopupEl=null;return;}
+    var wrap=document.getElementById('deadMeterTableWrap');
+    var tbl=wrap?wrap.querySelector('.data-table'):null;
+    if(!tbl)return;
+    var cur=parseFloat(tbl.style.fontSize)||13;
+    var div=document.createElement('div');
+    div.style.cssText='position:absolute;z-index:999;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 16px;box-shadow:0 4px 16px rgba(0,0,0,.15);display:flex;align-items:center;gap:8px';
+    div.innerHTML='<span style="font-size:12px;color:var(--sub);font-weight:600">ฟอนต์:</span>'
+        +'<button onclick="dm1FontChange(-1)" style="width:28px;height:28px;border:1px solid var(--border);border-radius:4px;background:var(--card);color:var(--text);cursor:pointer;font-size:16px;font-weight:700">−</button>'
+        +'<span id="dm1FontVal" style="font-size:13px;font-weight:700;min-width:32px;text-align:center">'+cur+'</span>'
+        +'<button onclick="dm1FontChange(1)" style="width:28px;height:28px;border:1px solid var(--border);border-radius:4px;background:var(--card);color:var(--text);cursor:pointer;font-size:16px;font-weight:700">+</button>';
+    var rect=btn.getBoundingClientRect();
+    div.style.top=(rect.bottom+window.scrollY+4)+'px';
+    div.style.left=(rect.left+window.scrollX)+'px';
+    document.body.appendChild(div);
+    _fontPopupEl=div;
+    setTimeout(function(){document.addEventListener('click',_fontPopupClose);},0);
+}
+function _fontPopupClose(e){
+    if(_fontPopupEl&&!_fontPopupEl.contains(e.target)){
+        _fontPopupEl.remove();_fontPopupEl=null;
+        document.removeEventListener('click',_fontPopupClose);
+    }
+}
+function dm1FontChange(delta){
+    var wrap=document.getElementById('deadMeterTableWrap');
+    var tbl=wrap?wrap.querySelector('.data-table'):null;
+    if(!tbl)return;
+    var cur=parseFloat(tbl.style.fontSize)||13;
+    cur=Math.max(8,Math.min(24,cur+delta));
+    tbl.style.fontSize=cur+'px';
+    var el=document.getElementById('dm1FontVal');
+    if(el)el.textContent=cur;
+}
+
+// ===== Export PNG (บันทึกรูป) =====
+function dm1ExportPNG(){
+    var wrap=document.getElementById('deadMeterTableWrap');
+    if(!wrap){alert('ไม่พบตาราง');return;}
+    if(typeof html2canvas==='undefined'){alert('กำลังโหลด html2canvas กรุณารอสักครู่แล้วลองใหม่');return;}
+    html2canvas(wrap,{scale:2,backgroundColor:'#ffffff',useCORS:true}).then(function(canvas){
+        var a=document.createElement('a');
+        a.download='มาตรตาย-กปภข1.png';
+        a.href=canvas.toDataURL('image/png');
+        a.click();
+    });
+}
+
+// ===== Copy Table (คัดลอก) =====
+function dm1CopyTable(){
+    var wrap=document.getElementById('deadMeterTableWrap');
+    var tbl=wrap?wrap.querySelector('table'):null;
+    if(!tbl){alert('ไม่พบตาราง');return;}
+    if(typeof html2canvas==='undefined'){
+        // fallback: copy as HTML
+        var range=document.createRange();
+        range.selectNode(tbl);
+        var sel=window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        document.execCommand('copy');
+        sel.removeAllRanges();
+        alert('คัดลอกตารางเรียบร้อย');
+        return;
+    }
+    html2canvas(wrap,{scale:2,backgroundColor:'#ffffff',useCORS:true}).then(function(canvas){
+        canvas.toBlob(function(blob){
+            if(navigator.clipboard&&navigator.clipboard.write){
+                navigator.clipboard.write([new ClipboardItem({'image/png':blob})]).then(function(){
+                    alert('คัดลอกรูปตารางเรียบร้อย');
+                }).catch(function(){
+                    // fallback copy HTML
+                    var range=document.createRange();range.selectNode(tbl);
+                    var sel=window.getSelection();sel.removeAllRanges();sel.addRange(range);
+                    document.execCommand('copy');sel.removeAllRanges();
+                    alert('คัดลอกตารางเรียบร้อย (HTML)');
+                });
+            }
+        },'image/png');
+    });
+}
+
+// ===== Export PowerPoint =====
+function dm1ExportPPTX(){
+    if(typeof PptxGenJS==='undefined'){alert('กำลังโหลด PptxGenJS กรุณารอสักครู่แล้วลองใหม่');return;}
+    var wrap=document.getElementById('deadMeterTableWrap');
+    if(!wrap)return;
+    html2canvas(wrap,{scale:2,backgroundColor:'#ffffff',useCORS:true}).then(function(canvas){
+        var imgData=canvas.toDataURL('image/png');
+        var prs=new PptxGenJS();
+        var slide=prs.addSlide();
+        // คำนวณขนาดให้พอดีสไลด์
+        var imgW=canvas.width;
+        var imgH=canvas.height;
+        var maxW=9.5;
+        var maxH=5;
+        var ratio=Math.min(maxW/imgW,maxH/imgH);
+        var w=imgW*ratio;
+        var h=imgH*ratio;
+        slide.addText('มาตรวัดน้ำตาย — กปภ.ข.1',{x:0.25,y:0.2,fontSize:14,bold:true,color:'4a148c'});
+        slide.addImage({data:imgData,x:(10-w)/2,y:0.7,w:w,h:h});
+        prs.writeFile({fileName:'มาตรตาย-กปภข1.pptx'});
+    });
 }
 
 // ===== Export Excel =====
@@ -296,15 +508,16 @@ async function exportExcelDeadMeter(){
 
     // Title rows
     ws.addRow(['มาตรวัดน้ำตายที่ดำเนินการไม่แล้วเสร็จ (ข้ามเดือน + ในเดือน)']);
-    ws.mergeCells(1,1,1,3+METER_SIZES.length);
+    ws.mergeCells(1,1,1,5+METER_SIZES.length);
     var t1=ws.getCell(1,1);t1.font={bold:true,size:14,color:{argb:'FF4a148c'}};
     ws.addRow(['ข้อมูลจากระบบ CIS Support '+DEAD_METER_DATE]);
-    ws.mergeCells(2,1,2,3+METER_SIZES.length);
+    ws.mergeCells(2,1,2,5+METER_SIZES.length);
     var t2=ws.getCell(2,1);t2.font={size:11,color:{argb:'FF8e24aa'}};
 
     // Header
-    var headers=['ลำดับ','ชื่อสาขา','มาตรตาย (เครื่อง)'];
+    var headers=['ลำดับ','ชื่อสาขา','มาตรทั้งหมด (เครื่อง)','มาตรตาย (เครื่อง)'];
     METER_SIZES.forEach(function(s){headers.push(s+' นิ้ว');});
+    headers.push('%มาตรตาย');
     var hRow=ws.addRow(headers);
     hRow.eachCell(function(cell){
         cell.font={bold:true,color:{argb:white},size:10};
@@ -317,24 +530,32 @@ async function exportExcelDeadMeter(){
     var altBg1='FFf3e5f6';var altBg2='FFFFFFFF';
     METER_BRANCHES.forEach(function(bName,bi){
         var d=DEAD_METER[bName]||{total:0,sizes:{}};
-        var vals=[bi+1,bName,d.total];
+        var tm=TOTAL_METERS[bName]||0;
+        var pct=(tm>0)?(d.total/tm*100):0;
+        var vals=[bi+1,bName,tm,d.total];
         METER_SIZES.forEach(function(s){vals.push(d.sizes[s]||0);});
+        vals.push(tm>0?parseFloat(pct.toFixed(2)):0);
         var row=ws.addRow(vals);
         var bgColor=(bi%2===0)?altBg1:altBg2;
         row.eachCell(function(cell,ci){
             cell.border=bd;
             cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:bgColor}};
             if(ci>=3) cell.alignment={horizontal:'center'};
-            if(ci===3&&d.total>0){cell.font={bold:true,color:{argb:'FFc62828'}};}
+            if(ci===3&&tm>0){cell.font={bold:true,color:{argb:'FF1565c0'}};}
+            if(ci===4&&d.total>0){cell.font={bold:true,color:{argb:'FFc62828'}};}
+            if(ci===vals.length&&pct>0){cell.font={bold:true,color:{argb:'FFc62828'}};cell.numFmt='0.00"%"';}
         });
     });
 
     // Grand total
     var grandTotal=0;var grandSizes={};
     METER_SIZES.forEach(function(s){grandSizes[s]=0;});
-    METER_BRANCHES.forEach(function(b){var d=DEAD_METER[b];if(!d)return;grandTotal+=d.total;METER_SIZES.forEach(function(s){grandSizes[s]+=(d.sizes[s]||0);});});
-    var tVals=['','กปภ.ข.1',grandTotal];
+    var grandTotalMetersEx=0;
+    METER_BRANCHES.forEach(function(b){var d=DEAD_METER[b];if(!d)return;grandTotal+=d.total;grandTotalMetersEx+=(TOTAL_METERS[b]||0);METER_SIZES.forEach(function(s){grandSizes[s]+=(d.sizes[s]||0);});});
+    var grandPctEx=(grandTotalMetersEx>0)?(grandTotal/grandTotalMetersEx*100):0;
+    var tVals=['','กปภ.ข.1',grandTotalMetersEx,grandTotal];
     METER_SIZES.forEach(function(s){tVals.push(grandSizes[s]);});
+    tVals.push(parseFloat(grandPctEx.toFixed(2)));
     var tRow=ws.addRow(tVals);
     tRow.eachCell(function(cell,ci){
         cell.border=bd;
@@ -346,8 +567,10 @@ async function exportExcelDeadMeter(){
     // Column widths
     ws.getColumn(1).width=8;
     ws.getColumn(2).width=18;
-    ws.getColumn(3).width=14;
-    for(var i=4;i<=3+METER_SIZES.length;i++) ws.getColumn(i).width=10;
+    ws.getColumn(3).width=16;
+    ws.getColumn(4).width=14;
+    for(var i=5;i<=4+METER_SIZES.length;i++) ws.getColumn(i).width=10;
+    ws.getColumn(5+METER_SIZES.length).width=12;
 
     var buf=await wb.xlsx.writeBuffer();
     var blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
@@ -357,9 +580,211 @@ async function exportExcelDeadMeter(){
     URL.revokeObjectURL(url);
 }
 
+// ===== Server API =====
+var SERVER_API_BASE=(function(){
+    var h=location.hostname;
+    if(h==='localhost'||h==='127.0.0.1')return 'http://localhost:5003';
+    return null;
+})();
+
+function _serverGetData(){
+    if(!SERVER_API_BASE)return Promise.resolve(null);
+    return fetch(SERVER_API_BASE+'/api/data',{cache:'no-cache'})
+        .then(function(r){return r.json();})
+        .catch(function(){return null;});
+}
+
+// ===== Snapshots Data =====
+var SNAPSHOTS={}; // { "2569-01-16": { date_label, data, total_meters, files }, ... }
+var CURRENT_SNAPSHOT_KEY="";
+var AVAILABLE_DATES=[]; // sorted date keys with data
+
+// ===== Merge Server Data (Snapshots) =====
+function mergeServerData(serverData){
+    if(!serverData||!serverData.ok)return;
+    var dm=serverData.dead_meter;
+    if(!dm)return;
+
+    // Snapshots format
+    if(dm.snapshots&&typeof dm.snapshots==='object'){
+        SNAPSHOTS=dm.snapshots;
+        AVAILABLE_DATES=Object.keys(SNAPSHOTS).sort();
+
+        var latest=dm.latest||'';
+        if(!latest&&AVAILABLE_DATES.length>0) latest=AVAILABLE_DATES[AVAILABLE_DATES.length-1];
+
+        if(latest&&SNAPSHOTS[latest]){
+            loadSnapshot(latest);
+        }
+        updateCalendarUI();
+        return;
+    }
+
+    // Legacy format (backward compat)
+    if(dm.data){
+        METER_BRANCHES.forEach(function(b){
+            if(dm.data[b]) DEAD_METER[b]=dm.data[b];
+        });
+    }
+    if(dm.total_meters){
+        METER_BRANCHES.forEach(function(b){
+            if(dm.total_meters[b]!==undefined) TOTAL_METERS[b]=dm.total_meters[b];
+        });
+    }
+    if(dm.date) DEAD_METER_DATE=dm.date;
+    renderDeadMeterTable();
+}
+
+function loadSnapshot(dateKey){
+    var snap=SNAPSHOTS[dateKey];
+    if(!snap)return;
+    CURRENT_SNAPSHOT_KEY=dateKey;
+
+    // อัปเดต DEAD_METER จาก snapshot
+    if(snap.data){
+        METER_BRANCHES.forEach(function(b){
+            if(snap.data[b]){
+                DEAD_METER[b]=snap.data[b];
+            } else {
+                DEAD_METER[b]={total:0,sizes:{}};
+            }
+        });
+    }
+
+    // อัปเดต TOTAL_METERS (ถ้ามี)
+    if(snap.total_meters){
+        METER_BRANCHES.forEach(function(b){
+            if(snap.total_meters[b]!==undefined) TOTAL_METERS[b]=snap.total_meters[b];
+        });
+    }
+
+    // อัปเดตวันที่
+    if(snap.date_label) DEAD_METER_DATE=snap.date_label;
+
+    // อัปเดต UI
+    var lbl=document.getElementById('datePickerLabel');
+    if(lbl) lbl.textContent=snap.date_label||dateKey;
+
+    renderDeadMeterTable();
+}
+
+// ===== Calendar =====
+var _calYear, _calMonth; // ปี พ.ศ., เดือน 1-12 สำหรับ calendar navigation
+var _calOpen=false;
+
+function toggleCalendar(){
+    var popup=document.getElementById('calendarPopup');
+    _calOpen=!_calOpen;
+    if(_calOpen){
+        popup.classList.add('show');
+        // เปิดที่เดือนของ snapshot ปัจจุบัน หรือเดือนปัจจุบัน
+        if(CURRENT_SNAPSHOT_KEY){
+            var parts=CURRENT_SNAPSHOT_KEY.split('-');
+            _calYear=parseInt(parts[0]);
+            _calMonth=parseInt(parts[1]);
+        } else {
+            var now=new Date();
+            _calYear=now.getFullYear()+543;
+            _calMonth=now.getMonth()+1;
+        }
+        renderCalendar();
+    } else {
+        popup.classList.remove('show');
+    }
+}
+
+function calNav(dir){
+    _calMonth+=dir;
+    if(_calMonth>12){_calMonth=1;_calYear++;}
+    if(_calMonth<1){_calMonth=12;_calYear--;}
+    renderCalendar();
+}
+
+function renderCalendar(){
+    var thMonths=['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+    document.getElementById('calMonthLabel').textContent=thMonths[_calMonth]+' '+_calYear;
+
+    var grid=document.getElementById('calGrid');
+    var h='';
+
+    // Day of week headers
+    var dows=['อา','จ','อ','พ','พฤ','ศ','ส'];
+    dows.forEach(function(d){h+='<div class="cal-dow">'+d+'</div>';});
+
+    // First day of month in CE
+    var ceYear=_calYear-543;
+    var firstDay=new Date(ceYear,_calMonth-1,1).getDay(); // 0=Sun
+    var daysInMonth=new Date(ceYear,_calMonth,0).getDate();
+
+    // Previous month days
+    var prevDays=new Date(ceYear,_calMonth-1,0).getDate();
+    for(var i=0;i<firstDay;i++){
+        var d=prevDays-firstDay+1+i;
+        h+='<div class="cal-day other-month">'+d+'</div>';
+    }
+
+    // Current month days
+    var now=new Date();
+    var todayKey=(now.getFullYear()+543)+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
+
+    for(var d=1;d<=daysInMonth;d++){
+        var dateKey=_calYear+'-'+String(_calMonth).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+        var hasData=AVAILABLE_DATES.indexOf(dateKey)!==-1;
+        var isSelected=(dateKey===CURRENT_SNAPSHOT_KEY);
+        var isToday=(dateKey===todayKey);
+        var cls='cal-day';
+        if(hasData) cls+=' has-data';
+        if(isSelected) cls+=' selected';
+        if(isToday) cls+=' today';
+        var onclick=hasData?(' onclick="selectDate(\''+dateKey+'\')"'):'';
+        h+='<div class="'+cls+'"'+onclick+'>'+d+'</div>';
+    }
+
+    // Next month days
+    var totalCells=firstDay+daysInMonth;
+    var remaining=(7-totalCells%7)%7;
+    for(var i=1;i<=remaining;i++){
+        h+='<div class="cal-day other-month">'+i+'</div>';
+    }
+
+    grid.innerHTML=h;
+}
+
+function selectDate(dateKey){
+    loadSnapshot(dateKey);
+    _calOpen=false;
+    document.getElementById('calendarPopup').classList.remove('show');
+    updateCalendarUI();
+}
+
+function updateCalendarUI(){
+    // อัปเดต label ของ date picker button
+    var lbl=document.getElementById('datePickerLabel');
+    if(CURRENT_SNAPSHOT_KEY&&SNAPSHOTS[CURRENT_SNAPSHOT_KEY]){
+        lbl.textContent=SNAPSHOTS[CURRENT_SNAPSHOT_KEY].date_label||CURRENT_SNAPSHOT_KEY;
+    } else if(AVAILABLE_DATES.length===0){
+        lbl.textContent='ยังไม่มีข้อมูล';
+    }
+}
+
+// ปิด calendar เมื่อคลิกข้างนอก
+document.addEventListener('click',function(e){
+    var wrap=document.querySelector('.date-picker-wrap');
+    if(_calOpen&&wrap&&!wrap.contains(e.target)){
+        _calOpen=false;
+        document.getElementById('calendarPopup').classList.remove('show');
+    }
+});
+
 // ===== Init =====
 document.addEventListener('DOMContentLoaded',function(){
     renderDeadMeterTable();
+    // ถ้ารันบน localhost ดึงข้อมูลจาก server
+    if(SERVER_API_BASE){
+        _serverGetData().then(function(d){
+            if(d)mergeServerData(d);
+        });
+    }
 });
 </script>
 </body>

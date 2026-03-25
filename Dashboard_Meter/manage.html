@@ -752,6 +752,16 @@
                 panel.className = 'upload-tab-panel' + (slug === 'abnormal' ? ' active' : '');
                 panel.id = `panel-${slug}`;
                 panel.innerHTML = `
+                    <div style="margin-bottom:14px">
+                        <label style="display:block;font-size:13px;font-weight:600;color:${cat.color};margin-bottom:6px">
+                            📅 วันที่ดึงข้อมูลจาก CIS Support <span style="color:#d32f2f">*</span>
+                        </label>
+                        <div style="display:flex;align-items:center;gap:10px">
+                            <input type="date" id="dataDate-${slug}" style="padding:8px 12px;border:2px solid ${cat.color}40;border-radius:8px;font-size:14px;font-family:inherit;outline:none;transition:border-color .2s;background:var(--card,#fff);color:var(--text,#333)" onfocus="this.style.borderColor='${cat.color}'" onblur="this.style.borderColor='${cat.color}40'">
+                            <span style="font-size:12px;color:#888">(พ.ศ. จะแปลงอัตโนมัติ)</span>
+                        </div>
+                    </div>
+
                     <div class="drop-zone" id="dropZone-${slug}" style="border-color:${cat.color}40;background:${cat.color}08">
                         <div class="drop-zone-content">
                             <div class="drop-zone-icon">${cat.icon}</div>
@@ -763,10 +773,11 @@
                     <details class="upload-hint" open>
                         <summary>คำแนะนำการอัปโหลด (${cat.thai})</summary>
                         <div class="hint-body">
+                            <p><span class="hint-label">วันที่:</span> ระบุวันที่ที่ดึงข้อมูลจากระบบ CIS Support (ใช้เป็น key ของ snapshot)</p>
                             <p><span class="hint-label">รูปแบบไฟล์:</span> Excel (.xlsx, .xls) หรือ CSV</p>
                             <p><span class="hint-label">ชื่อไฟล์:</span> ${cat.hint}</p>
                             <p><span class="hint-label">เก็บไว้ที่:</span> ข้อมูลดิบ/${cat.thai}/</p>
-                            <p class="hint-note">* ระบบจะเก็บไฟล์ไว้ในโฟลเดอร์ข้อมูลดิบ</p>
+                            <p class="hint-note">* ระบบจะ parse ข้อมูลทันทีหลังอัปโหลด และเก็บเป็น snapshot ตามวันที่ที่ระบุ</p>
                         </div>
                     </details>
 
@@ -848,8 +859,25 @@
                 return;
             }
 
+            // ตรวจสอบว่ากรอกวันที่แล้ว
+            const dateInput = document.getElementById(`dataDate-${slug}`);
+            if (!dateInput.value) {
+                showStatus(slug, 'กรุณาระบุวันที่ดึงข้อมูลจาก CIS Support ก่อนอัปโหลด', 'error');
+                dateInput.focus();
+                dateInput.style.borderColor = '#d32f2f';
+                setTimeout(() => { dateInput.style.borderColor = ''; }, 3000);
+                return;
+            }
+
+            // แปลงวันที่แสดงให้ผู้ใช้เห็น
+            const ceDate = dateInput.value;
+            const parts = ceDate.split('-');
+            const beYear = parseInt(parts[0]) + 543;
+            const thMonths = ['','มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+            const dateDisplay = `${parseInt(parts[2])} ${thMonths[parseInt(parts[1])]} ${beYear}`;
+
             let fileList = Array.from(files).map(f => f.name).join(', ');
-            let confirmMsg = `อัปโหลด ${files.length} ไฟล์:\n${fileList}`;
+            let confirmMsg = `วันที่ข้อมูล: ${dateDisplay}\nอัปโหลด ${files.length} ไฟล์:\n${fileList}`;
 
             showConfirmDialog(
                 'ยืนยันการอัปโหลด',
@@ -865,6 +893,15 @@
             Array.from(files).forEach(file => {
                 formData.append('files', file);
             });
+
+            // ส่งวันที่ดึงข้อมูล — แปลง ค.ศ. → พ.ศ.
+            const dateInput = document.getElementById(`dataDate-${slug}`);
+            const ceDate = dateInput.value; // "2026-01-16" (ค.ศ.)
+            if (ceDate) {
+                const parts = ceDate.split('-');
+                const beYear = parseInt(parts[0]) + 543;
+                formData.append('data_date', `${beYear}-${parts[1]}-${parts[2]}`);
+            }
 
             showStatus(slug, 'กำลังอัปโหลด...', 'loading');
 
@@ -1019,27 +1056,7 @@
             }
         }
 
-        async function rebuildDashboard() {
-            showConfirmDialog(
-                '⚠️ สร้าง Dashboard ใหม่',
-                'ระบบจะรัน build_dashboard.py เพื่อประมวลผลข้อมูล กระบวนการนี้อาจใช้เวลาสักครู่',
-                async () => {
-                    try {
-                        const response = await fetch(`${API_BASE}/api/rebuild`, { method: 'POST' });
-                        const result = await response.json();
-
-                        if (result.ok) {
-                            addLog('สร้าง Dashboard สำเร็จ! ⚡', 'success');
-                            showConfirmDialog('สำเร็จ', 'Dashboard ได้อัปเดตเรียบร้อยแล้ว!', () => {});
-                        } else {
-                            addLog(`Build ล้มเหลว: ${result.message}`, 'error');
-                        }
-                    } catch (error) {
-                        addLog(`Build ล้มเหลว: ${error.message}`, 'error');
-                    }
-                }
-            );
-        }
+        // rebuildDashboard() — ลบแล้ว (ประมวลผลผ่าน index.html โดยตรง)
 
         // ─── Logging ──────────────────────────────────────────────────────────
 

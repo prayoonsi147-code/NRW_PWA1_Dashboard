@@ -162,18 +162,88 @@ def api_upload(category):
                     new_name = f"{prefix}_{clean}{ext}"
 
             elif category == 'pending':
-                # pending: PENDING_YYMMDD.xlsx — ดึงวันที่ หรือใช้วันที่ upload
-                m = re.search(r'(\d{6})', name_only)
-                if m:
-                    new_name = f"{prefix}_{m.group(1)}{ext}"
+                # pending: Repair_MM-YY.ext — ตรวจสอบข้อมูลในไฟล์เพื่อหาเดือน
+                # อ่านคอลัมน์ วันที่แจ้ง (col 3) ซึ่งเป็น dd/mm/yyyy (พ.ศ.)
+                # แล้วหาเดือนที่มีจำนวนมากที่สุด
+                detected_month = None
+                try:
+                    import tempfile, io
+                    raw_bytes = f.read()
+                    f.seek(0)  # reset file pointer for later save
+
+                    # Try xlrd for .xls files
+                    if ext.lower() == '.xls':
+                        try:
+                            import xlrd
+                            wb = xlrd.open_workbook(file_contents=raw_bytes)
+                            ws = wb.sheet_by_index(0)
+                            from collections import Counter
+                            month_counter = Counter()
+                            for row_idx in range(1, min(ws.nrows, 5000)):
+                                try:
+                                    cell_val = str(ws.cell_value(row_idx, 3)).strip()
+                                    if '/' in cell_val:
+                                        parts = cell_val.split('/')
+                                        if len(parts) >= 3:
+                                            mm = int(parts[1])
+                                            yy = int(parts[2])
+                                            # Convert Buddhist era to 2-digit year
+                                            if yy > 2500:
+                                                yy = yy - 2500
+                                            month_counter[(mm, yy)] += 1
+                                except:
+                                    pass
+                            if month_counter:
+                                top_month = month_counter.most_common(1)[0][0]
+                                detected_month = top_month  # (mm, yy)
+                        except ImportError:
+                            pass
+
+                    # Try openpyxl for .xlsx files
+                    if detected_month is None and ext.lower() == '.xlsx':
+                        try:
+                            import openpyxl
+                            wb = openpyxl.load_workbook(io.BytesIO(raw_bytes), read_only=True, data_only=True)
+                            ws = wb.active
+                            from collections import Counter
+                            month_counter = Counter()
+                            row_count = 0
+                            for row in ws.iter_rows(min_row=2, max_col=4, values_only=True):
+                                if row_count >= 5000:
+                                    break
+                                row_count += 1
+                                try:
+                                    cell_val = str(row[3]).strip() if len(row) > 3 and row[3] else ''
+                                    if '/' in cell_val:
+                                        parts = cell_val.split('/')
+                                        if len(parts) >= 3:
+                                            mm = int(parts[1])
+                                            yy = int(parts[2])
+                                            if yy > 2500:
+                                                yy = yy - 2500
+                                            month_counter[(mm, yy)] += 1
+                                except:
+                                    pass
+                            wb.close()
+                            if month_counter:
+                                top_month = month_counter.most_common(1)[0][0]
+                                detected_month = top_month
+                        except ImportError:
+                            pass
+
+                except Exception as detect_err:
+                    # If detection fails, fall through to fallback
+                    pass
+
+                if detected_month:
+                    mm, yy = detected_month
+                    new_name = f"Repair_{mm:02d}-{yy:02d}{ext}"
                 else:
-                    m2 = re.search(r'(\d{2}[-_]\d{2})', name_only)
-                    if m2:
-                        date_part = m2.group(1).replace('-', '').replace('_', '')
-                        new_name = f"{prefix}_{date_part}{ext}"
-                    else:
-                        today = datetime.now().strftime('%y%m%d')
-                        new_name = f"{prefix}_{today}{ext}"
+                    # fallback: ใช้วันที่ upload
+                    today = datetime.now()
+                    mm = today.month
+                    yy = today.year - 2543  # Convert CE to BE 2-digit
+                    new_name = f"Repair_{mm:02d}-{yy:02d}{ext}"
 
             else:
                 # fallback ทั่วไป
