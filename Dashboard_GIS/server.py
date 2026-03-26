@@ -156,6 +156,7 @@ def api_upload(category):
 
     results = []
     errors = []
+    _pending_batch = []  # สำหรับ pending: เก็บไฟล์ทั้งหมดไว้รวมทีหลัง
 
     for f in files:
         filename = f.filename.strip()
@@ -223,88 +224,10 @@ def api_upload(category):
                 new_name = f"{prefix}_{branch_name}{fy_suffix}{ext}"
 
             elif category == 'pending':
-                # pending: Repair_MM-YY.ext — ตรวจสอบข้อมูลในไฟล์เพื่อหาเดือน
-                # อ่านคอลัมน์ วันที่แจ้ง (col 3) ซึ่งเป็น dd/mm/yyyy (พ.ศ.)
-                # แล้วหาเดือนที่มีจำนวนมากที่สุด
-                detected_month = None
-                try:
-                    import tempfile, io
-                    raw_bytes = f.read()
-                    f.seek(0)  # reset file pointer for later save
-
-                    # Try xlrd for .xls files
-                    if ext.lower() == '.xls':
-                        try:
-                            import xlrd
-                            wb = xlrd.open_workbook(file_contents=raw_bytes)
-                            ws = wb.sheet_by_index(0)
-                            from collections import Counter
-                            month_counter = Counter()
-                            for row_idx in range(1, min(ws.nrows, 5000)):
-                                try:
-                                    cell_val = str(ws.cell_value(row_idx, 3)).strip()
-                                    if '/' in cell_val:
-                                        parts = cell_val.split('/')
-                                        if len(parts) >= 3:
-                                            mm = int(parts[1])
-                                            yy = int(parts[2])
-                                            # Convert Buddhist era to 2-digit year
-                                            if yy > 2500:
-                                                yy = yy - 2500
-                                            month_counter[(mm, yy)] += 1
-                                except:
-                                    pass
-                            if month_counter:
-                                top_month = month_counter.most_common(1)[0][0]
-                                detected_month = top_month  # (mm, yy)
-                        except ImportError:
-                            pass
-
-                    # Try openpyxl for .xlsx files
-                    if detected_month is None and ext.lower() == '.xlsx':
-                        try:
-                            import openpyxl
-                            wb = openpyxl.load_workbook(io.BytesIO(raw_bytes), read_only=True, data_only=True)
-                            ws = wb.active
-                            from collections import Counter
-                            month_counter = Counter()
-                            row_count = 0
-                            for row in ws.iter_rows(min_row=2, max_col=4, values_only=True):
-                                if row_count >= 5000:
-                                    break
-                                row_count += 1
-                                try:
-                                    cell_val = str(row[3]).strip() if len(row) > 3 and row[3] else ''
-                                    if '/' in cell_val:
-                                        parts = cell_val.split('/')
-                                        if len(parts) >= 3:
-                                            mm = int(parts[1])
-                                            yy = int(parts[2])
-                                            if yy > 2500:
-                                                yy = yy - 2500
-                                            month_counter[(mm, yy)] += 1
-                                except:
-                                    pass
-                            wb.close()
-                            if month_counter:
-                                top_month = month_counter.most_common(1)[0][0]
-                                detected_month = top_month
-                        except ImportError:
-                            pass
-
-                except Exception as detect_err:
-                    # If detection fails, fall through to fallback
-                    pass
-
-                if detected_month:
-                    mm, yy = detected_month
-                    new_name = f"Repair_{mm:02d}-{yy:02d}{ext}"
-                else:
-                    # fallback: ใช้วันที่ upload
-                    today = datetime.now()
-                    mm = today.month
-                    yy = today.year - 2543  # Convert CE to BE 2-digit
-                    new_name = f"Repair_{mm:02d}-{yy:02d}{ext}"
+                # pending: จะถูกจัดการแบบ batch ด้านล่าง (รวมหลายไฟล์เป็น 1)
+                raw_bytes = f.read()
+                _pending_batch.append({'filename': filename, 'ext': ext, 'raw_bytes': raw_bytes})
+                continue  # ไม่ save ทีละไฟล์ — รอรวมด้านล่าง
 
             else:
                 # fallback ทั่วไป
@@ -317,23 +240,158 @@ def api_upload(category):
 
             dest_path = os.path.join(folder_path, new_name)
 
-            if os.path.exists(dest_path):
-                results.append({
-                    'filename': new_name, 'original': filename,
-                    'status': 'overwrite', 'message': f'เขียนทับ {new_name}'
-                })
-
+            overwritten = os.path.exists(dest_path)
             f.save(dest_path)
 
+            msg = f'{filename} → {new_name}' + (' (เขียนทับ)' if overwritten else '')
             results.append({
                 'filename': new_name, 'original': filename,
-                'status': 'success', 'message': f'{filename} → {new_name}'
+                'status': 'success', 'message': msg
             })
         except Exception as e:
             errors.append({
                 'filename': filename,
                 'error': str(e)
             })
+
+    # ── Pending batch merge: รวมหลายไฟล์เป็น 1 ไฟล์ ──
+    if category == 'pending' and _pending_batch:
+        import io
+        try:
+            HEADER_ROWS = 8  # Row 0-7 = header area, Row 8+ = data
+            DATE_COL = 3     # Col 3 = วันที่แจ้ง (dd/mm/yyyy พ.ศ.)
+
+            all_data_rows = []
+            header_rows_cache = None
+
+            for item in _pending_batch:
+                raw_bytes = item['raw_bytes']
+                ext_lower = item['ext'].lower()
+
+                if ext_lower == '.xls':
+                    try:
+                        import xlrd
+                        wb = xlrd.open_workbook(file_contents=raw_bytes)
+                        ws = wb.sheet_by_index(0)
+                        # เก็บ header จากไฟล์แรก
+                        if header_rows_cache is None:
+                            header_rows_cache = []
+                            for r in range(min(HEADER_ROWS, ws.nrows)):
+                                header_rows_cache.append([ws.cell_value(r, c) for c in range(ws.ncols)])
+                        # เก็บ data rows
+                        for r in range(HEADER_ROWS, ws.nrows):
+                            row_data = [ws.cell_value(r, c) for c in range(ws.ncols)]
+                            # ข้ามแถวว่าง (ไม่มีเลขแจ้ง)
+                            if not str(row_data[2]).strip():
+                                continue
+                            all_data_rows.append(row_data)
+                    except ImportError:
+                        errors.append({'filename': item['filename'], 'error': 'xlrd not installed'})
+
+                elif ext_lower == '.xlsx':
+                    try:
+                        import openpyxl
+                        wb = openpyxl.load_workbook(io.BytesIO(raw_bytes), read_only=True, data_only=True)
+                        ws = wb.active
+                        rows_list = list(ws.iter_rows(values_only=True))
+                        if header_rows_cache is None:
+                            header_rows_cache = [list(r) for r in rows_list[:HEADER_ROWS]]
+                        for row in rows_list[HEADER_ROWS:]:
+                            row_data = list(row)
+                            if not str(row_data[2] if len(row_data) > 2 else '').strip():
+                                continue
+                            all_data_rows.append(row_data)
+                        wb.close()
+                    except ImportError:
+                        errors.append({'filename': item['filename'], 'error': 'openpyxl not installed'})
+
+            if not all_data_rows:
+                errors.append({'filename': 'pending', 'error': 'ไม่พบข้อมูลในไฟล์ที่อัปโหลด'})
+            else:
+                # ── Parse วันที่แจ้ง เพื่อ sort ──
+                def parse_date_for_sort(row):
+                    """แปลง dd/mm/yyyy (พ.ศ.) → sortable tuple (yyyy_ce, mm, dd)"""
+                    try:
+                        val = str(row[DATE_COL]).strip()
+                        if '/' in val:
+                            parts = val.split('/')
+                            dd, mm, yyyy = int(parts[0]), int(parts[1]), int(parts[2])
+                            yyyy_ce = yyyy - 543 if yyyy > 2500 else yyyy
+                            return (yyyy_ce, mm, dd)
+                    except:
+                        pass
+                    return (9999, 12, 31)  # ข้อมูลที่ parse ไม่ได้ → ไว้ท้ายสุด
+
+                all_data_rows.sort(key=parse_date_for_sort)
+
+                # ── หาช่วงเดือน (min/max) เพื่อตั้งชื่อ ──
+                min_date = (9999, 12)
+                max_date = (0, 0)
+                for row in all_data_rows:
+                    try:
+                        val = str(row[DATE_COL]).strip()
+                        if '/' in val:
+                            parts = val.split('/')
+                            mm, yyyy = int(parts[1]), int(parts[2])
+                            yy = yyyy - 2500 if yyyy > 2500 else yyyy
+                            if (yy, mm) < min_date:
+                                min_date = (yy, mm)
+                            if (yy, mm) > max_date:
+                                max_date = (yy, mm)
+                    except:
+                        pass
+
+                # ตั้งชื่อ: ค้างซ่อม_MM-YY_to_MM-YY.xlsx
+                if min_date[0] < 9999 and max_date[0] > 0:
+                    new_name = f"ค้างซ่อม_{min_date[1]:02d}-{min_date[0]:02d}_to_{max_date[1]:02d}-{max_date[0]:02d}.xlsx"
+                else:
+                    today = datetime.now()
+                    yy = today.year - 2543
+                    new_name = f"ค้างซ่อม_{today.month:02d}-{yy:02d}.xlsx"
+
+                # ── เขียนไฟล์ .xlsx ──
+                import openpyxl
+                _ILLEGAL_XML_RE = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]')
+                wb_out = openpyxl.Workbook()
+                ws_out = wb_out.active
+                ws_out.title = 'ค้างซ่อม'
+
+                def safe_val(v):
+                    """ลบ illegal XML characters ที่ .xlsx ไม่รองรับ"""
+                    if isinstance(v, str):
+                        return _ILLEGAL_XML_RE.sub('', v)
+                    return v
+
+                # เขียน header
+                if header_rows_cache:
+                    for r_idx, row in enumerate(header_rows_cache):
+                        for c_idx, val in enumerate(row):
+                            ws_out.cell(row=r_idx + 1, column=c_idx + 1, value=safe_val(val))
+
+                # เขียน data (เรียงตามวันที่แจ้งแล้ว)
+                start_row = HEADER_ROWS + 1
+                for r_idx, row in enumerate(all_data_rows):
+                    for c_idx, val in enumerate(row):
+                        ws_out.cell(row=start_row + r_idx, column=c_idx + 1, value=safe_val(val))
+
+                dest_path = os.path.join(folder_path, new_name)
+                overwritten = os.path.exists(dest_path)
+                wb_out.save(dest_path)
+
+                orig_names = ', '.join(item['filename'] for item in _pending_batch)
+                if overwritten:
+                    results.append({
+                        'filename': new_name, 'original': orig_names,
+                        'status': 'overwrite', 'message': f'เขียนทับ {new_name}'
+                    })
+                results.append({
+                    'filename': new_name, 'original': orig_names,
+                    'status': 'success',
+                    'message': f'รวม {len(_pending_batch)} ไฟล์ ({len(all_data_rows):,} แถว) → {new_name}'
+                })
+
+        except Exception as e:
+            errors.append({'filename': 'pending-merge', 'error': str(e)})
 
     return jsonify({
         'ok': True,

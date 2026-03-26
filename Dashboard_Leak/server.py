@@ -221,22 +221,15 @@ def api_upload(category):
 
             dest_path = os.path.join(folder_path, new_name)
 
-            # If renamed file exists, note overwrite
-            if os.path.exists(dest_path):
-                results.append({
-                    'filename': new_name,
-                    'original': filename,
-                    'status': 'overwrite',
-                    'message': f'เขียนทับ {new_name}'
-                })
-
+            overwritten = os.path.exists(dest_path)
             f.save(dest_path)
 
+            msg = f'{filename} → {new_name}' + (' (เขียนทับ)' if overwritten else '')
             results.append({
                 'filename': new_name,
                 'original': filename,
                 'status': 'success',
-                'message': f'{filename} → {new_name}'
+                'message': msg
             })
         except Exception as e:
             errors.append({

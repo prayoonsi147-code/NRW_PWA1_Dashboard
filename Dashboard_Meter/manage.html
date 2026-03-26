@@ -865,7 +865,7 @@
                 if (!window._fileStore) window._fileStore = {};
                 window._fileStore[slug] = [];
 
-                function renderFileList(s) {
+                window.renderFileList = function renderFileList(s) {
                     const files = window._fileStore[s];
                     const listEl = document.getElementById(`fileList-${s}`);
                     const fi = document.getElementById(`fileInput-${s}`);
@@ -940,10 +940,9 @@
         // ─── Upload Files ─────────────────────────────────────────────────────
 
         async function uploadFiles(slug) {
-            const fileInput = document.getElementById(`fileInput-${slug}`);
-            const files = fileInput.files;
+            const store = window._fileStore[slug] || [];
 
-            if (files.length === 0) {
+            if (store.length === 0) {
                 showStatus(slug, 'โปรดเลือกไฟล์', 'error');
                 return;
             }
@@ -965,21 +964,21 @@
             const thMonths = ['','มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
             const dateDisplay = `${parseInt(parts[2])} ${thMonths[parseInt(parts[1])]} ${beYear}`;
 
-            let fileList = Array.from(files).map(f => f.name).join(', ');
-            let confirmMsg = `วันที่ข้อมูล: ${dateDisplay}\nอัปโหลด ${files.length} ไฟล์:\n${fileList}`;
+            let fileList = store.map(f => f.name).join(', ');
+            let confirmMsg = `วันที่ข้อมูล: ${dateDisplay}\nอัปโหลด ${store.length} ไฟล์:\n${fileList}`;
 
             showConfirmDialog(
                 'ยืนยันการอัปโหลด',
                 confirmMsg,
                 async () => {
-                    await performUpload(slug, files);
+                    await performUpload(slug, store);
                 }
             );
         }
 
         async function performUpload(slug, files) {
             const formData = new FormData();
-            Array.from(files).forEach(file => {
+            files.forEach(file => {
                 formData.append('files', file);
             });
 
@@ -1014,13 +1013,16 @@
                     showStatus(slug, `${successes.length} ไฟล์สำเร็จ, ${errors.length} ไฟล์ล้มเหลว`, 'error');
                     addLog(`Upload ${slug} บางส่วนล้มเหลว:\n${failMsg}`, 'error');
                 } else {
+                    const names = files.map(f => f.name).join(', ');
                     showStatus(slug, `อัปโหลดสำเร็จ ${successes.length} ไฟล์`, 'success');
-                    addLog(`Upload ${slug} สำเร็จ (${Array.from(files).map(f => f.name).join(', ')})`, 'success');
+                    addLog(`Upload ${slug} สำเร็จ (${names})`, 'success');
                 }
 
-                // Clear input
+                // Clear file store + input + file list UI
+                window._fileStore[slug] = [];
                 document.getElementById(`fileInput-${slug}`).value = '';
                 document.getElementById(`uploadBtn-${slug}`).disabled = true;
+                renderFileList(slug);
 
                 // Reload data
                 await loadData();

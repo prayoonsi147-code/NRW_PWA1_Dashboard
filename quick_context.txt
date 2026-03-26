@@ -55,9 +55,31 @@ Dashboard_Meter   | 5003 | ม่วง #4a148c    | ~22KB
   - Textbox บันทึกช่วยจำ + auto-save (ครบทุก Dashboard แล้ว)
   - management panel แสดง chips แยกปี (GIS ทำแล้ว, PR ทำแล้ว)
 
+งานที่ทำ (26 มี.ค. — เพิ่มเติม):
+  - GIS server.py pending upload: รวมหลายไฟล์เป็น 1, sort ตามวันที่แจ้ง,
+    ตั้งชื่ออัตโนมัติตามช่วงเดือน เช่น ค้างซ่อม_10-68_to_03-69.xlsx
+    - batch merge: อ่าน .xls/.xlsx → ดึง data rows (ข้าม header 8 แถว) → รวม → sort → save .xlsx
+  - manage.html ทุก Dashboard: แก้ upload file count ซ้ำ
+    - server.py (GIS, Leak): แก้ double-counting ตอน overwrite (append ทั้ง overwrite+success)
+    - client: เปลี่ยน uploadFiles() ใช้ window._fileStore[slug] แทน fileInput.files
+    - client: เปลี่ยน performUpload() เคลียร์ _fileStore หลัง upload + renderFileList(slug)
+    - เปลี่ยน renderFileList เป็น window.renderFileList ทุก Dashboard
+  - GIS manage.html: เพิ่ม loading popup "กรุณารอสักครู่ อยู่ระหว่างรวมไฟล์" + สำเร็จ popup
+  - GIS server.py: แก้ illegal XML character error ตอนแปลง .xls → .xlsx
+    - ใช้ custom regex: re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]') + safe_val()
+  - GIS TAB 3 กราฟที่ 1+2: Update ข้อมูลค้างซ่อมจากไฟล์ ค้างซ่อม_10-68_to_03-69.xlsx
+    - PENDING_UPDATE_DATE → '26-03-69'
+    - นิยามค้างซ่อม: R-job ที่ (1) วันเวลาเสร็จสิ้น > สิ้นเดือน หรือ (2) สถานะ "ซ่อมไม่เสร็จ"
+    - นับสะสมจาก ม.ค.69 เป็นต้นไป
+    - PD1 = [PD2 เดือนก่อน, PD2 เดือนปัจจุบัน] ทุกสาขา
+    - PD2 = snapshot ค้างซ่อม ณ สิ้นเดือน: 69-01(95), 69-02(164), 69-03(269)
+    - ตรวจสอบแล้ว: 69-01 ตรง 100% ทุกสาขา, PD1↔PD2 สอดคล้อง 100%
+
 งานค้าง:
-  1. WSC-R Chart 1 กราฟพื้นที่ปีก่อน — opacity 60% (ยังไม่แก้)
-  2. ตรวจสอบ scale sync กราฟ volume — อาจต้องปรับ rounding
+  1. ตรวจสอบ scale sync กราฟ volume — อาจต้องปรับ rounding
+
+งานถัดไป (รอดำเนินการ):
+  2. GIS TAB 3: เพิ่มตาราง (table view) ใน Tab งานค้างซ่อม — User จะแจ้งรายละเอียด
 
 หมายเหตุ: ยกเลิกการบันทึก prompt_history แล้ว ไม่ต้องเขียนเพิ่ม
 ================================================================================
