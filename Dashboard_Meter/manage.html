@@ -425,9 +425,28 @@
 
         .file-chips {
             display: flex;
-            flex-wrap: wrap;
+            flex-direction: column;
             gap: 5px;
             margin-bottom: 12px;
+        }
+
+        .year-group {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 5px;
+            margin-bottom: 8px;
+        }
+
+        .year-label {
+            font-size: 12px;
+            font-weight: 700;
+            color: #fff;
+            padding: 3px 10px;
+            border-radius: 4px;
+            margin-right: 4px;
+            min-width: 44px;
+            text-align: center;
         }
 
         .chip {
@@ -771,16 +790,15 @@
                         <div id="fileList-${slug}" style="margin-top:10px;padding-top:10px;border-top:1px dashed ${cat.color}40;display:none"></div>
                     </div>
 
-                    <details class="upload-hint" open>
-                        <summary>คำแนะนำการอัปโหลด (${cat.thai})</summary>
-                        <div class="hint-body">
-                            <p><span class="hint-label">วันที่:</span> ระบุวันที่ที่ดึงข้อมูลจากระบบ CIS Support (ใช้เป็น key ของ snapshot)</p>
-                            <p><span class="hint-label">รูปแบบไฟล์:</span> Excel (.xlsx, .xls) หรือ CSV</p>
-                            <p><span class="hint-label">ชื่อไฟล์:</span> ${cat.hint}</p>
-                            <p><span class="hint-label">เก็บไว้ที่:</span> ข้อมูลดิบ/${cat.thai}/</p>
-                            <p class="hint-note">* ระบบจะ parse ข้อมูลทันทีหลังอัปโหลด และเก็บเป็น snapshot ตามวันที่ที่ระบุ</p>
-                        </div>
-                    </details>
+                    <div class="note-box" style="margin-top:12px">
+                        <label for="noteBox-${slug}" style="font-size:13px;font-weight:600;color:var(--sub,#666);display:flex;align-items:center;gap:5px;margin-bottom:6px">
+                            &#9997; บันทึกช่วยจำ (${cat.thai})
+                            <span id="noteSaved-${slug}" style="font-size:11px;color:#2e7d32;opacity:0;transition:opacity .3s;margin-left:auto">&#10003; บันทึกแล้ว</span>
+                        </label>
+                        <textarea id="noteBox-${slug}" placeholder="พิมพ์บันทึกช่วยจำ เช่น รูปแบบไฟล์ที่ใช้, แหล่งข้อมูล, หมายเหตุ..."
+                            style="width:100%;min-height:80px;padding:10px 14px;border:2px solid ${cat.color}30;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;background:var(--card,#fff);color:var(--text,#333);transition:border-color .3s;outline:none"
+                            onfocus="this.style.borderColor='${cat.color}'" onblur="this.style.borderColor='${cat.color}30'"></textarea>
+                    </div>
 
                     <div class="upload-status" id="uploadStatus-${slug}"></div>
 
@@ -792,8 +810,34 @@
             });
         }
 
+        // Note auto-save (debounce 800ms)
+        const _noteTimers = {};
+        function setupNoteAutoSave(slug) {
+            const textarea = document.getElementById(`noteBox-${slug}`);
+            const savedEl = document.getElementById(`noteSaved-${slug}`);
+            if (!textarea) return;
+            textarea.addEventListener('input', () => {
+                clearTimeout(_noteTimers[slug]);
+                savedEl.style.opacity = '0';
+                _noteTimers[slug] = setTimeout(async () => {
+                    try {
+                        await fetch(`${API_BASE}/api/notes/${slug}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ text: textarea.value })
+                        });
+                        savedEl.style.opacity = '1';
+                        setTimeout(() => { savedEl.style.opacity = '0'; }, 2000);
+                    } catch (e) { console.error('Note save error:', e); }
+                }, 800);
+            });
+        }
+
         function setupEventListeners() {
             Object.keys(CATEGORIES).forEach(slug => {
+                // Note auto-save
+                setupNoteAutoSave(slug);
+
                 // Drop zone
                 const dropZone = document.getElementById(`dropZone-${slug}`);
                 const fileInput = document.getElementById(`fileInput-${slug}`);
@@ -1010,6 +1054,13 @@
                     document.getElementById(`${slug}-count`).textContent = count;
                 });
 
+                // Load saved notes
+                const notes = data.notes || {};
+                Object.keys(notes).forEach(slug => {
+                    const el = document.getElementById(`noteBox-${slug}`);
+                    if (el) el.value = notes[slug];
+                });
+
                 // Render management panel
                 renderManagementPanel();
 
@@ -1017,6 +1068,23 @@
             } catch (error) {
                 addLog(`ข้อผิดพลาด: ${error.message}`, 'error');
             }
+        }
+
+        const BRANCH_CODE_MAP = {
+            "1102":"ชลบุรี(พ)","1103":"พัทยา(พ)","1104":"บ้านบึง","1105":"พนัสนิคม",
+            "1106":"ศรีราชา","1107":"แหลมฉบัง","1108":"ฉะเชิงเทรา","1109":"บางปะกง",
+            "1110":"บางคล้า","1111":"พนมสารคาม","1112":"ระยอง","1113":"บ้านฉาง",
+            "1114":"ปากน้ำประแสร์","1115":"จันทบุรี","1116":"ขลุง","1117":"ตราด",
+            "1118":"คลองใหญ่","1119":"สระแก้ว","1120":"วัฒนานคร","1121":"อรัญประเทศ",
+            "1122":"ปราจีนบุรี","1123":"กบินทร์บุรี"
+        };
+
+        // ดึง chip label: METER_1102.xlsx → "ชลบุรี(พ)"
+        function extractChipLabel(slug, filename) {
+            const name = filename.replace(/\.[^.]+$/, '');
+            const m = name.match(/METER_(\d+)/);
+            if (m) return BRANCH_CODE_MAP[m[1]] || m[1];
+            return name;
         }
 
         function renderManagementPanel() {
@@ -1047,19 +1115,33 @@
                 `;
                 container.appendChild(section);
 
-                // Add file chips with category color
                 const chipsDiv = section.querySelector(`#chips-${slug}`);
+
+                // Meter files = branch codes → 1 group "สาขา"
+                const group = document.createElement('div');
+                group.className = 'year-group';
+
+                const groupLabel = document.createElement('span');
+                groupLabel.className = 'year-label';
+                groupLabel.style.background = cat.dark || cat.color;
+                groupLabel.textContent = 'สาขา';
+                group.appendChild(groupLabel);
+
                 files.forEach(filename => {
                     const chip = document.createElement('div');
                     chip.className = 'chip';
                     chip.style.borderColor = cat.color + '60';
                     chip.style.background = cat.color + '0a';
+                    const label = extractChipLabel(slug, filename);
                     chip.innerHTML = `
-                        <span class="chip-label" style="color:${cat.color}">${filename}</span>
-                        <button class="chip-btn chip-delete" title="ลบ" onclick="deleteFile('${slug}', '${filename}')">✕</button>
+                        <span class="chip-label" style="color:${cat.color}">${label}</span>
+                        <button class="chip-btn chip-delete" title="ลบ ${filename}" onclick="deleteFile('${slug}', '${filename.replace(/'/g,"\\'")}')">✕</button>
                     `;
-                    chipsDiv.appendChild(chip);
+                    chip.title = filename;
+                    group.appendChild(chip);
                 });
+
+                chipsDiv.appendChild(group);
             });
 
             if (!hasData) {

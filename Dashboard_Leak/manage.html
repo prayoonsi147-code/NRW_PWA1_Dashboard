@@ -425,9 +425,28 @@
 
         .file-chips {
             display: flex;
-            flex-wrap: wrap;
+            flex-direction: column;
             gap: 5px;
             margin-bottom: 12px;
+        }
+
+        .year-group {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 5px;
+            margin-bottom: 8px;
+        }
+
+        .year-label {
+            font-size: 12px;
+            font-weight: 700;
+            color: #fff;
+            padding: 3px 10px;
+            border-radius: 4px;
+            margin-right: 4px;
+            min-width: 44px;
+            text-align: center;
         }
 
         .chip {
@@ -1056,6 +1075,37 @@
             }
         }
 
+        // ดึงปี (พ.ศ.) จากชื่อไฟล์
+        // OIS_2569.xls → 2569 | RL_2569 → 2569 | MNF_2569 → 2569
+        // P3_สาขา_69-03 → 25+69=2569 | EU_2569 → 2569 | KPI_2569 → 2569 | KPI2_2569 → 2569
+        function extractYear(slug, filename) {
+            const name = filename.replace(/\.[^.]+$/, '');
+            // ปี 4 หลัก (25xx)
+            let m = name.match(/(\d{4})/);
+            if (m && parseInt(m[1]) >= 2500 && parseInt(m[1]) <= 2600) return parseInt(m[1]);
+            // P3_สาขา_YY-MM → YY
+            m = name.match(/(\d{2})-(\d{2})/);
+            if (m) return 2500 + parseInt(m[1]);
+            return null;
+        }
+
+        const MNAMES = ['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+
+        // ดึง label สั้นสำหรับ chip
+        function extractChipLabel(slug, filename) {
+            const name = filename.replace(/\.[^.]+$/, '');
+            if (slug === 'p3') {
+                // P3_ชลบุรี_69-03 → "ชลบุรี มี.ค."
+                const m = name.match(/P3_(.+?)_(\d{2})-(\d{2})/);
+                if (m) return m[1] + ' ' + (MNAMES[parseInt(m[3])] || m[3]);
+            }
+            // OIS_2569 → 2569, RL_2569 → 2569 etc — ปีเป็น label เดียวกับ year-group ให้แสดงชื่อเต็มสั้นลง
+            // ตัด prefix ออก: OIS_2569 → "2569", EU_2569 → "2569"
+            const m4 = name.match(/_(\d{4})$/);
+            if (m4) return m4[1];
+            return name;
+        }
+
         function renderManagementPanel() {
             const container = document.getElementById('management-content');
             container.innerHTML = '';
@@ -1084,19 +1134,79 @@
                 `;
                 container.appendChild(section);
 
-                // Add file chips with category color
                 const chipsDiv = section.querySelector(`#chips-${slug}`);
+
+                // จัดกลุ่มตามปี
+                const byYear = {};
+                const noYear = [];
                 files.forEach(filename => {
-                    const chip = document.createElement('div');
-                    chip.className = 'chip';
-                    chip.style.borderColor = cat.color + '60';
-                    chip.style.background = cat.color + '0a';
-                    chip.innerHTML = `
-                        <span class="chip-label" style="color:${cat.color}">${filename}</span>
-                        <button class="chip-btn chip-delete" title="ลบ" onclick="deleteFile('${slug}', '${filename}')">✕</button>
-                    `;
-                    chipsDiv.appendChild(chip);
+                    const year = extractYear(slug, filename);
+                    if (year) {
+                        if (!byYear[year]) byYear[year] = [];
+                        byYear[year].push(filename);
+                    } else {
+                        noYear.push(filename);
+                    }
                 });
+
+                const years = Object.keys(byYear).sort();
+                // ถ้าแต่ละปีมีแค่ 1 ไฟล์ (เช่น OIS, RL, MNF) → แสดง flat ไม่ต้องจัดกลุ่ม
+                const maxPerYear = Math.max(0, ...years.map(y => byYear[y].length));
+
+                if (maxPerYear <= 1) {
+                    // ไฟล์ละปี → flat chips แสดงชื่อเต็ม
+                    [...years.flatMap(y => byYear[y]), ...noYear].forEach(filename => {
+                        const chip = document.createElement('div');
+                        chip.className = 'chip';
+                        chip.style.borderColor = cat.color + '60';
+                        chip.style.background = cat.color + '0a';
+                        chip.innerHTML = `
+                            <span class="chip-label" style="color:${cat.color}">${filename}</span>
+                            <button class="chip-btn chip-delete" title="ลบ" onclick="deleteFile('${slug}', '${filename.replace(/'/g,"\\'")}')">✕</button>
+                        `;
+                        chipsDiv.appendChild(chip);
+                    });
+                } else if (years.length > 0) {
+                    years.forEach(year => {
+                        const group = document.createElement('div');
+                        group.className = 'year-group';
+
+                        const yearLabel = document.createElement('span');
+                        yearLabel.className = 'year-label';
+                        yearLabel.style.background = cat.dark || cat.color;
+                        yearLabel.textContent = year;
+                        group.appendChild(yearLabel);
+
+                        byYear[year].forEach(filename => {
+                            const chip = document.createElement('div');
+                            chip.className = 'chip';
+                            chip.style.borderColor = cat.color + '60';
+                            chip.style.background = cat.color + '0a';
+                            const label = extractChipLabel(slug, filename);
+                            chip.innerHTML = `
+                                <span class="chip-label" style="color:${cat.color}">${label}</span>
+                                <button class="chip-btn chip-delete" title="ลบ ${filename}" onclick="deleteFile('${slug}', '${filename.replace(/'/g,"\\'")}')">✕</button>
+                            `;
+                            chip.title = filename;
+                            group.appendChild(chip);
+                        });
+
+                        chipsDiv.appendChild(group);
+                    });
+
+                    // ไฟล์ไม่มีปี (เฉพาะกรณีจัดกลุ่ม)
+                    noYear.forEach(filename => {
+                        const chip = document.createElement('div');
+                        chip.className = 'chip';
+                        chip.style.borderColor = cat.color + '60';
+                        chip.style.background = cat.color + '0a';
+                        chip.innerHTML = `
+                            <span class="chip-label" style="color:${cat.color}">${filename}</span>
+                            <button class="chip-btn chip-delete" title="ลบ" onclick="deleteFile('${slug}', '${filename.replace(/'/g,"\\'")}')">✕</button>
+                        `;
+                        chipsDiv.appendChild(chip);
+                    });
+                }
             });
 
             if (!hasData) {
