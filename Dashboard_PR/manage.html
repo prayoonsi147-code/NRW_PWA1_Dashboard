@@ -936,7 +936,6 @@
                 icon: '📋',
                 color: '#c43e00',
                 dark: '#e67c00',
-                hint: '<p><span class="hint-label">รูปแบบไฟล์:</span> ใช้ไฟล์ GUI_019 (ข้อร้องเรียน) ตามแบบฟอร์ม กปภ. — แถวที่ 3 ระบุช่วงเดือน, แถวที่ 5 เป็น header หมวดหมู่, แถวที่ 7-28 เป็นข้อมูล 22 สาขา</p><p><span class="hint-label">ชื่อไฟล์:</span> ตั้งให้มีรหัส <code>ปี-เดือน</code> (YY-MM) อยู่ในชื่อ ระบบจะตรวจจับอัตโนมัติ</p><div class="hint-example"><span class="hint-tag">ร้องเรียน_69-01.xlsx</span><span class="hint-tag">PR_69-02.xlsx</span><span class="hint-tag">GUI019_69-03.xlsx</span></div><p class="hint-note">* หากชื่อไฟล์ไม่มีรหัสเดือน ระบบจะลองอ่านจากข้อความในแถวที่ 3 ของไฟล์ เช่น "เดือน มกราคม พ.ศ. 2569"</p>',
                 chipClass: 'pr-chip',
                 yearClass: 'pr-year',
                 titleClass: 'pr-title',
@@ -947,7 +946,6 @@
                 icon: '📊',
                 color: '#1565c0',
                 dark: '#1e88e5',
-                hint: '<p><span class="hint-label">รูปแบบไฟล์:</span> ใช้ไฟล์ PWA Always-On จาก กลส. — แต่ละ Sheet เป็น 1 เดือน (ชื่อ Sheet เช่น "ต.ค.68") และมีคอลัมน์ที่มีคำว่า <code>always on</code> เป็นค่า % (0-1)</p><p><span class="hint-label">ชื่อไฟล์:</span> ตั้งอะไรก็ได้ ระบบอ่านเดือนจากชื่อ Sheet อัตโนมัติ ไฟล์เดียวมีหลาย Sheet (หลายเดือน) ได้</p><div class="hint-example"><span class="hint-tag">PWA Always-on สะสม เดือนมกราคม 2569.xls</span></div><p><span class="hint-label">ตัวอย่างชื่อ Sheet ที่ระบบอ่านได้:</span></p><div class="hint-example"><span class="hint-tag">ต.ค.68</span><span class="hint-tag">พ.ย.68</span><span class="hint-tag">ธ.ค.68</span><span class="hint-tag">ม.ค.69</span></div><p class="hint-note">* ไฟล์เดียวอาจมีข้อมูลหลายเดือน (หลาย Sheet) ระบบจะแยก import ให้อัตโนมัติ</p>',
                 chipClass: 'aon-chip',
                 yearClass: 'aon-year',
                 titleClass: 'aon-title',
@@ -1032,27 +1030,6 @@
                 panel.className = `upload-tab-panel ${idx === 0 ? 'active' : ''}`;
                 panel.id = `panel-${slug}`;
                 panel.innerHTML = `
-                    <div class="mode-selector">
-                        <div class="mode-radio">
-                            <input type="radio" id="${slug}ModeAuto" name="${slug}Mode" value="auto" checked>
-                            <label for="${slug}ModeAuto">อัตโนมัติ</label>
-                        </div>
-                        <div class="mode-radio">
-                            <input type="radio" id="${slug}ModeManual" name="${slug}Mode" value="manual">
-                            <label for="${slug}ModeManual">ระบุเดือนเอง</label>
-                        </div>
-                        <div class="manual-controls" id="${slug}ManualControls">
-                            <div class="form-group">
-                                <label for="${slug}Year">ปี</label>
-                                <select id="${slug}Year"><option value="">เลือกปี...</option></select>
-                            </div>
-                            <div class="form-group">
-                                <label for="${slug}Month">เดือน</label>
-                                <select id="${slug}Month"><option value="">เลือกเดือน...</option></select>
-                            </div>
-                        </div>
-                    </div>
-
                     <div class="drop-zone drop-zone-${slug}" id="dropZone-${slug}">
                         <div class="drop-zone-content">
                             <div class="drop-zone-icon">${cat.icon}</div>
@@ -1062,12 +1039,15 @@
                         <div id="fileList-${slug}" style="margin-top:10px;padding-top:10px;border-top:1px dashed ${cat.color}40;display:none"></div>
                     </div>
 
-                    <details class="upload-hint" open>
-                        <summary>คำแนะนำรูปแบบไฟล์ (โหมดอัตโนมัติ)</summary>
-                        <div class="hint-body">
-                            ${cat.hint}
-                        </div>
-                    </details>
+                    <div class="note-box" style="margin-top:12px">
+                        <label for="noteBox-${slug}" style="font-size:13px;font-weight:600;color:var(--sub,#666);display:flex;align-items:center;gap:5px;margin-bottom:6px">
+                            &#9997; บันทึกช่วยจำ (${cat.thai})
+                            <span id="noteSaved-${slug}" style="font-size:11px;color:#2e7d32;opacity:0;transition:opacity .3s;margin-left:auto">&#10003; บันทึกแล้ว</span>
+                        </label>
+                        <textarea id="noteBox-${slug}" placeholder="พิมพ์บันทึกช่วยจำ เช่น รูปแบบไฟล์ที่ใช้, แหล่งข้อมูล, หมายเหตุ..."
+                            style="width:100%;min-height:80px;padding:10px 14px;border:2px solid ${cat.color}30;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;background:var(--card,#fff);color:var(--text,#333);transition:border-color .3s;outline:none"
+                            onfocus="this.style.borderColor='${cat.color}'" onblur="this.style.borderColor='${cat.color}30'"></textarea>
+                    </div>
 
                     <div class="upload-status" id="uploadStatus-${slug}"></div>
 
@@ -1082,41 +1062,8 @@
         // Initialize
         async function init() {
             buildUI();
-            populateYearDropdowns();
-            populateMonthDropdowns();
             setupEventListeners();
             await loadData();
-        }
-
-        // Populate year dropdowns
-        function populateYearDropdowns() {
-            const years = [];
-            for (let i = 65; i <= 75; i++) {
-                years.push(i);
-            }
-
-            Object.keys(CATEGORIES).forEach(slug => {
-                const select = document.getElementById(`${slug}Year`);
-                years.forEach(year => {
-                    const option = document.createElement('option');
-                    option.value = year;
-                    option.textContent = `พ.ศ. ${2500 + year}`;
-                    select.appendChild(option);
-                });
-            });
-        }
-
-        // Populate month dropdowns
-        function populateMonthDropdowns() {
-            Object.keys(CATEGORIES).forEach(slug => {
-                const select = document.getElementById(`${slug}Month`);
-                MONTH_NAMES.slice(1).forEach((name, index) => {
-                    const option = document.createElement('option');
-                    option.value = index + 1;
-                    option.textContent = name;
-                    select.appendChild(option);
-                });
-            });
         }
 
         // Setup event listeners
@@ -1157,18 +1104,36 @@
                 renderFileList(slug);
             };
 
+            // Note auto-save (debounce 800ms)
+            const _noteTimers = {};
+            function setupNoteAutoSave(slug) {
+                const textarea = document.getElementById(`noteBox-${slug}`);
+                const savedEl = document.getElementById(`noteSaved-${slug}`);
+                if (!textarea) return;
+                textarea.addEventListener('input', () => {
+                    clearTimeout(_noteTimers[slug]);
+                    savedEl.style.opacity = '0';
+                    _noteTimers[slug] = setTimeout(async () => {
+                        try {
+                            await fetch(`${API_BASE}/api/notes/${slug}`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ text: textarea.value })
+                            });
+                            savedEl.style.opacity = '1';
+                            setTimeout(() => { savedEl.style.opacity = '0'; }, 2000);
+                        } catch (e) { console.error('Note save error:', e); }
+                    }, 800);
+                });
+            }
+
             // Loop over CATEGORIES for event setup
             Object.keys(CATEGORIES).forEach(slug => {
                 // Initialize file store
                 if (!window._fileStore[slug]) window._fileStore[slug] = [];
 
-                // Mode toggle
-                document.getElementById(`${slug}ModeAuto`).addEventListener('change', () => {
-                    document.getElementById(`${slug}ManualControls`).classList.remove('active');
-                });
-                document.getElementById(`${slug}ModeManual`).addEventListener('change', () => {
-                    document.getElementById(`${slug}ManualControls`).classList.add('active');
-                });
+                // Note auto-save
+                setupNoteAutoSave(slug);
 
                 // Drop zone
                 const dropZone = document.getElementById(`dropZone-${slug}`);
@@ -1249,38 +1214,20 @@
                 return;
             }
 
-            // Get mode and month key
-            const mode = document.querySelector(`input[name="${slug}Mode"]:checked`).value;
+            // Auto mode only
+            const mode = 'auto';
             let mk = null;
 
-            if (mode === 'manual') {
-                const year = document.getElementById(`${slug}Year`).value;
-                const month = document.getElementById(`${slug}Month`).value;
-
-                if (!year || !month) {
-                    showStatus(slug, 'โปรดระบุปี และเดือน', 'error');
-                    return;
-                }
-
-                mk = `${year}-${String(month).padStart(2, '0')}`;
-            }
-
-            // Check for existing months
+            // Check for existing months (auto-detect from filenames)
             const existingMonths = cachedData[slug] || {};
             let duplicates = [];
-
-            if (mode === 'manual' && mk) {
-                if (existingMonths[mk]) duplicates.push(mkToLabel(mk));
-            } else {
-                // Auto mode: detect YY-MM from filenames
-                Array.from(files).forEach(f => {
-                    const m = f.name.match(/(\d{2})-(\d{2})/);
-                    if (m) {
-                        const detectedMk = `${m[1]}-${m[2]}`;
-                        if (existingMonths[detectedMk]) duplicates.push(mkToLabel(detectedMk));
-                    }
-                });
-            }
+            Array.from(files).forEach(f => {
+                const m = f.name.match(/(\d{2})-(\d{2})/);
+                if (m) {
+                    const detectedMk = `${m[1]}-${m[2]}`;
+                    if (existingMonths[detectedMk]) duplicates.push(mkToLabel(detectedMk));
+                }
+            });
 
             // Build confirmation message
             let fileList = Array.from(files).map(f => f.name).join(', ');
@@ -1378,6 +1325,13 @@
                 // Update last modified
                 document.getElementById('prLastMod').textContent = data.pr_last_modified ? `อัปเดตล่าสุด: ${data.pr_last_modified}` : '';
                 document.getElementById('aonLastMod').textContent = data.aon_last_modified ? `อัปเดตล่าสุด: ${data.aon_last_modified}` : '';
+
+                // Load saved notes into textboxes
+                const savedNotes = data.notes || {};
+                Object.keys(CATEGORIES).forEach(slug => {
+                    const tb = document.getElementById(`noteBox-${slug}`);
+                    if (tb && savedNotes[slug]) tb.value = savedNotes[slug];
+                });
 
                 // Update management panel
                 renderChips('pr', data.pr, data.pr_cat_names);

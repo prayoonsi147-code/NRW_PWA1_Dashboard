@@ -802,15 +802,15 @@
                         <div id="fileList-${slug}" style="margin-top:10px;padding-top:10px;border-top:1px dashed ${cat.color}40;display:none"></div>
                     </div>
 
-                    <details class="upload-hint" open>
-                        <summary>คำแนะนำการอัปโหลด (${cat.thai})</summary>
-                        <div class="hint-body">
-                            <p><span class="hint-label">รูปแบบไฟล์:</span> Excel (.xlsx, .xls) หรือ CSV</p>
-                            <p><span class="hint-label">ชื่อไฟล์:</span> ${cat.hint}</p>
-                            <p><span class="hint-label">เก็บไว้ที่:</span> ข้อมูลดิบ/${cat.thai}/</p>
-                            <p class="hint-note">* ระบบจะเก็บไฟล์ไว้ในโฟลเดอร์ข้อมูลดิบ</p>
-                        </div>
-                    </details>
+                    <div class="note-box" style="margin-top:12px">
+                        <label for="noteBox-${slug}" style="font-size:13px;font-weight:600;color:var(--sub,#666);display:flex;align-items:center;gap:5px;margin-bottom:6px">
+                            &#9997; บันทึกช่วยจำ (${cat.thai})
+                            <span id="noteSaved-${slug}" style="font-size:11px;color:#2e7d32;opacity:0;transition:opacity .3s;margin-left:auto">&#10003; บันทึกแล้ว</span>
+                        </label>
+                        <textarea id="noteBox-${slug}" placeholder="พิมพ์บันทึกช่วยจำ เช่น รูปแบบไฟล์ที่ใช้, แหล่งข้อมูล, หมายเหตุ..."
+                            style="width:100%;min-height:80px;padding:10px 14px;border:2px solid ${cat.color}30;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;background:var(--card,#fff);color:var(--text,#333);transition:border-color .3s;outline:none"
+                            onfocus="this.style.borderColor='${cat.color}'" onblur="this.style.borderColor='${cat.color}30'"></textarea>
+                    </div>
 
                     <div class="upload-status" id="uploadStatus-${slug}"></div>
 
@@ -822,8 +822,34 @@
             });
         }
 
+        // Note auto-save (debounce 800ms)
+        const _noteTimers = {};
+        function setupNoteAutoSave(slug) {
+            const textarea = document.getElementById(`noteBox-${slug}`);
+            const savedEl = document.getElementById(`noteSaved-${slug}`);
+            if (!textarea) return;
+            textarea.addEventListener('input', () => {
+                clearTimeout(_noteTimers[slug]);
+                savedEl.style.opacity = '0';
+                _noteTimers[slug] = setTimeout(async () => {
+                    try {
+                        await fetch(`${API_BASE}/api/notes/${slug}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ text: textarea.value })
+                        });
+                        savedEl.style.opacity = '1';
+                        setTimeout(() => { savedEl.style.opacity = '0'; }, 2000);
+                    } catch (e) { console.error('Note save error:', e); }
+                }, 800);
+            });
+        }
+
         function setupEventListeners() {
             Object.keys(CATEGORIES).forEach(slug => {
+                // Note auto-save
+                setupNoteAutoSave(slug);
+
                 // Drop zone
                 const dropZone = document.getElementById(`dropZone-${slug}`);
                 const fileInput = document.getElementById(`fileInput-${slug}`);
@@ -1012,6 +1038,13 @@
                 Object.keys(CATEGORIES).forEach(slug => {
                     const count = cachedData[slug]?.count || 0;
                     document.getElementById(`${slug}-count`).textContent = count;
+                });
+
+                // Load saved notes into textboxes
+                const savedNotes = data.notes || {};
+                Object.keys(CATEGORIES).forEach(slug => {
+                    const tb = document.getElementById(`noteBox-${slug}`);
+                    if (tb && savedNotes[slug]) tb.value = savedNotes[slug];
                 });
 
                 // Render management panel

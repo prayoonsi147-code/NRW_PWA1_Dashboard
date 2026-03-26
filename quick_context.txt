@@ -1,6 +1,6 @@
 ================================================================================
   Quick Context — Dashboard กปภ.ข.1 (อ่านไฟล์นี้แทน README+prompt_history)
-  อัปเดตล่าสุด: 25 มี.ค. 2569
+  อัปเดตล่าสุด: 26 มี.ค. 2569
 ================================================================================
 
 โปรเจค: 4 Dashboard + 1 Landing Page (index.html ราก)
@@ -24,9 +24,39 @@ Dashboard_Meter   | 5003 | ม่วง #4a148c    | ~22KB
   - ปุ่มจัดการแหล่งข้อมูล: smart onclick (file:// / localhost / GitHub alert)
   - ปุ่มหน้าหลัก: smart pattern (file:// = href, localhost = API)
 
+งานที่ทำ (25 มี.ค.):
+  - GIS TAB 3: ปรับ bar spacing (barPercentage:1.0, categoryPercentage:0.68)
+  - GIS TAB 3: เพิ่มสรุป+หมายเหตุท้ายกราฟ pd1 (เปรียบเทียบเดือน) และ pd2 (รายเดือน)
+  - manage.html ทุก Dashboard: เพิ่มแสดงรายชื่อไฟล์ + ปุ่มลบ ใน drop zone (DataTransfer API)
+  - PR manage.html: refactor จาก hardcoded HTML → CATEGORIES loop เหมือน GIS/Leak/Meter
+  - PR server.py: แก้ bug @app.route('/api/data') decorator หลุดไปติด _folder_last_modified()
+
+งานที่ทำ (26 มี.ค.):
+  - PR manage.html: ตัด mode selector (อัตโนมัติ/ระบุเดือนเอง) ออก ใช้ auto อย่างเดียว
+  - manage.html ทุก Dashboard (PR/Leak/GIS): เปลี่ยนช่องคำแนะนำ → Textbox "บันทึกช่วยจำ"
+    พร้อม auto-save (debounce 800ms) บันทึกถาวรผ่าน API
+    - PR: เก็บใน data.json (notes key), endpoint POST /api/notes/<slug>
+    - Leak: เก็บใน ข้อมูลดิบ/notes.json, endpoint POST /api/notes/<slug>
+    - GIS: เก็บใน ข้อมูลดิบ/notes.json, endpoint POST /api/notes/<slug>
+    - Meter: ยังไม่ได้ทำ
+  - index.html: แก้ Dashboard Meter status จาก "ใช้งานได้" → "พร้อมใช้งาน"
+  - GIS server.py pressure auto-rename: อ่านปีงบประมาณจากเนื้อไฟล์ (Row 3 "ประจำปีงบประมาณ 25XX")
+    ตั้งชื่อเป็น PRESSURE_สาขา_ปีงบYY.xlsx เช่น PRESSURE_ชลบุรี_ปีงบ69.xlsx
+  - GIS manage.html: แก้ management panel แสดง chips แยกปี เหมือน PR
+    - repair: จัดกลุ่มปีจาก GIS_YYMMDD, chip แสดง DD/MM
+    - pending: จัดกลุ่มปีจาก Repair_MM-YY, chip แสดงชื่อเดือนไทย
+    - pressure: จัดกลุ่มปีจาก ปีงบYY, chip แสดงชื่อสาขา
+
+โครงสร้าง manage.html ทุก Dashboard:
+  - ใช้ CATEGORIES loop pattern (buildUI สร้าง tabs/panels แบบ dynamic)
+  - drop zone มี file list + remove button (DataTransfer API)
+  - Textbox บันทึกช่วยจำ + auto-save (ยกเว้น Meter ยังไม่ได้ทำ)
+  - management panel แสดง chips แยกปี (GIS ทำแล้ว, PR ทำแล้ว)
+
 งานค้าง:
   1. WSC-R Chart 1 กราฟพื้นที่ปีก่อน — opacity 60% (ยังไม่แก้)
   2. ตรวจสอบ scale sync กราฟ volume — อาจต้องปรับ rounding
+  3. Meter manage.html: เปลี่ยนช่องคำแนะนำ → Textbox บันทึกช่วยจำ (ยังไม่ได้ทำ)
 
 หมายเหตุ: ยกเลิกการบันทึก prompt_history แล้ว ไม่ต้องเขียนเพิ่ม
 ================================================================================

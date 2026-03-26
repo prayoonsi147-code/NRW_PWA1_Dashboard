@@ -103,7 +103,37 @@ def api_get_data():
             'last_modified': datetime.fromtimestamp(last_modified).strftime('%d/%m/%Y %H:%M') if last_modified else None
         }
 
-    return jsonify({'ok': True, 'inventory': inventory})
+    # Load saved notes
+    notes_file = os.path.join(RAW_DATA_DIR, 'notes.json')
+    notes = {}
+    if os.path.exists(notes_file):
+        try:
+            with open(notes_file, 'r', encoding='utf-8') as f:
+                notes = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            pass
+
+    return jsonify({'ok': True, 'inventory': inventory, 'notes': notes})
+
+@app.route('/api/notes/<slug>', methods=['POST'])
+def api_save_note(slug):
+    """บันทึก note ของแต่ละ category"""
+    if slug not in CATEGORY_MAP:
+        return jsonify({'ok': False, 'error': 'invalid slug'}), 400
+    body = request.get_json(force=True)
+    text = body.get('text', '')
+    notes_file = os.path.join(RAW_DATA_DIR, 'notes.json')
+    notes = {}
+    if os.path.exists(notes_file):
+        try:
+            with open(notes_file, 'r', encoding='utf-8') as f:
+                notes = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            pass
+    notes[slug] = text
+    with open(notes_file, 'w', encoding='utf-8') as f:
+        json.dump(notes, f, ensure_ascii=False, indent=2)
+    return jsonify({'ok': True})
 
 @app.route('/api/upload/<category>', methods=['POST', 'OPTIONS'])
 def api_upload(category):
@@ -149,17 +179,48 @@ def api_upload(category):
                     new_name = f"{prefix}_{today}{ext}"
 
             elif category == 'pressure':
-                # pressure: PRESSURE_สาขา.xlsx — ดึงชื่อสาขา (ภาษาไทย) จากชื่อไฟล์
-                # รูปแบบไฟล์ต้นฉบับ: pwa_pressure_สาขา.xlsx หรือ แรงดัน_สาขา.xlsx
-                thai_m = re.search(r'[\u0e00-\u0e7f]+', name_only)
-                if thai_m:
-                    # ดึงคำไทยสุดท้าย (มักเป็นชื่อสาขา)
-                    thai_parts = re.findall(r'[\u0e00-\u0e7f]+', name_only)
-                    branch_name = thai_parts[-1] if thai_parts else 'unknown'
-                    new_name = f"{prefix}_{branch_name}{ext}"
-                else:
-                    clean = re.sub(r'[^\w\-.]', '_', name_only).strip('_')[:30]
-                    new_name = f"{prefix}_{clean}{ext}"
+                # pressure: PRESSURE_สาขา_ปีงบYYYY.xlsx
+                # ดึงชื่อสาขาจากชื่อไฟล์ + ปีงบประมาณจาก Row 3 ในไฟล์
+                thai_parts = re.findall(r'[\u0e00-\u0e7f]+', name_only)
+                branch_name = thai_parts[-1] if thai_parts else 'unknown'
+
+                # อ่านปีงบประมาณจากเนื้อไฟล์ (Row 3: "ประจำปีงบประมาณ 25XX")
+                fiscal_year = ''
+                try:
+                    import io
+                    raw_bytes = f.read()
+                    f.seek(0)
+                    if ext.lower() in ('.xlsx',):
+                        wb_tmp = openpyxl.load_workbook(io.BytesIO(raw_bytes), data_only=True)
+                        ws_tmp = wb_tmp.active
+                        for r in range(1, min(6, ws_tmp.max_row + 1)):
+                            for c in range(1, min(6, ws_tmp.max_column + 1)):
+                                cell_val = str(ws_tmp.cell(r, c).value or '')
+                                fy_match = re.search(r'ปีงบประมาณ\s*(\d{4})', cell_val)
+                                if fy_match:
+                                    fiscal_year = fy_match.group(1)
+                                    break
+                            if fiscal_year:
+                                break
+                        wb_tmp.close()
+                    elif ext.lower() == '.xls':
+                        if xlrd:
+                            wb_tmp = xlrd.open_workbook(file_contents=raw_bytes)
+                            ws_tmp = wb_tmp.sheet_by_index(0)
+                            for r in range(min(5, ws_tmp.nrows)):
+                                for c in range(min(5, ws_tmp.ncols)):
+                                    cell_val = str(ws_tmp.cell_value(r, c) or '')
+                                    fy_match = re.search(r'ปีงบประมาณ\s*(\d{4})', cell_val)
+                                    if fy_match:
+                                        fiscal_year = fy_match.group(1)
+                                        break
+                                if fiscal_year:
+                                    break
+                except Exception:
+                    pass
+
+                fy_suffix = f'_ปีงบ{fiscal_year[-2:]}' if fiscal_year else ''
+                new_name = f"{prefix}_{branch_name}{fy_suffix}{ext}"
 
             elif category == 'pending':
                 # pending: Repair_MM-YY.ext — ตรวจสอบข้อมูลในไฟล์เพื่อหาเดือน

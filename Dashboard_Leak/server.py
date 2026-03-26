@@ -108,7 +108,37 @@ def api_get_data():
             'last_modified': datetime.fromtimestamp(last_modified).strftime('%d/%m/%Y %H:%M') if last_modified else None
         }
 
-    return jsonify({'ok': True, 'inventory': inventory})
+    # Load saved notes
+    notes_file = os.path.join(RAW_DATA_DIR, 'notes.json')
+    notes = {}
+    if os.path.exists(notes_file):
+        try:
+            with open(notes_file, 'r', encoding='utf-8') as f:
+                notes = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            pass
+
+    return jsonify({'ok': True, 'inventory': inventory, 'notes': notes})
+
+@app.route('/api/notes/<slug>', methods=['POST'])
+def api_save_note(slug):
+    """บันทึก note ของแต่ละ category"""
+    if slug not in CATEGORY_MAP:
+        return jsonify({'ok': False, 'error': 'invalid slug'}), 400
+    body = request.get_json(force=True)
+    text = body.get('text', '')
+    notes_file = os.path.join(RAW_DATA_DIR, 'notes.json')
+    notes = {}
+    if os.path.exists(notes_file):
+        try:
+            with open(notes_file, 'r', encoding='utf-8') as f:
+                notes = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            pass
+    notes[slug] = text
+    with open(notes_file, 'w', encoding='utf-8') as f:
+        json.dump(notes, f, ensure_ascii=False, indent=2)
+    return jsonify({'ok': True})
 
 @app.route('/api/upload/<category>', methods=['POST', 'OPTIONS'])
 def api_upload(category):

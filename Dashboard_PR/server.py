@@ -775,7 +775,22 @@ def api_get_data():
         'aon_files': data.get('aon_files', {}),
         'pr_last_modified': _folder_last_modified(PR_DIR),
         'aon_last_modified': _folder_last_modified(AON_DIR),
+        'notes': data.get('notes', {}),
     })
+
+@app.route('/api/notes/<slug>', methods=['POST'])
+def api_save_note(slug):
+    """บันทึก note ของแต่ละ category"""
+    if slug not in ('pr', 'aon'):
+        return jsonify({'ok': False, 'error': 'invalid slug'}), 400
+    body = request.get_json(force=True)
+    text = body.get('text', '')
+    data = load_data()
+    if 'notes' not in data:
+        data['notes'] = {}
+    data['notes'][slug] = text
+    save_data(data)
+    return jsonify({'ok': True})
 
 @app.route('/api/upload/pr', methods=['POST', 'OPTIONS'])
 def api_upload_pr():
