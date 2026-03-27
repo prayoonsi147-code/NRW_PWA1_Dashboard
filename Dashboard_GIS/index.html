@@ -198,15 +198,19 @@ body.dark .main-tab-bar{background:#00363a}
   <div class="card-header">
     <h3 style="color:var(--heading)">&#x1F5FA; กราฟที่ 1 : KPI จุดซ่อมท่อ ในระบบ PWA SMART 1662</h3>
     <div style="display:flex;gap:12px;align-items:center">
-      <div class="ymt">
-        <button class="ymb active" onclick="gisToggleView('chart',this)">กราฟ</button>
-        <button class="ymb" onclick="gisToggleView('table',this)">ตาราง</button>
-      </div>
       <button class="card-toggle" onclick="toggleCard(this)">&#9650;</button>
     </div>
   </div>
   <div class="card-body">
     <div class="controls">
+      <div class="control-group">
+        <label>ประเภทกราฟ</label>
+        <select id="gisBarType" onchange="gisRender()">
+          <option value="line">กราฟเส้นโค้ง</option>
+          <option value="straight">กราฟเส้นตรง</option>
+          <option value="bar" selected>กราฟแท่ง</option>
+        </select>
+      </div>
       <div class="control-group">
         <label>เลือกเดือน</label>
         <select id="gisMonth" onchange="gisRender()"></select>
@@ -230,12 +234,11 @@ body.dark .main-tab-bar{background:#00363a}
         </select>
       </div>
       <div class="control-group">
-        <label>ประเภทกราฟ (แท่ง)</label>
-        <select id="gisBarType" onchange="gisRender()">
-          <option value="bar">กราฟแท่ง</option>
-          <option value="line">กราฟเส้นโค้ง</option>
-          <option value="straight">กราฟเส้นตรง</option>
-        </select>
+        <label>มุมมอง</label>
+        <div class="ymt">
+          <button class="ymb active" onclick="gisToggleView('chart',this)">กราฟ</button>
+          <button class="ymb" onclick="gisToggleView('table',this)">ตาราง</button>
+        </div>
       </div>
     </div>
 
@@ -251,6 +254,12 @@ body.dark .main-tab-bar{background:#00363a}
       <button class="export-btn" onclick="gisCopyChart()"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M16 1H4a2 2 0 00-2 2v14h2V3h12V1zm3 4H8a2 2 0 00-2 2v14a2 2 0 002 2h11a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h11v14z"/></svg></button>
       <button class="export-btn" onclick="gisExportExcel()"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button>
       <button class="export-btn" onclick="gisExportPPTX()"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#D04423"/><path d="M7 5v14h2v-5h3a4 4 0 000-8H7zm2 2h3a2 2 0 010 4H9V7z" fill="#fff"/></svg></button>
+    </div>
+
+    <!-- Note -->
+    <div style="margin-top:4px">
+      <textarea id="gisNote" rows="2" placeholder="พิมพ์หมายเหตุเพิ่มเติม..." oninput="localStorage.setItem('gis_gisNote',this.value)" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--input-bg);color:var(--text);resize:vertical;font-family:inherit"></textarea>
+      <script>(function(){var v=localStorage.getItem('gis_gisNote');if(v)document.getElementById('gisNote').value=v;})()</script>
     </div>
 
     <!-- Data Table -->
@@ -271,14 +280,19 @@ body.dark .main-tab-bar{background:#00363a}
   <div class="card-header">
     <h3 style="color:var(--heading)">&#x1F4CA; กราฟที่ 2 : สรุปข้อมูลคะแนน KPI จุดซ่อมท่อ ในระบบ PWA SMART 1662</h3>
     <div style="display:flex;gap:12px;align-items:center">
-      <div class="ymt">
-        <button class="ymb active" onclick="sumToggleView('chart',this)">กราฟ</button>
-        <button class="ymb" onclick="sumToggleView('table',this)">ตาราง</button>
-      </div>
       <button class="card-toggle" onclick="toggleCard(this)">&#9650;</button>
     </div>
   </div>
   <div class="card-body">
+    <div class="controls" style="box-shadow:none;padding:8px 0;margin-bottom:8px">
+      <div class="control-group">
+        <label>มุมมอง</label>
+        <div class="ymt">
+          <button class="ymb active" onclick="sumToggleView('chart',this)">กราฟ</button>
+          <button class="ymb" onclick="sumToggleView('table',this)">ตาราง</button>
+        </div>
+      </div>
+    </div>
     <div id="sumSubtitle" style="text-align:center;color:var(--sub);font-size:14px;margin-bottom:8px"></div>
 
     <!-- Chart Row 1: branches 1-11 -->
@@ -304,6 +318,12 @@ body.dark .main-tab-bar{background:#00363a}
       <button class="export-btn" onclick="sumExportPPTX()"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#D04423"/><path d="M7 5v14h2v-5h3a4 4 0 000-8H7zm2 2h3a2 2 0 010 4H9V7z" fill="#fff"/></svg></button>
     </div>
 
+    <!-- Note -->
+    <div style="margin-top:4px">
+      <textarea id="sumNote" rows="2" placeholder="พิมพ์หมายเหตุเพิ่มเติม..." oninput="localStorage.setItem('gis_sumNote',this.value)" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--input-bg);color:var(--text);resize:vertical;font-family:inherit"></textarea>
+      <script>(function(){var v=localStorage.getItem('gis_sumNote');if(v)document.getElementById('sumNote').value=v;})()</script>
+    </div>
+
     <!-- Summary Section -->
     <div id="sumBottomSection" style="margin-top:24px"></div>
 
@@ -317,15 +337,20 @@ body.dark .main-tab-bar{background:#00363a}
   <div class="card-header">
     <h3 style="color:var(--heading)">💧 กราฟที่ 1 : ข้อมูลแรงดันน้ำจากระบบ OIS</h3>
     <div style="display:flex;gap:12px;align-items:center">
-      <div class="ymt">
-        <button class="ymb active" onclick="pressureToggleView('chart',this)">กราฟ</button>
-        <button class="ymb" onclick="pressureToggleView('table',this)">ตาราง</button>
-      </div>
       <button class="card-toggle" onclick="toggleCard(this)">&#9650;</button>
     </div>
   </div>
   <div class="card-body">
     <div class="controls">
+      <div class="control-group">
+        <label>ประเภทกราฟ</label>
+        <select id="pressureChartType" onchange="pressureRender()">
+          <option value="line">เส้นโค้ง</option>
+          <option value="straight">เส้นตรง</option>
+          <option value="bar" selected>แท่ง</option>
+          <option value="area">พื้นที่</option>
+        </select>
+      </div>
       <div class="control-group">
         <label>เลือกเดือน</label>
         <select id="pressureMonth" onchange="pressureRender()"></select>
@@ -335,13 +360,11 @@ body.dark .main-tab-bar{background:#00363a}
         <input type="number" id="pressureThreshold" value="0.85" step="0.01" min="0" onchange="pressureRender()" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--input-bg);color:var(--text)">
       </div>
       <div class="control-group">
-        <label>ประเภทกราฟ</label>
-        <select id="pressureChartType" onchange="pressureRender()">
-          <option value="bar">แท่ง</option>
-          <option value="line">เส้นโค้ง</option>
-          <option value="straight">เส้นตรง</option>
-          <option value="area">พื้นที่</option>
-        </select>
+        <label>มุมมอง</label>
+        <div class="ymt">
+          <button class="ymb active" onclick="pressureToggleView('chart',this)">กราฟ</button>
+          <button class="ymb" onclick="pressureToggleView('table',this)">ตาราง</button>
+        </div>
       </div>
     </div>
 
@@ -351,6 +374,13 @@ body.dark .main-tab-bar{background:#00363a}
 
     <!-- Table Container for Pressure Card -->
     <div id="pressureTableContainer" style="margin-top:24px;overflow-x:auto;display:none"></div>
+
+    <!-- หมายเหตุ -->
+    <div style="margin-top:12px">
+      <label style="font-size:13px;font-weight:600;color:var(--text)">หมายเหตุ :</label>
+      <textarea id="pressureNote" rows="2" placeholder="พิมพ์หมายเหตุ..." oninput="localStorage.setItem('gis_pressureNote',this.value)" style="width:100%;margin-top:4px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--input-bg);color:var(--text);resize:vertical;font-family:inherit"></textarea>
+      <script>(function(){var v=localStorage.getItem('gis_pressureNote');if(v)document.getElementById('pressureNote').value=v;})()</script>
+    </div>
 
     <div class="export-bar">
       <button class="export-btn" onclick="pressureResetChart()" title="รีเซ็ตขนาดกราฟ">&#8634; รีเซ็ต</button>
@@ -368,10 +398,6 @@ body.dark .main-tab-bar{background:#00363a}
   <div class="card-header">
     <h3 style="color:var(--heading)">💧 กราฟที่ 2 : เปรียบเทียบแรงดันน้ำรายเดือน</h3>
     <div style="display:flex;gap:12px;align-items:center">
-      <div class="ymt">
-        <button class="ymb active" onclick="press2ToggleView('chart',this)">กราฟ</button>
-        <button class="ymb" onclick="press2ToggleView('table',this)">ตาราง</button>
-      </div>
       <button class="card-toggle" onclick="toggleCard(this)">&#9650;</button>
     </div>
   </div>
@@ -392,6 +418,10 @@ body.dark .main-tab-bar{background:#00363a}
           <option value="time">ช่วงเวลา</option>
           <option value="branch" selected>สาขา</option>
         </select>
+      </div>
+      <div class="control-group">
+        <label>เกณฑ์ (แรงดัน)</label>
+        <input type="number" id="press2Threshold" value="0.85" step="0.01" min="0" onchange="press2Render()" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--input-bg);color:var(--text)">
       </div>
       <div class="control-group">
         <label>มุมมองช่วงเวลา</label>
@@ -416,8 +446,11 @@ body.dark .main-tab-bar{background:#00363a}
         </div>
       </div>
       <div class="control-group">
-        <label>เกณฑ์ (แรงดัน)</label>
-        <input type="number" id="press2Threshold" value="0.85" step="0.01" min="0" onchange="press2Render()" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--input-bg);color:var(--text)">
+        <label>มุมมอง</label>
+        <div class="ymt">
+          <button class="ymb active" onclick="press2ToggleView('chart',this)">กราฟ</button>
+          <button class="ymb" onclick="press2ToggleView('table',this)">ตาราง</button>
+        </div>
       </div>
     </div>
 
@@ -468,6 +501,12 @@ body.dark .main-tab-bar{background:#00363a}
 
     <div id="press2TableContainer" style="margin-top:24px;overflow-x:auto;display:none"></div>
 
+    <!-- Note -->
+    <div style="margin-top:4px">
+      <textarea id="press2Note" rows="2" placeholder="พิมพ์หมายเหตุเพิ่มเติม..." oninput="localStorage.setItem('gis_press2Note',this.value)" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--input-bg);color:var(--text);resize:vertical;font-family:inherit"></textarea>
+      <script>(function(){var v=localStorage.getItem('gis_press2Note');if(v)document.getElementById('press2Note').value=v;})()</script>
+    </div>
+
     <div class="export-bar">
       <button class="export-btn" onclick="press2ResetChart()" title="รีเซ็ตขนาดกราฟ">&#8634; รีเซ็ต</button>
       <label class="export-btn" style="cursor:pointer"><input type="checkbox" id="press2ShowValues" onchange="press2Render()" style="margin-right:4px">แสดงค่า</label>
@@ -488,18 +527,25 @@ body.dark .main-tab-bar{background:#00363a}
   <div class="card-header">
     <h3 id="pd1CardTitle" style="color:var(--heading)">🔧 กราฟที่ 1 : ปริมาณงานค้างซ่อมรายสาขา</h3>
     <div style="display:flex;gap:12px;align-items:center">
-      <div class="ymt">
-        <button class="ymb active" onclick="pd1SetMode('chart',this)">กราฟ</button>
-        <button class="ymb" onclick="pd1SetMode('table',this)">ตาราง</button>
-      </div>
       <button class="card-toggle" onclick="toggleCard(this)">&#9650;</button>
     </div>
   </div>
   <div class="card-body">
-    <div class="controls hide-target" style="margin-bottom:16px;box-shadow:none;padding:12px 0">
+    <div class="controls" style="margin-bottom:16px;box-shadow:none;padding:12px 0">
+      <div class="control-group">
+        <label>ปีงบประมาณ</label>
+        <select id="pendingFySel" onchange="pendingFYChanged()" style="min-width:160px"></select>
+      </div>
       <div class="control-group">
         <label>เดือน</label>
-        <select id="pd1MonthSel" onchange="pd1Render()" style="min-width:140px"></select>
+        <select id="pd1MonthSel" onchange="pendingMonthChanged()" style="min-width:140px"></select>
+      </div>
+      <div class="control-group">
+        <label>มุมมอง</label>
+        <div class="ymt">
+          <button class="ymb active" onclick="pd1SetMode('chart',this)">กราฟ</button>
+          <button class="ymb" onclick="pd1SetMode('table',this)">ตาราง</button>
+        </div>
       </div>
     </div>
     <div id="pd1ChartWrap" style="display:block">
@@ -509,7 +555,7 @@ body.dark .main-tab-bar{background:#00363a}
     </div>
     <div id="pd1TableContainer" style="display:none;overflow-x:auto"></div>
     <div id="pd1Summary" style="display:flex;gap:16px;margin-top:14px;flex-wrap:wrap;justify-content:center;align-items:center"></div>
-    <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;justify-content:flex-end">
+    <div class="export-bar" style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;justify-content:flex-end">
       <button class="export-btn" onclick="pd1ResetChart()" title="รีเซ็ตขนาดกราฟ">&#8634; รีเซ็ต</button>
       <label class="export-btn" style="cursor:pointer"><input type="checkbox" id="pd1ShowValues" checked onchange="pd1Render()" style="margin-right:4px">แสดงค่า</label>
       <button class="export-btn" onclick="openFontPopup(this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M9.93 2L4 22h3.2l1.67-5.5h6.26L16.8 22H20L14.07 2H9.93zm-.34 11.5L12 5.88l2.41 7.62H9.59z"/></svg></button>
@@ -517,6 +563,10 @@ body.dark .main-tab-bar{background:#00363a}
       <button class="export-btn" onclick="pd1CopyChart()"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M16 1H4a2 2 0 00-2 2v14h2V3h12V1zm3 4H8a2 2 0 00-2 2v14a2 2 0 002 2h11a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h11v14z"/></svg></button>
       <button class="export-btn" onclick="pd1ExportExcel()"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button>
       <button class="export-btn" onclick="pd1ExportPPTX()"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#D04423"/><path d="M7 5v14h2v-5h3a4 4 0 000-8H7zm2 2h3a2 2 0 010 4H9V7z" fill="#fff"/></svg></button>
+    </div>
+    <div style="margin-top:4px">
+      <textarea id="pd1Note" rows="2" placeholder="พิมพ์หมายเหตุเพิ่มเติม..." oninput="localStorage.setItem('gis_pd1Note',this.value)" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--input-bg);color:var(--text);resize:vertical;font-family:inherit"></textarea>
+      <script>(function(){var v=localStorage.getItem('gis_pd1Note');if(v)document.getElementById('pd1Note').value=v;})()</script>
     </div>
   </div>
 </div>
@@ -526,14 +576,19 @@ body.dark .main-tab-bar{background:#00363a}
   <div class="card-header">
     <h3 id="pd2CardTitle" style="color:var(--heading)">🔧 กราฟที่ 2 : งานค้างซ่อมสะสม รายสาขา — ปีงบประมาณ 2569</h3>
     <div style="display:flex;gap:12px;align-items:center">
-      <div class="ymt">
-        <button class="ymb active" onclick="pd2SetMode('chart',this)">กราฟ</button>
-        <button class="ymb" onclick="pd2SetMode('table',this)">ตาราง</button>
-      </div>
       <button class="card-toggle" onclick="toggleCard(this)">&#9650;</button>
     </div>
   </div>
   <div class="card-body">
+    <div class="controls" style="box-shadow:none;padding:8px 0;margin-bottom:8px">
+      <div class="control-group">
+        <label>มุมมอง</label>
+        <div class="ymt">
+          <button class="ymb active" onclick="pd2SetMode('chart',this)">กราฟ</button>
+          <button class="ymb" onclick="pd2SetMode('table',this)">ตาราง</button>
+        </div>
+      </div>
+    </div>
     <div id="pd2ChartWrap" style="display:block">
       <div class="chart-container" style="height:420px">
         <canvas id="pd2Chart"></canvas>
@@ -541,7 +596,7 @@ body.dark .main-tab-bar{background:#00363a}
     </div>
     <div id="pd2TableContainer" style="display:none;overflow-x:auto"></div>
     <div id="pd2Summary" style="display:flex;gap:16px;margin-top:14px;flex-wrap:wrap;justify-content:center;align-items:center"></div>
-    <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;justify-content:flex-end">
+    <div class="export-bar" style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;justify-content:flex-end">
       <button class="export-btn" onclick="pd2ResetChart()" title="รีเซ็ตขนาดกราฟ">&#8634; รีเซ็ต</button>
       <label class="export-btn" style="cursor:pointer"><input type="checkbox" id="pd2ShowValues" checked onchange="pd2Render()" style="margin-right:4px">แสดงค่า</label>
       <button class="export-btn" onclick="openFontPopup(this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M9.93 2L4 22h3.2l1.67-5.5h6.26L16.8 22H20L14.07 2H9.93zm-.34 11.5L12 5.88l2.41 7.62H9.59z"/></svg></button>
@@ -549,6 +604,111 @@ body.dark .main-tab-bar{background:#00363a}
       <button class="export-btn" onclick="pd2CopyChart()"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M16 1H4a2 2 0 00-2 2v14h2V3h12V1zm3 4H8a2 2 0 00-2 2v14a2 2 0 002 2h11a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h11v14z"/></svg></button>
       <button class="export-btn" onclick="pd2ExportExcel()"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button>
       <button class="export-btn" onclick="pd2ExportPPTX()"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#D04423"/><path d="M7 5v14h2v-5h3a4 4 0 000-8H7zm2 2h3a2 2 0 010 4H9V7z" fill="#fff"/></svg></button>
+    </div>
+    <div style="margin-top:4px">
+      <textarea id="pd2Note" rows="2" placeholder="พิมพ์หมายเหตุเพิ่มเติม..." oninput="localStorage.setItem('gis_pd2Note',this.value)" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--input-bg);color:var(--text);resize:vertical;font-family:inherit"></textarea>
+      <script>(function(){var v=localStorage.getItem('gis_pd2Note');if(v)document.getElementById('pd2Note').value=v;})()</script>
+    </div>
+  </div>
+</div>
+
+<!-- ตาราง: งานซ่อมที่ยังไม่ปิดในระบบ ปีงบ 2569 -->
+<div class="chart-card">
+  <div class="card-header">
+    <h3 id="pd3CardTitle" style="color:var(--heading)">📋 ตารางที่ 3 : งานซ่อมที่ยังไม่ปิดในระบบ / วันที่รับแจ้ง</h3>
+    <div style="display:flex;gap:12px;align-items:center">
+      <button class="card-toggle" onclick="toggleCard(this)">&#9650;</button>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="controls" style="box-shadow:none;padding:8px 0;margin-bottom:8px">
+      <div class="control-group">
+        <label>มุมมอง</label>
+        <div class="ymt">
+          <button class="ymb" onclick="pd3SetMode('chart',this)">กราฟ</button>
+          <button class="ymb active" onclick="pd3SetMode('table',this)">ตาราง</button>
+        </div>
+      </div>
+    </div>
+    <div id="pd3ChartWrap" style="display:none">
+      <div class="chart-container" style="height:480px">
+        <canvas id="pd3Chart"></canvas>
+      </div>
+    </div>
+    <div id="pd3TableContainer" style="display:block;overflow-x:auto"></div>
+    <div id="pd3Summary" style="display:none"></div>
+    <div class="export-bar" style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;justify-content:flex-end">
+      <button class="export-btn" onclick="pd3ResetChart()" title="รีเซ็ตขนาดกราฟ">&#8634; รีเซ็ต</button>
+      <button class="export-btn" onclick="pd3ExportPNG()"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></button>
+      <button class="export-btn" onclick="pd3CopyChart()"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M16 1H4a2 2 0 00-2 2v14h2V3h12V1zm3 4H8a2 2 0 00-2 2v14a2 2 0 002 2h11a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h11v14z"/></svg></button>
+      <button class="export-btn" onclick="pd3ExportExcel()"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button>
+      <button class="export-btn" onclick="pd3ExportPPTX()"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#D04423"/><path d="M7 5v14h2v-5h3a4 4 0 000-8H7zm2 2h3a2 2 0 010 4H9V7z" fill="#fff"/></svg></button>
+    </div>
+    <!-- หมายเหตุ ตารางที่ 3 -->
+    <div style="margin-top:10px;font-size:12px;color:var(--sub2);font-style:italic;padding:8px 12px;background:var(--input-bg);border-radius:8px;border:1px solid var(--border)">
+      <b>หมายเหตุ :</b> นับจำนวนงานที่ สถานะ = "ซ่อมไม่เสร็จ" จำแนกตามสาขาและเดือนที่รับแจ้ง (วันที่แจ้ง) ภายในปีงบประมาณที่เลือก
+    </div>
+    <div style="margin-top:4px">
+      <textarea id="pd3Note" rows="2" placeholder="พิมพ์หมายเหตุเพิ่มเติม..." oninput="localStorage.setItem('gis_pd3Note',this.value)" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--input-bg);color:var(--text);resize:vertical;font-family:inherit"></textarea>
+      <script>(function(){var v=localStorage.getItem('gis_pd3Note');if(v)document.getElementById('pd3Note').value=v;})()</script>
+    </div>
+  </div>
+</div>
+
+<!-- Card 4: รายละเอียดงานค้างซ่อม -->
+<div class="chart-card">
+  <div class="card-header">
+    <h3 id="pd4CardTitle" style="color:var(--heading)">📝 ตารางที่ 4 : รายละเอียดงานค้างซ่อม</h3>
+    <div style="display:flex;gap:12px;align-items:center">
+      <button class="card-toggle" onclick="toggleCard(this)">&#9650;</button>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="controls" style="box-shadow:none;padding:8px 0;margin-bottom:8px">
+      <div class="control-group">
+        <label>สาขา</label>
+        <select id="pd4BranchSel" onchange="pd4Load()" style="min-width:150px">
+          <option value="">ทุกสาขา</option>
+        </select>
+      </div>
+    </div>
+    <div id="pd4Summary" style="display:none"></div>
+    <div id="pd4TableContainer" style="overflow-x:auto;overflow-y:auto;max-height:520px"></div>
+    <div class="export-bar" style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;justify-content:flex-end">
+      <button class="export-btn" onclick="pd4ExportExcel()"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button>
+    </div>
+    <!-- หมายเหตุ ตารางที่ 4 -->
+    <div style="margin-top:10px;font-size:12px;color:var(--sub2);font-style:italic;padding:8px 12px;background:var(--input-bg);border-radius:8px;border:1px solid var(--border)">
+      <b>หมายเหตุ :</b> แสดงรายละเอียดงานที่ สถานะ = "ซ่อมไม่เสร็จ" ตามเดือนและสาขาที่เลือก ข้อมูลประกอบด้วย เลขแจ้ง, เลขที่งาน, วันที่แจ้ง, ประเภท, ด้านการร้องเรียน, ทีมซ่อม, ช่างซ่อม, ขนาดท่อ, สถานะ
+    </div>
+    <div style="margin-top:4px">
+      <textarea id="pd4Note" rows="2" placeholder="พิมพ์หมายเหตุเพิ่มเติม..." oninput="localStorage.setItem('gis_pd4Note',this.value)" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--input-bg);color:var(--text);resize:vertical;font-family:inherit"></textarea>
+      <script>(function(){var v=localStorage.getItem('gis_pd4Note');if(v)document.getElementById('pd4Note').value=v;})()</script>
+    </div>
+  </div>
+</div>
+
+<!-- Card 5: งานรับแจ้งท่อแตกรั่ว ยังไม่เปิดงานซ่อม -->
+<div class="chart-card" style="margin-bottom:24px">
+  <div class="card-header">
+    <h3 id="pd5CardTitle" style="color:var(--heading)">📋 ตารางที่ 5 : งานที่รับแจ้งท่อแตกรั่ว แต่ยังไม่เปิดงานซ่อม</h3>
+    <div style="display:flex;gap:12px;align-items:center">
+      <button class="card-toggle" onclick="toggleCard(this)">&#9650;</button>
+    </div>
+  </div>
+  <div class="card-body">
+    <div id="pd5ChartWrap" style="position:relative;height:420px;margin-bottom:12px">
+      <canvas id="pd5Chart"></canvas>
+    </div>
+    <div id="pd5TableContainer" style="overflow-x:auto;overflow-y:auto;max-height:340px"></div>
+    <div id="pd5Note" style="margin-top:10px;font-size:12px;color:var(--sub2);font-style:italic;padding:8px 12px;background:var(--input-bg);border-radius:8px;border:1px solid var(--border)"></div>
+    <!-- Note textarea -->
+    <div style="margin-top:4px">
+      <textarea id="pd5EditNote" rows="2" placeholder="พิมพ์หมายเหตุเพิ่มเติม..." oninput="localStorage.setItem('gis_pd5EditNote',this.value)" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--input-bg);color:var(--text);resize:vertical;font-family:inherit"></textarea>
+      <script>(function(){var v=localStorage.getItem('gis_pd5EditNote');if(v)document.getElementById('pd5EditNote').value=v;})()</script>
+    </div>
+    <div class="export-bar" style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;justify-content:flex-end">
+      <button class="export-btn" onclick="pd5ExportExcel()"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button>
     </div>
   </div>
 </div>
@@ -591,6 +751,9 @@ function switchMainTab(tabId,btn){
             else{if(pd1ChartObj)pd1ChartObj.resize();}
             if(!pd2Initialized)pd2Init();
             else{if(pd2ChartObj)pd2ChartObj.resize();}
+            if(!pd3Initialized)pd3Init();
+            if(!pd4Initialized)pd4Init();
+            if(!pd5Initialized)pd5Init();
         }
     },50);
 }
@@ -714,7 +877,7 @@ function initMonthSelect(){
         var yy=parseInt(parts[0],10);var mm=parseInt(parts[1],10);
         var opt=document.createElement('option');
         opt.value=mk;
-        opt.textContent=MONTH_NAMES[mm<10?'0'+mm:''+mm]+' '+( 2500+yy);
+        opt.textContent=MONTH_NAMES[mm<10?'0'+mm:''+mm]+yy;
         sel.appendChild(opt);
     }
 }
@@ -746,7 +909,7 @@ function gisRender(){
     // Parse month label
     var parts=mk.split('-');
     var yy=parseInt(parts[0],10);var mm=parseInt(parts[1],10);
-    var titleMonth=MONTH_NAMES[mm<10?'0'+mm:''+mm]+' พ.ศ.'+(2500+yy);
+    var titleMonth=MONTH_NAMES[mm<10?'0'+mm:''+mm]+yy;
 
     if(gisChartObj){gisChartObj.destroy();gisChartObj=null;}
     var ctx=document.getElementById('gisChart').getContext('2d');
@@ -996,7 +1159,7 @@ function sumInit(){
     var lastMk=MONTHS[MONTHS.length-1];
     var lp=lastMk.split('-');
     var lyy=parseInt(lp[0],10);var lmm=parseInt(lp[1],10);
-    document.getElementById('sumSubtitle').textContent='ข้อมูล ณ '+MONTH_NAMES[lmm<10?'0'+lmm:''+lmm]+' พ.ศ.'+(2500+lyy);
+    document.getElementById('sumSubtitle').textContent='ข้อมูล ณ '+MONTH_NAMES[lmm<10?'0'+lmm:''+lmm]+lyy;
     sumRender();
 }
 
@@ -1009,7 +1172,7 @@ function sumRender(){
     var monthLabels=[];
     MONTHS.forEach(function(mk){
         var p=mk.split('-');var yy=parseInt(p[0],10);var mm=parseInt(p[1],10);
-        monthLabels.push(MONTH_NAMES[mm<10?'0'+mm:''+mm]+' '+(2500+yy));
+        monthLabels.push(MONTH_NAMES[mm<10?'0'+mm:''+mm]+yy);
     });
 
     // Pre-compute overall KPI per month (ภาพรวม กปภ.ข.1)
@@ -1231,7 +1394,7 @@ function sumExportExcel(){
     var header=['สาขา'];
     MONTHS.forEach(function(mk){
         var p=mk.split('-');var yy=parseInt(p[0],10);var mm=parseInt(p[1],10);
-        header.push(MONTH_NAMES[mm<10?'0'+mm:''+mm]+' '+(2500+yy));
+        header.push(MONTH_NAMES[mm<10?'0'+mm:''+mm]+yy);
     });
     ws.addRow(header);
     BRANCHES.forEach(function(b){
@@ -1301,7 +1464,7 @@ function sumBuildTable(){
     html+='<th style="'+thStyle+';text-align:left">สาขา</th>';
     MONTHS.forEach(function(mk){
         var p=mk.split('-');var yy=parseInt(p[0],10);var mm=parseInt(p[1],10);
-        html+='<th style="'+thStyle+'">'+MONTH_NAMES[mm<10?'0'+mm:''+mm]+' '+(2500+yy)+'</th>';
+        html+='<th style="'+thStyle+'">'+MONTH_NAMES[mm<10?'0'+mm:''+mm]+yy+'</th>';
     });
     html+='</tr></thead><tbody>';
 
@@ -1389,7 +1552,7 @@ function pendingInit(){
             var p=mk.split('-');var yy=parseInt(p[0],10);var mm=parseInt(p[1],10);
             var opt=document.createElement('option');
             opt.value=mk;
-            opt.textContent=MONTH_NAMES[mm<10?'0'+mm:''+mm]+' '+(2500+yy);
+            opt.textContent=MONTH_NAMES[mm<10?'0'+mm:''+mm]+yy;
             sel.appendChild(opt);
         });
         if(PENDING_MONTHS.length>0)sel.value=PENDING_MONTHS[defaultIdx];
@@ -1561,7 +1724,7 @@ function pendingBuildTable(){
         var p=month.split('-');
         var mm=parseInt(p[1],10);
         var yy=parseInt(p[0],10);
-        var monthName=MONTH_NAMES[mm<10?'0'+mm:''+mm]+'.'+yy;
+        var monthName=MONTH_NAMES[mm<10?'0'+mm:''+mm]+yy;
         html+='<th style="'+thStyle+'">'+monthName+'</th>';
     });
 
@@ -1628,7 +1791,7 @@ function pendingExportExcel(){
         var p=month.split('-');
         var mm=parseInt(p[1],10);
         var yy=parseInt(p[0],10);
-        header.push(MONTH_NAMES[mm<10?'0'+mm:''+mm]+'.'+yy);
+        header.push(MONTH_NAMES[mm<10?'0'+mm:''+mm]+yy);
     });
     header.push('รวม');
     ws.addRow(header);
@@ -1675,11 +1838,75 @@ function pendingExportPPTX(){
     pptx.writeFile({fileName:'งานค้างซ่อม.pptx'});
 }
 
+// ==================== ปีงบประมาณ — Pending FY Selector ====================
+const PENDING_UPDATE_DATE='26-03-69';
+var PENDING_FY=2569; // ปีงบประมาณปัจจุบัน
+var PENDING_FY_LIST=[2569]; // fallback
+
+function pendingFYInit(){
+    var sel=document.getElementById('pendingFySel');
+    if(!sel)return;
+    sel.innerHTML='';
+    // Try fetching FY list from API
+    fetch('/api/pending-table').then(function(r){return r.json();}).then(function(res){
+        if(res.ok && res.fy_list && res.fy_list.length>0){
+            PENDING_FY_LIST=res.fy_list;
+        }
+        pendingFYPopulate();
+    }).catch(function(){
+        pendingFYPopulate();
+    });
+}
+
+function pendingFYPopulate(){
+    var sel=document.getElementById('pendingFySel');
+    if(!sel)return;
+    sel.innerHTML='';
+    PENDING_FY_LIST.forEach(function(fyv){
+        var opt=document.createElement('option');
+        opt.value=fyv;
+        opt.textContent='ปีงบประมาณ '+fyv;
+        sel.appendChild(opt);
+    });
+    sel.value=PENDING_FY;
+}
+
+function pendingFYChanged(){
+    var sel=document.getElementById('pendingFySel');
+    if(!sel)return;
+    PENDING_FY=parseInt(sel.value)||2569;
+    // Reload all pending charts/table with selected FY
+    if(pd1Initialized) pd1LoadFY();
+    if(pd2Initialized) pd2LoadFY();
+    if(pd3Initialized) pd3LoadFY();
+    if(pd4Initialized) pd4Load();
+    if(pd5Initialized) pd5Load();
+}
+
+function pendingMonthChanged(){
+    // เดือนที่เลือกมีผลกับทั้ง 4 กราฟ/ตาราง
+    if(pd1Initialized) pd1Render();
+    if(pd2Initialized) pd2Render();
+    if(pd3Initialized){ pd3BuildTable(); if(pd3Mode==='chart') pd3RenderChart(); }
+    if(pd4Initialized) pd4Load();
+    // pd5 แสดงเฉพาะเดือนล่าสุด ไม่ต้อง reload ตามเดือนที่เลือก
+}
+
+function getSelectedMonth(){
+    var sel=document.getElementById('pd1MonthSel');
+    return sel?sel.value:'';
+}
+
+function getSelectedMonthIndex(){
+    var mk=getSelectedMonth();
+    if(!mk)return -1;
+    return PD2_MONTHS.indexOf(mk);
+}
+
 // ==================== กราฟที่ 1 งานค้างซ่อม (pd1) ====================
 // Data: [prev_pending, curr_pending] per branch per month
 // prev_pending = R jobs ค้าง ณ สิ้นเดือนก่อน (ซ่อมไม่เสร็จ OR เสร็จหลังสิ้นเดือนก่อน)
 // curr_pending = R jobs ที่สถานะ ซ่อมไม่เสร็จ สะสมถึงเดือนที่เลือก
-const PENDING_UPDATE_DATE='26-03-69';
 
 // Plugin: alternating background stripes per category
 var zebrahBgPlugin={
@@ -1711,37 +1938,69 @@ var zebrahBgPlugin={
     }
 };
 
-const PD1_DATA={"69-01":{"ชลบุรี":[0,7],"พัทยา":[0,66],"บ้านบึง":[0,0],"พนัสนิคม":[0,0],"ศรีราชา":[0,0],"แหลมฉบัง":[0,2],"ฉะเชิงเทรา":[0,0],"บางปะกง":[0,0],"บางคล้า":[0,0],"พนมสารคาม":[0,13],"ระยอง":[0,0],"บ้านฉาง":[0,7],"ปากน้ำประแสร์":[0,0],"จันทบุรี":[0,0],"ขลุง":[0,0],"ตราด":[0,0],"คลองใหญ่":[0,0],"สระแก้ว":[0,0],"วัฒนานคร":[0,0],"อรัญประเทศ":[0,0],"ปราจีนบุรี":[0,0],"กบินทร์บุรี":[0,0]},"69-02":{"ชลบุรี":[7,6],"พัทยา":[66,115],"บ้านบึง":[0,0],"พนัสนิคม":[0,3],"ศรีราชา":[0,0],"แหลมฉบัง":[2,4],"ฉะเชิงเทรา":[0,0],"บางปะกง":[0,0],"บางคล้า":[0,1],"พนมสารคาม":[13,20],"ระยอง":[0,0],"บ้านฉาง":[7,14],"ปากน้ำประแสร์":[0,0],"จันทบุรี":[0,0],"ขลุง":[0,0],"ตราด":[0,0],"คลองใหญ่":[0,0],"สระแก้ว":[0,0],"วัฒนานคร":[0,0],"อรัญประเทศ":[0,1],"ปราจีนบุรี":[0,0],"กบินทร์บุรี":[0,0]},"69-03":{"ชลบุรี":[6,4],"พัทยา":[115,57],"บ้านบึง":[0,0],"พนัสนิคม":[3,46],"ศรีราชา":[0,1],"แหลมฉบัง":[4,60],"ฉะเชิงเทรา":[0,0],"บางปะกง":[0,0],"บางคล้า":[1,16],"พนมสารคาม":[20,47],"ระยอง":[0,11],"บ้านฉาง":[14,15],"ปากน้ำประแสร์":[0,3],"จันทบุรี":[0,0],"ขลุง":[0,0],"ตราด":[0,0],"คลองใหญ่":[0,0],"สระแก้ว":[0,1],"วัฒนานคร":[0,0],"อรัญประเทศ":[1,5],"ปราจีนบุรี":[0,0],"กบินทร์บุรี":[0,3]}};
-const PD1_MONTHS=["69-01","69-02","69-03"];
+var PD1_DATA_FALLBACK={"69-01":{"ชลบุรี":[0,7],"พัทยา":[0,66],"บ้านบึง":[0,0],"พนัสนิคม":[0,0],"ศรีราชา":[0,0],"แหลมฉบัง":[0,2],"ฉะเชิงเทรา":[0,0],"บางปะกง":[0,0],"บางคล้า":[0,0],"พนมสารคาม":[0,13],"ระยอง":[0,0],"บ้านฉาง":[0,7],"ปากน้ำประแสร์":[0,0],"จันทบุรี":[0,0],"ขลุง":[0,0],"ตราด":[0,0],"คลองใหญ่":[0,0],"สระแก้ว":[0,0],"วัฒนานคร":[0,0],"อรัญประเทศ":[0,0],"ปราจีนบุรี":[0,0],"กบินทร์บุรี":[0,0]},"69-02":{"ชลบุรี":[7,6],"พัทยา":[66,115],"บ้านบึง":[0,0],"พนัสนิคม":[0,3],"ศรีราชา":[0,0],"แหลมฉบัง":[2,4],"ฉะเชิงเทรา":[0,0],"บางปะกง":[0,0],"บางคล้า":[0,1],"พนมสารคาม":[13,20],"ระยอง":[0,0],"บ้านฉาง":[7,14],"ปากน้ำประแสร์":[0,0],"จันทบุรี":[0,0],"ขลุง":[0,0],"ตราด":[0,0],"คลองใหญ่":[0,0],"สระแก้ว":[0,0],"วัฒนานคร":[0,0],"อรัญประเทศ":[0,1],"ปราจีนบุรี":[0,0],"กบินทร์บุรี":[0,0]},"69-03":{"ชลบุรี":[6,4],"พัทยา":[115,57],"บ้านบึง":[0,0],"พนัสนิคม":[3,46],"ศรีราชา":[0,1],"แหลมฉบัง":[4,60],"ฉะเชิงเทรา":[0,0],"บางปะกง":[0,0],"บางคล้า":[1,16],"พนมสารคาม":[20,47],"ระยอง":[0,11],"บ้านฉาง":[14,15],"ปากน้ำประแสร์":[0,3],"จันทบุรี":[0,0],"ขลุง":[0,0],"ตราด":[0,0],"คลองใหญ่":[0,0],"สระแก้ว":[0,1],"วัฒนานคร":[0,0],"อรัญประเทศ":[1,5],"ปราจีนบุรี":[0,0],"กบินทร์บุรี":[0,3]}};
+var PD1_MONTHS_FALLBACK=["69-01","69-02","69-03"];
+var PD1_DATA=JSON.parse(JSON.stringify(PD1_DATA_FALLBACK));
+var PD1_MONTHS=PD1_MONTHS_FALLBACK.slice();
+var PD1_UPDATE_DATE=PENDING_UPDATE_DATE;
 var pd1ChartObj=null;
 var pd1Initialized=false;
 var pd1Mode='chart';
 
 function pd1Init(){
     pd1Initialized=true;
+    pendingFYInit(); // init FY dropdown
+    pd1LoadFY();
+}
+
+function pd1LoadFY(){
+    var fy=PENDING_FY||2569;
+    fetch('/api/pending-chart?fy='+fy).then(function(r){return r.json();}).then(function(res){
+        if(res.ok && res.pd1_data && res.pd2_months && res.pd2_months.length>0){
+            PD1_DATA=res.pd1_data;
+            PD1_MONTHS=res.pd2_months;
+            PD1_UPDATE_DATE=res.update_date||PENDING_UPDATE_DATE;
+        } else {
+            pd1UseFallback();
+        }
+        pd1PopulateMonthSel();
+        pd1Render();
+    }).catch(function(){
+        pd1UseFallback();
+        pd1PopulateMonthSel();
+        pd1Render();
+    });
+}
+
+function pd1UseFallback(){
+    PD1_DATA=JSON.parse(JSON.stringify(PD1_DATA_FALLBACK));
+    PD1_MONTHS=PD1_MONTHS_FALLBACK.slice();
+    PD1_UPDATE_DATE=PENDING_UPDATE_DATE;
+}
+
+function pd1PopulateMonthSel(){
     var sel=document.getElementById('pd1MonthSel');
     sel.innerHTML='';
     PD1_MONTHS.forEach(function(mk){
         var p=mk.split('-');var yy=parseInt(p[0],10);var mm=parseInt(p[1],10);
         var opt=document.createElement('option');
         opt.value=mk;
-        opt.textContent=MONTH_NAMES[mm<10?'0'+mm:''+mm]+' '+(2500+yy);
+        opt.textContent=MONTH_NAMES[mm<10?'0'+mm:''+mm]+yy;
         sel.appendChild(opt);
     });
     if(PD1_MONTHS.length>0)sel.value=PD1_MONTHS[PD1_MONTHS.length-1];
-    pd1Render();
 }
 
 function pd1GetPrevMonthLabel(mk){
     var p=mk.split('-');var yy=parseInt(p[0],10);var mm=parseInt(p[1],10);
     mm--;
     if(mm<1){mm=12;yy--;}
-    return MONTH_NAMES[mm<10?'0'+mm:''+mm]+' '+(2500+yy);
+    return MONTH_NAMES[mm<10?'0'+mm:''+mm]+yy;
 }
 
 function pd1GetMonthLabel(mk){
     var p=mk.split('-');var yy=parseInt(p[0],10);var mm=parseInt(p[1],10);
-    return MONTH_NAMES[mm<10?'0'+mm:''+mm]+' '+(2500+yy);
+    return MONTH_NAMES[mm<10?'0'+mm:''+mm]+yy;
 }
 
 function pd1SetMode(mode,btn){
@@ -1774,7 +2033,7 @@ function pd1Render(){
 
     // Update card title
     var titleEl=document.getElementById('pd1CardTitle');
-    if(titleEl) titleEl.textContent='🔧 กราฟที่ 1 : งานค้างซ่อมสะสมรายสาขา เทียบกับเดือนก่อน — ประจำเดือน '+pd1GetMonthLabel(mk)+' (Update ณ วันที่ '+PENDING_UPDATE_DATE+')';
+    if(titleEl) titleEl.textContent='🔧 กราฟที่ 1 : งานค้างซ่อมสะสมรายสาขา เทียบกับเดือนก่อน — ประจำเดือน '+pd1GetMonthLabel(mk)+' (Update ณ วันที่ '+(PD1_UPDATE_DATE||PENDING_UPDATE_DATE)+')';
 
     var labels=BRANCHES;
     var prevData=[];
@@ -1842,7 +2101,7 @@ function pd1Render(){
                         }
                     }
                 },
-                title:{display:true,text:'งานค้างซ่อมสะสมรายสาขา เทียบกับเดือนก่อน — ประจำเดือน '+pd1GetMonthLabel(mk)+' (Update ณ วันที่ '+PENDING_UPDATE_DATE+')',font:{size:14,weight:'bold'},color:textColor,padding:{bottom:16}}
+                title:{display:true,text:'งานค้างซ่อมสะสมรายสาขา เทียบกับเดือนก่อน — ประจำเดือน '+pd1GetMonthLabel(mk)+' (Update ณ วันที่ '+(PD1_UPDATE_DATE||PENDING_UPDATE_DATE)+')',font:{size:14,weight:'bold'},color:textColor,padding:{bottom:16}}
             },
             scales:{
                 y:{
@@ -1881,7 +2140,7 @@ function pd1Render(){
             +'<div style="text-align:center"><div style="font-size:11px;color:var(--sub);font-weight:600">'+currLabel+'</div><div style="font-size:22px;font-weight:800;color:#3498db">'+totalCurr.toLocaleString('th-TH')+'</div><div style="font-size:11px;color:var(--sub2)">งาน</div></div>'
             +'<div style="text-align:center;border-left:1px solid var(--border);padding-left:14px;margin-left:6px"><div style="font-size:11px;color:var(--sub);font-weight:600">เปลี่ยนแปลง</div><div style="font-size:20px;font-weight:800;color:'+diffColor+'">'+arrow+' '+diffText+'</div><div style="font-size:11px;color:var(--sub2)">งาน</div></div>'
             +'</div>'
-            +'<div style="font-size:13px;color:#1565c0;font-style:italic;font-weight:700;flex:1;text-align:right">หมายเหตุ - ข้อมูลนับสะสมจากการแจ้งซ่อมหลัง 1 ม.ค. 69 เป็นต้นไปเท่านั้น (ไม่รวมงานค้างซ่อมก่อนปี พ.ศ.2569)</div>';
+            +'<div style="font-size:13px;color:#1565c0;font-style:italic;font-weight:700;flex:1;text-align:right">หมายเหตุ : ข้อมูลนับสะสมตั้งแต่ต้นปีงบประมาณ เท่านั้น (ไม่รวมงานของปีงบประมาณก่อนหน้า)<br>เงื่อนไขการนับ : วันที่แจ้ง ≤ สิ้นเดือนนั้น AND (วันเวลาเสร็จสิ้น > สิ้นเดือนนั้น หรือ สถานะ = "ซ่อมไม่เสร็จ") เปรียบเทียบระหว่างเดือนที่เลือกกับเดือนก่อนหน้า</div>';
     }
 
     // Update table if in table mode
@@ -2000,17 +2259,49 @@ function pd1ExportExcel(){
 
 // ==================== กราฟที่ 2 งานค้างซ่อมสะสม รายสาขา (pd2) ====================
 // Data: {month_key: {branch: count}} — ค้างซ่อม ณ สิ้นเดือนนั้น
-const PD2_DATA={"69-01":{"บ้านฉาง":7,"พัทยา":66,"พนมสารคาม":13,"ชลบุรี":7,"แหลมฉบัง":2},"69-02":{"บ้านฉาง":14,"พนมสารคาม":20,"พัทยา":115,"พนัสนิคม":3,"บางคล้า":1,"ชลบุรี":6,"แหลมฉบัง":4,"อรัญประเทศ":1},"69-03":{"บ้านฉาง":15,"พนมสารคาม":47,"พนัสนิคม":46,"บางคล้า":16,"แหลมฉบัง":60,"อรัญประเทศ":5,"พัทยา":57,"สระแก้ว":1,"ศรีราชา":1,"ระยอง":11,"ชลบุรี":4,"กบินทร์บุรี":3,"ปากน้ำประแสร์":3}};
-const PD2_MONTHS=["69-01","69-02","69-03"];
+var PD2_DATA_FALLBACK={"69-01":{"บ้านฉาง":7,"พัทยา":66,"พนมสารคาม":13,"ชลบุรี":7,"แหลมฉบัง":2},"69-02":{"บ้านฉาง":14,"พนมสารคาม":20,"พัทยา":115,"พนัสนิคม":3,"บางคล้า":1,"ชลบุรี":6,"แหลมฉบัง":4,"อรัญประเทศ":1},"69-03":{"บ้านฉาง":15,"พนมสารคาม":47,"พนัสนิคม":46,"บางคล้า":16,"แหลมฉบัง":60,"อรัญประเทศ":5,"พัทยา":57,"สระแก้ว":1,"ศรีราชา":1,"ระยอง":11,"ชลบุรี":4,"กบินทร์บุรี":3,"ปากน้ำประแสร์":3}};
+var PD2_MONTHS_FALLBACK=["69-01","69-02","69-03"];
+var PD2_DATA=JSON.parse(JSON.stringify(PD2_DATA_FALLBACK));
+var PD2_MONTHS=PD2_MONTHS_FALLBACK.slice();
+var PD2_UPDATE_DATE=PENDING_UPDATE_DATE;
 var pd2ChartObj=null;
 var pd2Initialized=false;
 var pd2Mode='chart';
 
 function pd2Init(){
     pd2Initialized=true;
+    pd2LoadFY();
+}
+
+function pd2LoadFY(){
+    var fy=PENDING_FY||2569;
+    fetch('/api/pending-chart?fy='+fy).then(function(r){return r.json();}).then(function(res){
+        if(res.ok && res.pd2_data && res.pd2_months && res.pd2_months.length>0){
+            PD2_DATA=res.pd2_data;
+            PD2_MONTHS=res.pd2_months;
+            PD2_UPDATE_DATE=res.update_date||PENDING_UPDATE_DATE;
+        } else {
+            pd2UseFallback();
+        }
+        pd2UpdateTitle();
+        pd2Render();
+    }).catch(function(){
+        pd2UseFallback();
+        pd2UpdateTitle();
+        pd2Render();
+    });
+}
+
+function pd2UseFallback(){
+    PD2_DATA=JSON.parse(JSON.stringify(PD2_DATA_FALLBACK));
+    PD2_MONTHS=PD2_MONTHS_FALLBACK.slice();
+    PD2_UPDATE_DATE=PENDING_UPDATE_DATE;
+}
+
+function pd2UpdateTitle(){
+    var fy=PENDING_FY||2569;
     var t2=document.getElementById('pd2CardTitle');
-    if(t2) t2.textContent='🔧 กราฟที่ 2 : งานค้างซ่อมสะสม รายสาขา — ปีงบประมาณ 2569 (Update ณ วันที่ '+PENDING_UPDATE_DATE+')';
-    pd2Render();
+    if(t2) t2.textContent='🔧 กราฟที่ 2 : งานค้างซ่อมสะสม รายสาขา — ปีงบประมาณ '+fy+' (Update ณ วันที่ '+PD2_UPDATE_DATE+')';
 }
 
 function pd2SetMode(mode,btn){
@@ -2036,6 +2327,14 @@ function pd2Render(){
     var isDark=document.body.classList.contains('dark');
     var textColor=isDark?'#e0e0e0':'#333';
 
+    // Filter months up to selected month
+    var selMk=getSelectedMonth();
+    var selIdx=PD2_MONTHS.indexOf(selMk);
+    var visibleMonths=(selIdx>=0)?PD2_MONTHS.slice(0,selIdx+1):PD2_MONTHS.slice();
+
+    // Update title with selected month info
+    pd2UpdateTitle();
+
     // X-axis = all 22 branches
     var branchList=BRANCHES;
     var labels=branchList;
@@ -2044,11 +2343,11 @@ function pd2Render(){
     var monthBarColors=['#e53935','#ff6d00','#43a047','#1e88e5','#8e24aa','#00acc1','#ec407a','#6d4c41','#546e7a','#d81b60','#00897b','#7cb342'];
     var datasets=[];
 
-    // One dataset per month (grouped side by side)
-    PD2_MONTHS.forEach(function(mk,mi){
+    // One dataset per month (grouped side by side) — only visible months
+    visibleMonths.forEach(function(mk,mi){
         var md=PD2_DATA[mk]||{};
         var p=mk.split('-');var yy=parseInt(p[0],10);var mm=parseInt(p[1],10);
-        var monthLabel=MONTH_NAMES[mm<10?'0'+mm:''+mm]+' '+(2500+yy);
+        var monthLabel=MONTH_NAMES[mm<10?'0'+mm:''+mm]+yy;
         var col=monthBarColors[mi%monthBarColors.length];
         var data=branchList.map(function(b){return md[b]||0;});
         datasets.push({
@@ -2088,7 +2387,7 @@ function pd2Render(){
                             var bi=ctx[0].dataIndex;
                             var branch=branchList[bi];
                             var total=0;
-                            PD2_MONTHS.forEach(function(mk){total+=((PD2_DATA[mk]||{})[branch])||0;});
+                            visibleMonths.forEach(function(mk){total+=((PD2_DATA[mk]||{})[branch])||0;});
                             return 'รวม: '+total.toLocaleString('th-TH')+' งาน';
                         },
                         label:function(ctx){
@@ -2098,7 +2397,7 @@ function pd2Render(){
                         }
                     }
                 },
-                title:{display:true,text:'จำนวนงานค้างซ่อมสะสม รายสาขา — ปีงบประมาณ 2569 (Update ณ วันที่ '+PENDING_UPDATE_DATE+')',font:{size:15,weight:'bold'},color:textColor,padding:{bottom:16}}
+                title:{display:true,text:'จำนวนงานค้างซ่อมสะสม รายสาขา — ปีงบประมาณ '+(PENDING_FY||2569)+' (Update ณ วันที่ '+PD2_UPDATE_DATE+')',font:{size:15,weight:'bold'},color:textColor,padding:{bottom:16}}
             },
             scales:{
                 y:{
@@ -2119,18 +2418,18 @@ function pd2Render(){
     if(pd2ChartObj)pd2ChartObj.destroy();
     pd2ChartObj=new Chart(canvas,config);
 
-    // Update summary — total per month
+    // Update summary — total per month (only visible months)
     var grandTotal=0;
     var monthSummaryHtml='';
-    PD2_MONTHS.forEach(function(mk,mi){
+    visibleMonths.forEach(function(mk,mi){
         var md=PD2_DATA[mk]||{};
         var mTotal=0;
         branchList.forEach(function(b){mTotal+=(md[b]||0);});
         grandTotal+=mTotal;
         var p=mk.split('-');var yy=parseInt(p[0],10);var mm=parseInt(p[1],10);
-        var mLabel=MONTH_NAMES[mm<10?'0'+mm:''+mm]+' '+(2500+yy);
+        var mLabel=MONTH_NAMES[mm<10?'0'+mm:''+mm]+yy;
         var col=monthBarColors[mi%monthBarColors.length];
-        var isLast=(mi===PD2_MONTHS.length-1);
+        var isLast=(mi===visibleMonths.length-1);
         if(isLast){
             monthSummaryHtml+='<div style="text-align:center;padding:6px 18px;border-left:1px solid var(--border);background:var(--total-bg);border-radius:8px;margin-left:2px"><div style="font-size:13px;color:var(--sub);font-weight:700">'+mLabel+'</div><div style="font-size:26px;font-weight:900;color:'+col+'">'+mTotal.toLocaleString('th-TH')+'</div><div style="font-size:10px;color:var(--sub2)">งาน</div></div>';
         } else {
@@ -2143,13 +2442,17 @@ function pd2Render(){
             '<div style="display:flex;align-items:center;gap:0;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 20px;box-shadow:0 1px 4px var(--card-shadow)">'
             +monthSummaryHtml
             +'</div>'
-            +'<div style="font-size:13px;color:#1565c0;font-style:italic;font-weight:700;flex:1;text-align:right">หมายเหตุ - ข้อมูลนับสะสมจากการแจ้งซ่อมหลัง 1 ม.ค. 69 เป็นต้นไปเท่านั้น (ไม่รวมงานค้างซ่อมก่อนปี พ.ศ.2569)</div>';
+            +'<div style="font-size:13px;color:#1565c0;font-style:italic;font-weight:700;flex:1;text-align:right">หมายเหตุ : ข้อมูลนับสะสมตั้งแต่ต้นปีงบประมาณ เท่านั้น (ไม่รวมงานของปีงบประมาณก่อนหน้า)<br>เงื่อนไขการนับ : วันที่แจ้ง ≤ สิ้นเดือนนั้น AND (วันเวลาเสร็จสิ้น > สิ้นเดือนนั้น หรือ สถานะ = "ซ่อมไม่เสร็จ") แสดงยอดสะสมรายสาขาตลอดปีงบประมาณ</div>';
     }
 
     if(pd2Mode==='table')pd2BuildTable();
 }
 
 function pd2BuildTable(){
+    var selMk=getSelectedMonth();
+    var selIdx=PD2_MONTHS.indexOf(selMk);
+    var visibleMonths=(selIdx>=0)?PD2_MONTHS.slice(0,selIdx+1):PD2_MONTHS.slice();
+
     var thStyle='padding:10px 12px;background:#004d40;color:#fff;text-align:center;font-size:13px;border:1px solid #00695c;font-weight:700';
     var thStyleLeft='padding:10px 12px;background:#004d40;color:#fff;text-align:left;font-size:13px;border:1px solid #00695c;font-weight:700';
     var tdBase='padding:8px 12px;border:1px solid #e0e0e0;font-size:13px;';
@@ -2158,9 +2461,9 @@ function pd2BuildTable(){
     var html='<table style="width:100%;border-collapse:collapse;border:2px solid #00695c">';
     html+='<thead><tr>';
     html+='<th style="'+thStyleLeft+'">สาขา</th>';
-    PD2_MONTHS.forEach(function(mk){
+    visibleMonths.forEach(function(mk){
         var p=mk.split('-');var mm=parseInt(p[1],10);var yy=parseInt(p[0],10);
-        html+='<th style="'+thStyle+'">'+MONTH_NAMES[mm<10?'0'+mm:''+mm]+' '+(2500+yy)+'</th>';
+        html+='<th style="'+thStyle+'">'+MONTH_NAMES[mm<10?'0'+mm:''+mm]+yy+'</th>';
     });
     html+='<th style="'+thStyle+'">รวม</th>';
     html+='</tr></thead><tbody>';
@@ -2168,7 +2471,7 @@ function pd2BuildTable(){
     BRANCHES.forEach(function(b,i){
         var rowTotal=0;
         var hasData=false;
-        PD2_MONTHS.forEach(function(mk){
+        visibleMonths.forEach(function(mk){
             var v=(PD2_DATA[mk]||{})[b]||0;
             rowTotal+=v;
             if(v>0)hasData=true;
@@ -2178,7 +2481,7 @@ function pd2BuildTable(){
         var rowBg=i%2===0?'':'background:#f9f9f9;';
         html+='<tr>';
         html+='<td style="'+tdBase+rowBg+'">'+b+'</td>';
-        PD2_MONTHS.forEach(function(mk){
+        visibleMonths.forEach(function(mk){
             var v=(PD2_DATA[mk]||{})[b]||0;
             html+='<td style="'+tdNumber+';'+rowBg+'">'+(v>0?v.toLocaleString('th-TH'):'-')+'</td>';
         });
@@ -2190,7 +2493,7 @@ function pd2BuildTable(){
     html+='<tr style="background:#e0f2f1;font-weight:700">';
     html+='<td style="'+tdBase+'">รวมทั้งหมด</td>';
     var grandTotal=0;
-    PD2_MONTHS.forEach(function(mk){
+    visibleMonths.forEach(function(mk){
         var md=PD2_DATA[mk]||{};
         var t=0;Object.values(md).forEach(function(v){t+=v;});
         grandTotal+=t;
@@ -2236,23 +2539,27 @@ function pd2CopyChart(){
 }
 
 function pd2ExportExcel(){
+    var selMk=getSelectedMonth();
+    var selIdx=PD2_MONTHS.indexOf(selMk);
+    var visibleMonths=(selIdx>=0)?PD2_MONTHS.slice(0,selIdx+1):PD2_MONTHS.slice();
+
     var wb=new ExcelJS.Workbook();
     var ws=wb.addWorksheet('งานค้างซ่อมสะสมรายสาขา');
     var header=['สาขา'];
-    PD2_MONTHS.forEach(function(mk){
+    visibleMonths.forEach(function(mk){
         var p=mk.split('-');var mm=parseInt(p[1],10);var yy=parseInt(p[0],10);
-        header.push(MONTH_NAMES[mm<10?'0'+mm:''+mm]+' '+(2500+yy));
+        header.push(MONTH_NAMES[mm<10?'0'+mm:''+mm]+yy);
     });
     header.push('รวม');
     ws.addRow(header);
 
     BRANCHES.forEach(function(b){
         var hasData=false;
-        PD2_MONTHS.forEach(function(mk){if((PD2_DATA[mk]||{})[b])hasData=true;});
+        visibleMonths.forEach(function(mk){if((PD2_DATA[mk]||{})[b])hasData=true;});
         if(!hasData)return;
         var row=[b];
         var t=0;
-        PD2_MONTHS.forEach(function(mk){var v=(PD2_DATA[mk]||{})[b]||0;t+=v;row.push(v);});
+        visibleMonths.forEach(function(mk){var v=(PD2_DATA[mk]||{})[b]||0;t+=v;row.push(v);});
         row.push(t);
         ws.addRow(row);
     });
@@ -2268,6 +2575,601 @@ function pd2ExportExcel(){
     });
 }
 
+// ==================== ตาราง: งานซ่อมที่ยังไม่ปิดในระบบ (pd3) — Dynamic from API + Fallback ====================
+// Fallback hardcoded data (computed from ค้างซ่อม_10-68_to_03-69.xlsx)
+var PD3_FALLBACK={
+    "2569":{
+        months:["68-10","68-11","68-12","69-01","69-02","69-03","69-04","69-05","69-06","69-07","69-08","69-09"],
+        update_date:PENDING_UPDATE_DATE,
+        data:{
+            "ชลบุรี":{"69-03":4},"พัทยา":{"69-03":57},
+            "พนัสนิคม":{"68-10":1,"68-11":4,"68-12":3,"69-02":3,"69-03":43},
+            "ศรีราชา":{"68-11":1,"69-03":1},"แหลมฉบัง":{"69-03":59},
+            "บางคล้า":{"69-02":1,"69-03":14},
+            "พนมสารคาม":{"68-11":2,"68-12":7,"69-01":3,"69-02":15,"69-03":29},
+            "ระยอง":{"69-03":11},"บ้านฉาง":{"68-10":11,"68-11":8,"69-01":7,"69-02":7,"69-03":1},
+            "ปากน้ำประแสร์":{"69-03":3},"สระแก้ว":{"69-03":1},
+            "อรัญประเทศ":{"69-03":5},"กบินทร์บุรี":{"69-03":3}
+        }
+    }
+};
+var PD3_FY_MONTHS=[];
+var PD3_DATA={};
+var PD3_UPDATE_DATE='';
+var PD3_FY=0;
+var pd3ChartObj=null;
+var pd3Initialized=false;
+var pd3Mode='table';
+var pd3Loading=false;
+var pd3IsLive=false; // true = ข้อมูลจาก API, false = fallback
+
+function pd3UseFallback(fyKey){
+    var fb=PD3_FALLBACK[fyKey||'2569']||PD3_FALLBACK['2569'];
+    PD3_FY_MONTHS=fb.months;
+    PD3_DATA=fb.data;
+    PD3_UPDATE_DATE=fb.update_date;
+    PD3_FY=parseInt(fyKey)||2569;
+    pd3IsLive=false;
+
+    pd3UpdateTitle();
+    if(pd3Mode==='table') pd3BuildTable();
+    else pd3RenderChart();
+}
+
+function pd3UpdateTitle(){
+    var titleEl=document.getElementById('pd3CardTitle');
+    if(titleEl) titleEl.textContent='📋 ตารางที่ 3 : งานซ่อมที่ยังไม่ปิดในระบบ ปีงบประมาณ '+PD3_FY+' / วันที่รับแจ้ง (Update ณ วันที่ '+PENDING_UPDATE_DATE+')';
+}
+
+function pd3Init(){
+    pd3Initialized=true;
+    pd3LoadFY(true);
+}
+
+function pd3LoadFY(){
+    if(pd3Loading)return;
+    pd3Loading=true;
+    var fy=PENDING_FY||2569; // อ้างอิงปีงบจาก Card 1
+    var url='/api/pending-table?fy='+fy;
+
+    // Show loading
+    var tblContainer=document.getElementById('pd3TableContainer');
+    if(tblContainer && pd3Mode==='table') tblContainer.innerHTML='<div style="text-align:center;padding:40px;color:var(--sub)">กำลังโหลดข้อมูล...</div>';
+
+    fetch(url).then(function(r){return r.json();}).then(function(res){
+        pd3Loading=false;
+        if(!res.ok){
+            pd3UseFallback(fy);
+            return;
+        }
+
+        PD3_FY_MONTHS=res.months||[];
+        PD3_DATA=res.data||{};
+        PD3_UPDATE_DATE=res.update_date||'';
+        PD3_FY=res.fy||0;
+        pd3IsLive=true;
+
+        pd3UpdateTitle();
+        if(pd3Mode==='table') pd3BuildTable();
+        else pd3RenderChart();
+    }).catch(function(err){
+        pd3Loading=false;
+        // Fallback: file:// mode or server not running → use hardcoded data
+        pd3UseFallback(String(fy));
+    });
+}
+
+function pd3SetMode(mode,btn){
+    pd3Mode=mode;
+    var btns=btn.parentElement.querySelectorAll('.ymb');
+    btns.forEach(function(b){b.classList.remove('active');});
+    btn.classList.add('active');
+    var chartWrap=document.getElementById('pd3ChartWrap');
+    var tableContainer=document.getElementById('pd3TableContainer');
+    if(mode==='chart'){
+        chartWrap.style.display='block';
+        tableContainer.style.display='none';
+        pd3RenderChart();
+        setTimeout(function(){if(pd3ChartObj)pd3ChartObj.resize();},100);
+    } else {
+        chartWrap.style.display='none';
+        tableContainer.style.display='block';
+        pd3BuildTable();
+    }
+}
+
+function pd3GetVisibleMonths(){
+    var selMk=getSelectedMonth();
+    if(!selMk)return PD3_FY_MONTHS.slice();
+    var selIdx=PD3_FY_MONTHS.indexOf(selMk);
+    if(selIdx>=0) return PD3_FY_MONTHS.slice(0,selIdx+1);
+    // Selected month might be in PD2 format (same key) — find position
+    // PD3_FY_MONTHS uses same yy-mm format
+    for(var i=0;i<PD3_FY_MONTHS.length;i++){
+        if(PD3_FY_MONTHS[i]===selMk) return PD3_FY_MONTHS.slice(0,i+1);
+    }
+    return PD3_FY_MONTHS.slice();
+}
+
+function pd3BuildTable(){
+    var isDark=document.body.classList.contains('dark');
+    var thBg=isDark?'#00332d':'#004d40';
+    var thBorder=isDark?'#00695c':'#00695c';
+    var borderColor=isDark?'#444':'#e0e0e0';
+    var rowAltBg=isDark?'rgba(255,255,255,0.04)':'#f9f9f9';
+    var branchBg=isDark?'rgba(255,255,255,0.08)':'#f5f5f5';
+    var totalRowBg=isDark?'#1a3a36':'#e0f2f1';
+
+    var visibleMonths=pd3GetVisibleMonths();
+    var allMonths=PD3_FY_MONTHS.slice(); // always show all 12 months columns
+    // Build a set of visible month keys for quick lookup
+    var visibleSet={};
+    visibleMonths.forEach(function(mk){visibleSet[mk]=true;});
+
+    var thStyle='padding:8px 6px;background:'+thBg+';color:#fff;text-align:center;font-size:12px;border:1px solid '+thBorder+';font-weight:700;white-space:nowrap';
+    var thStyleLeft='padding:8px 10px;background:'+thBg+';color:#fff;text-align:center;font-size:12px;border:1px solid '+thBorder+';font-weight:700';
+    var tdBase='padding:6px 8px;border:1px solid '+borderColor+';font-size:12px;text-align:center;color:var(--text)';
+    var tdBranch='padding:6px 10px;border:1px solid '+borderColor+';font-size:12px;text-align:center;font-weight:600;color:var(--text)';
+    var tdDimmed='padding:6px 8px;border:1px solid '+borderColor+';font-size:12px;text-align:center;color:'+(isDark?'#555':'#ccc')+';background:'+(isDark?'rgba(255,255,255,0.02)':'#fafafa');
+
+    var html='<table style="width:100%;border-collapse:collapse;border:2px solid '+thBorder+'">';
+
+    // Header row 1: กปภ.สาขา + ข้อมูล ณ
+    html+='<thead>';
+    html+='<tr><th style="'+thStyle+'" rowspan="2">กปภ.สาขา</th>';
+    html+='<th colspan="'+allMonths.length+'" style="'+thStyle+';font-size:13px">งานซ่อมที่ยังไม่ปิดในระบบ  ปีงบประมาณ '+(PD3_FY||'')+' (ค่าสะสมตั้งแต่ ต้นปีงบฯ) Update ข้อมูล ณ วันที่ '+(PD3_UPDATE_DATE||PENDING_UPDATE_DATE)+'</th>';
+    html+='<th style="'+thStyle+'" rowspan="2">รวมรายสาขา</th></tr>';
+
+    // Header row 2: months — always all 12
+    html+='<tr>';
+    allMonths.forEach(function(mk){
+        var p=mk.split('-');var mm=parseInt(p[1],10);var yy=parseInt(p[0],10);
+        html+='<th style="'+thStyle+'">'+MONTH_NAMES[mm<10?'0'+mm:''+mm]+yy+'</th>';
+    });
+    html+='</tr>';
+    html+='</thead><tbody>';
+
+    // Data rows
+    var colTotals={};
+    allMonths.forEach(function(mk){colTotals[mk]=0;});
+    var grandTotal=0;
+
+    BRANCHES.forEach(function(branch,i){
+        var branchData=PD3_DATA[branch]||{};
+        var rowTotal=0;
+        var rowBg=(i%2===1)?'background:'+rowAltBg+';':'';
+
+        html+='<tr>';
+        html+='<td style="'+tdBranch+';'+rowBg+'background:'+branchBg+'">'+branch+'</td>';
+
+        allMonths.forEach(function(mk){
+            if(visibleSet[mk]){
+                var v=branchData[mk]||0;
+                rowTotal+=v;
+                colTotals[mk]+=v;
+                if(v>0){
+                    html+='<td style="'+tdBase+';'+rowBg+'font-weight:600;color:#d32f2f">'+v.toLocaleString('th-TH')+'</td>';
+                } else {
+                    html+='<td style="'+tdBase+';'+rowBg+'color:var(--sub2)"></td>';
+                }
+            } else {
+                // Month beyond selected — show empty dimmed cell
+                html+='<td style="'+tdDimmed+';'+rowBg+'"></td>';
+            }
+        });
+
+        grandTotal+=rowTotal;
+        if(rowTotal>0){
+            html+='<td style="'+tdBase+';'+rowBg+'font-weight:700;background:'+branchBg+';color:#d32f2f">'+rowTotal.toLocaleString('th-TH')+'</td>';
+        } else {
+            html+='<td style="'+tdBase+';'+rowBg+'color:var(--sub2);background:'+branchBg+'"></td>';
+        }
+        html+='</tr>';
+    });
+
+    // Total row
+    html+='<tr style="background:'+totalRowBg+';font-weight:700">';
+    html+='<td style="'+tdBase+';font-weight:800;background:'+totalRowBg+'">รวมรายเดือน</td>';
+    allMonths.forEach(function(mk){
+        if(visibleSet[mk]){
+            var v=colTotals[mk];
+            if(v>0){
+                html+='<td style="'+tdBase+';font-weight:800;background:'+totalRowBg+';color:#d32f2f">'+v.toLocaleString('th-TH')+'</td>';
+            } else {
+                html+='<td style="'+tdBase+';background:'+totalRowBg+'"></td>';
+            }
+        } else {
+            html+='<td style="'+tdDimmed+'"></td>';
+        }
+    });
+    html+='<td style="'+tdBase+';font-weight:800;background:'+totalRowBg+';color:#d32f2f">'+grandTotal.toLocaleString('th-TH')+'</td>';
+    html+='</tr></tbody></table>';
+
+    document.getElementById('pd3TableContainer').innerHTML=html;
+
+    // Update summary
+    var sumEl=document.getElementById('pd3Summary');
+    if(sumEl){
+        sumEl.innerHTML='<div style="display:flex;align-items:center;gap:14px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 20px;box-shadow:0 1px 4px var(--card-shadow)">'
+            +'<div style="text-align:center"><div style="font-size:11px;color:var(--sub);font-weight:600">รวมทั้งหมด</div><div style="font-size:26px;font-weight:900;color:#004d40">'+grandTotal.toLocaleString('th-TH')+'</div><div style="font-size:11px;color:var(--sub2)">งาน</div></div>'
+            +'</div>';
+    }
+}
+
+function pd3RenderChart(){
+    var isDark=document.body.classList.contains('dark');
+    var textColor=isDark?'#e0e0e0':'#333';
+
+    // Filter to visible months, then only those with data
+    var visibleMonths=pd3GetVisibleMonths();
+    var monthsWithData=visibleMonths.filter(function(mk){
+        var total=0;
+        BRANCHES.forEach(function(b){total+=((PD3_DATA[b]||{})[mk]||0);});
+        return total>0;
+    });
+
+    var monthBarColors=['#e53935','#ff6d00','#43a047','#1e88e5','#8e24aa','#00acc1','#ec407a','#6d4c41','#546e7a','#d81b60','#00897b','#7cb342'];
+    var datasets=[];
+
+    monthsWithData.forEach(function(mk,mi){
+        var p=mk.split('-');var mm=parseInt(p[1],10);var yy=parseInt(p[0],10);
+        var monthLabel=MONTH_NAMES[mm<10?'0'+mm:''+mm]+yy;
+        var col=monthBarColors[mi%monthBarColors.length];
+        var data=BRANCHES.map(function(b){return (PD3_DATA[b]||{})[mk]||0;});
+        datasets.push({
+            label:monthLabel,
+            data:data,
+            backgroundColor:col+'cc',
+            borderColor:col,
+            borderWidth:1,
+            barPercentage:1.0,
+            categoryPercentage:0.68
+        });
+    });
+
+    var canvas=document.getElementById('pd3Chart');
+    if(!canvas)return;
+
+    var config={
+        type:'bar',
+        data:{labels:BRANCHES,datasets:datasets},
+        options:{
+            responsive:true,maintainAspectRatio:false,
+            interaction:{mode:'index',intersect:false},
+            plugins:{
+                legend:{display:true,position:'bottom',labels:{font:{size:11},boxWidth:12}},
+                tooltip:{
+                    backgroundColor:'rgba(0,0,0,0.85)',titleColor:'#fff',bodyColor:'#fff',
+                    borderColor:'#888',borderWidth:1,padding:12,displayColors:true,
+                    callbacks:{
+                        afterTitle:function(ctx){
+                            var bi=ctx[0].dataIndex;
+                            var branch=BRANCHES[bi];
+                            var total=0;
+                            visibleMonths.forEach(function(mk){total+=((PD3_DATA[branch]||{})[mk]||0);});
+                            return 'รวม: '+total.toLocaleString('th-TH')+' งาน';
+                        },
+                        label:function(ctx){
+                            var v=ctx.parsed.y;
+                            if(v===undefined||v===null||v===0)return null;
+                            return (ctx.dataset.label||'')+': '+v.toLocaleString('th-TH')+' งาน';
+                        }
+                    }
+                },
+                datalabels:{display:false},
+                title:{display:true,text:'งานซ่อมที่ยังไม่ปิดในระบบ ปีงบประมาณ '+(PD3_FY||'')+' / วันที่รับแจ้ง (ข้อมูล ณ '+(PD3_UPDATE_DATE||PENDING_UPDATE_DATE)+')',font:{size:14,weight:'bold'},color:textColor,padding:{bottom:16}}
+            },
+            scales:{
+                y:{
+                    stacked:true,beginAtZero:true,
+                    ticks:{color:textColor,font:{size:12},callback:function(v){return v.toLocaleString('th-TH');}},
+                    grid:{color:isDark?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.05)'},
+                    title:{display:true,text:'จำนวน (งาน)',color:textColor,font:{size:13}}
+                },
+                x:{
+                    stacked:true,
+                    ticks:{color:textColor,font:{size:11},maxRotation:45,minRotation:30},
+                    grid:{display:false}
+                }
+            }
+        }
+    };
+
+    config.plugins=[zebrahBgPlugin];
+    if(pd3ChartObj)pd3ChartObj.destroy();
+    pd3ChartObj=new Chart(canvas,config);
+}
+
+function pd3ResetChart(){
+    if(pd3ChartObj)pd3ChartObj.resetZoom();
+}
+
+function pd3ExportPNG(){
+    if(pd3Mode==='chart'){
+        var canvas=document.getElementById('pd3Chart');
+        if(!canvas)return;
+        var link=document.createElement('a');
+        link.download='งานซ่อมที่ยังไม่ปิดในระบบ_ปีงบ2569.png';
+        link.href=canvas.toDataURL('image/png');
+        link.click();
+    } else {
+        // Export table as image using html2canvas if available, else alert
+        var tbl=document.getElementById('pd3TableContainer');
+        if(typeof html2canvas!=='undefined'){
+            html2canvas(tbl).then(function(c){
+                var link=document.createElement('a');
+                link.download='งานซ่อมที่ยังไม่ปิดในระบบ_ปีงบ2569.png';
+                link.href=c.toDataURL('image/png');
+                link.click();
+            });
+        } else {
+            alert('กรุณาสลับเป็นโหมดกราฟก่อน export PNG');
+        }
+    }
+}
+
+function pd3CopyChart(){
+    if(pd3Mode==='chart'){
+        var canvas=document.getElementById('pd3Chart');
+        if(!canvas)return;
+        canvas.toBlob(function(blob){
+            navigator.clipboard.write([
+                new ClipboardItem({'image/png':blob})
+            ]).then(function(){alert('คัดลอกแล้ว');}).catch(function(){alert('คัดลอกไม่ได้');});
+        });
+    } else {
+        var tbl=document.getElementById('pd3TableContainer');
+        if(typeof html2canvas!=='undefined'){
+            html2canvas(tbl).then(function(c){
+                c.toBlob(function(blob){
+                    navigator.clipboard.write([new ClipboardItem({'image/png':blob})]).then(function(){alert('คัดลอกแล้ว');}).catch(function(){alert('คัดลอกไม่ได้');});
+                });
+            });
+        } else {
+            alert('กรุณาสลับเป็นโหมดกราฟก่อนคัดลอก');
+        }
+    }
+}
+
+function pd3ExportExcel(){
+    var visibleMonths=pd3GetVisibleMonths();
+
+    var wb=new ExcelJS.Workbook();
+    var ws=wb.addWorksheet('งานซ่อมที่ยังไม่ปิดในระบบ');
+
+    // Title row
+    ws.addRow(['งานซ่อมที่ยังไม่ปิดในระบบ ปีงบ '+(PD3_FY||'')+' / วันที่รับแจ้ง','','','','','','','','','','','','','ข้อมูล ณ '+(PD3_UPDATE_DATE||PENDING_UPDATE_DATE)]);
+    ws.mergeCells('A1:L1');
+
+    // Header
+    var header=['กปภ.สาขา'];
+    visibleMonths.forEach(function(mk){
+        var p=mk.split('-');var mm=parseInt(p[1],10);var yy=parseInt(p[0],10);
+        header.push(MONTH_NAMES[mm<10?'0'+mm:''+mm]+yy);
+    });
+    header.push('รวมรายสาขา');
+    ws.addRow(header);
+
+    // Data rows
+    BRANCHES.forEach(function(branch){
+        var branchData=PD3_DATA[branch]||{};
+        var row=[branch];
+        var total=0;
+        visibleMonths.forEach(function(mk){
+            var v=branchData[mk]||0;
+            total+=v;
+            row.push(v||'');
+        });
+        row.push(total||'');
+        ws.addRow(row);
+    });
+
+    // Total row
+    var totalRow=['รวมรายเดือน'];
+    var grandTotal=0;
+    visibleMonths.forEach(function(mk){
+        var t=0;
+        BRANCHES.forEach(function(b){t+=((PD3_DATA[b]||{})[mk]||0);});
+        grandTotal+=t;
+        totalRow.push(t||'');
+    });
+    totalRow.push(grandTotal);
+    ws.addRow(totalRow);
+
+    ws.getRow(1).font={bold:true,size:14};
+    ws.getRow(2).font={bold:true};
+    ws.getRow(ws.rowCount).font={bold:true};
+    ws.columns.forEach(function(c,i){c.width=i===0?18:10;});
+
+    wb.xlsx.writeBuffer().then(function(buf){
+        var blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+        var link=document.createElement('a');
+        link.download='งานซ่อมที่ยังไม่ปิดในระบบ_ปีงบ2569.xlsx';
+        link.href=URL.createObjectURL(blob);
+        link.click();
+    });
+}
+
+function pd3ExportPPTX(){
+    if(typeof PptxGenJS==='undefined'){alert('PptxGenJS ยังโหลดไม่เสร็จ');return;}
+    if(pd3Mode==='chart'){
+        var canvas=document.getElementById('pd3Chart');
+        if(!canvas)return;
+        var pptx=new PptxGenJS();
+        var slide=pptx.addSlide();
+        slide.addImage({data:canvas.toDataURL('image/png'),x:0.3,y:0.3,w:9.4,h:5.4});
+        pptx.writeFile({fileName:'งานซ่อมที่ยังไม่ปิดในระบบ_ปีงบ2569.pptx'});
+    } else {
+        var tbl=document.getElementById('pd3TableContainer');
+        if(typeof html2canvas!=='undefined'){
+            html2canvas(tbl).then(function(c){
+                var pptx=new PptxGenJS();
+                var slide=pptx.addSlide();
+                slide.addImage({data:c.toDataURL('image/png'),x:0.2,y:0.2,w:9.6,h:5.6});
+                pptx.writeFile({fileName:'งานซ่อมที่ยังไม่ปิดในระบบ_ปีงบ2569.pptx'});
+            });
+        } else {
+            alert('กรุณาสลับเป็นโหมดกราฟก่อน export PPTX');
+        }
+    }
+}
+
+// ==================== CARD 4 : รายละเอียดงานค้างซ่อม ====================
+var pd4Initialized=false;
+var PD4_RECORDS=[];
+
+function pd4Init(){
+    pd4Initialized=true;
+    // Populate branch selector
+    var sel=document.getElementById('pd4BranchSel');
+    if(sel){
+        sel.innerHTML='<option value="">ทุกสาขา</option>';
+        BRANCHES.forEach(function(b){
+            var opt=document.createElement('option');
+            opt.value=b; opt.textContent=b;
+            sel.appendChild(opt);
+        });
+    }
+    pd4Load();
+}
+
+function pd4Load(){
+    var fy=PENDING_FY||2569;
+    var branch=document.getElementById('pd4BranchSel')?document.getElementById('pd4BranchSel').value:'';
+    var qs='?fy='+fy;
+    if(branch) qs+='&branch='+encodeURIComponent(branch);
+
+    var relUrl='/api/pending-detail'+qs;
+    var absUrl='http://localhost:5002/api/pending-detail'+qs;
+    var tryUrl=(location.protocol==='file:')?absUrl:relUrl;
+
+    fetch(tryUrl).then(function(r){return r.json();}).then(function(res){
+        if(res.ok){
+            PD4_RECORDS=res.records||[];
+        } else {
+            PD4_RECORDS=[];
+        }
+        pd4Render();
+    }).catch(function(){
+        if(tryUrl===relUrl){
+            fetch(absUrl).then(function(r){return r.json();}).then(function(res){
+                if(res.ok){ PD4_RECORDS=res.records||[]; } else { PD4_RECORDS=[]; }
+                pd4Render();
+            }).catch(function(){ PD4_RECORDS=[]; pd4Render(); });
+        } else {
+            PD4_RECORDS=[]; pd4Render();
+        }
+    });
+}
+
+function pd4Render(){
+    var isDark=document.body.classList.contains('dark');
+    var thBg=isDark?'#00332d':'#004d40';
+    var thBorder=isDark?'#00695c':'#00695c';
+    var borderColor=isDark?'#444':'#e0e0e0';
+    var rowAltBg=isDark?'rgba(255,255,255,0.04)':'#f9f9f9';
+
+    var thStyle='padding:8px 6px;background:'+thBg+';color:#fff;text-align:center;font-size:12px;border:1px solid '+thBorder+';font-weight:700;white-space:nowrap';
+    var tdBase='padding:6px 8px;border:1px solid '+borderColor+';font-size:12px;color:var(--text)';
+
+    var mk=getSelectedMonth();
+    var mLabel=mk?pd4FmtMonth(mk):'ทุกเดือน';
+    var branchSel=document.getElementById('pd4BranchSel');
+    var bLabel=(branchSel&&branchSel.value)?branchSel.value:'ทุกสาขา';
+
+    // Update title
+    var titleEl=document.getElementById('pd4CardTitle');
+    if(titleEl) titleEl.textContent='📝 ตารางที่ 4 : รายละเอียดงานค้างซ่อม — '+mLabel+(bLabel!=='ทุกสาขา'?' — '+bLabel:'')+' (Update ณ วันที่ '+PENDING_UPDATE_DATE+')';
+
+    var records=PD4_RECORDS;
+
+    // Summary
+    var sumEl=document.getElementById('pd4Summary');
+    if(sumEl){
+        sumEl.innerHTML='<div style="display:flex;align-items:center;gap:14px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 20px;box-shadow:0 1px 4px var(--card-shadow)">'
+            +'<div style="text-align:center"><div style="font-size:11px;color:var(--sub);font-weight:600">จำนวนรายการ</div><div style="font-size:26px;font-weight:900;color:#e65100">'+records.length.toLocaleString('th-TH')+'</div><div style="font-size:11px;color:var(--sub2)">งาน</div></div>'
+            +'</div>';
+    }
+
+    if(records.length===0){
+        document.getElementById('pd4TableContainer').innerHTML='<div style="text-align:center;padding:40px;color:var(--sub2);font-size:14px">ไม่พบข้อมูลค้างซ่อม'+(mk?' เดือน '+mLabel:'')+' — กรุณาตรวจสอบว่า server ทำงานอยู่</div>';
+        return;
+    }
+
+    var html='<table style="width:100%;border-collapse:collapse;border:2px solid '+thBorder+'">';
+    html+='<thead><tr>';
+    var cols=['ลำดับ','สาขา','เลขแจ้ง','วันที่แจ้ง','เลขที่งาน','ประเภทงาน','ด้านข้อร้องเรียน','ทีมซ่อม','ช่างซ่อม','ขนาดท่อ (มม.)','สถานะ'];
+    cols.forEach(function(c){ html+='<th style="'+thStyle+';position:sticky;top:0;z-index:2">'+c+'</th>'; });
+    html+='</tr></thead><tbody>';
+
+    records.forEach(function(rec,i){
+        var rowBg=(i%2===1)?'background:'+rowAltBg+';':'';
+        html+='<tr>';
+        html+='<td style="'+tdBase+';text-align:center;'+rowBg+'">'+(i+1)+'</td>';
+        html+='<td style="'+tdBase+';text-align:center;font-weight:600;'+rowBg+'">'+(rec.branch||'')+'</td>';
+        html+='<td style="'+tdBase+';'+rowBg+';font-size:11px">'+(rec.notify_no||'')+'</td>';
+        html+='<td style="'+tdBase+';text-align:center;'+rowBg+';white-space:nowrap">'+(rec.date||'')+'</td>';
+        html+='<td style="'+tdBase+';'+rowBg+'">'+(rec.job_no||'')+'</td>';
+        html+='<td style="'+tdBase+';text-align:center;'+rowBg+'">'+(rec.type||'')+'</td>';
+        html+='<td style="'+tdBase+';text-align:center;'+rowBg+'">'+(rec.aspect||'')+'</td>';
+        html+='<td style="'+tdBase+';text-align:center;'+rowBg+'">'+(rec.team||'')+'</td>';
+        html+='<td style="'+tdBase+';text-align:center;'+rowBg+'">'+(rec.tech||'')+'</td>';
+        html+='<td style="'+tdBase+';text-align:center;'+rowBg+'">'+(rec.pipe||'')+'</td>';
+        html+='<td style="'+tdBase+';text-align:center;'+rowBg+'">'+(rec.status||'')+'</td>';
+        html+='</tr>';
+    });
+
+    html+='</tbody></table>';
+    document.getElementById('pd4TableContainer').innerHTML=html;
+}
+
+function pd4FmtMonth(mk){
+    var p=mk.split('-');var mm=parseInt(p[1],10);var yy=parseInt(p[0],10);
+    return MONTH_NAMES[mm<10?'0'+mm:''+mm]+yy;
+}
+
+function pd4ExportExcel(){
+    if(typeof ExcelJS==='undefined'){alert('ExcelJS ยังโหลดไม่เสร็จ');return;}
+    var records=PD4_RECORDS;
+    if(!records||records.length===0){alert('ไม่มีข้อมูล');return;}
+
+    var wb=new ExcelJS.Workbook();
+    var ws=wb.addWorksheet('งานค้างซ่อม');
+    var cols=['ลำดับ','สาขา','เลขแจ้ง','วันที่แจ้ง','เลขที่งาน','ประเภทงาน','ด้านข้อร้องเรียน','ทีมซ่อม','ช่างซ่อม','ขนาดท่อ (มม.)'];
+    var headerRow=ws.addRow(cols);
+    headerRow.eachCell(function(cell){
+        cell.font={bold:true,color:{argb:'FFFFFFFF'}};
+        cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF004D40'}};
+        cell.alignment={horizontal:'center',vertical:'middle'};
+        cell.border={top:{style:'thin'},bottom:{style:'thin'},left:{style:'thin'},right:{style:'thin'}};
+    });
+
+    records.forEach(function(rec,i){
+        var row=ws.addRow([i+1,rec.branch,rec.notify_no,rec.date,rec.job_no,rec.type,rec.aspect,rec.team,rec.tech,rec.pipe]);
+        row.eachCell(function(cell){
+            cell.border={top:{style:'thin'},bottom:{style:'thin'},left:{style:'thin'},right:{style:'thin'}};
+            cell.alignment={vertical:'middle'};
+        });
+    });
+
+    // Auto width
+    ws.columns.forEach(function(col){
+        var maxLen=10;
+        col.eachCell({includeEmpty:true},function(cell){
+            var len=cell.value?String(cell.value).length:0;
+            if(len>maxLen) maxLen=len;
+        });
+        col.width=Math.min(maxLen+4,40);
+    });
+
+    var mk=getSelectedMonth();
+    var fname='งานค้างซ่อม_'+(mk||'ทุกเดือน')+'.xlsx';
+    wb.xlsx.writeBuffer().then(function(buf){
+        var blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+        var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fname;a.click();
+    });
+}
+
 function pressureInit(){
     pressureInitialized=true;
     var sel=document.getElementById('pressureMonth');
@@ -2278,7 +3180,7 @@ function pressureInit(){
         var mm=parseInt(p[1],10);
         var opt=document.createElement('option');
         opt.value=mk;
-        opt.textContent=MONTH_NAMES[mm<10?'0'+mm:''+mm]+' '+(2500+yy);
+        opt.textContent=MONTH_NAMES[mm<10?'0'+mm:''+mm]+yy;
         sel.appendChild(opt);
     });
     if(PRESSURE_MONTHS.length>0)sel.value=PRESSURE_MONTHS[PRESSURE_MONTHS.length-1];
@@ -2290,7 +3192,7 @@ function getMonthDisplayName(monthKey){
     var p=monthKey.split('-');
     var yy=parseInt(p[0],10);
     var mm=parseInt(p[1],10);
-    return MONTH_NAMES[mm<10?'0'+mm:''+mm]+' '+(2500+yy);
+    return MONTH_NAMES[mm<10?'0'+mm:''+mm]+yy;
 }
 
 // Horizontal line annotation plugin for threshold
@@ -2990,7 +3892,7 @@ sumInit();
 })();
 // ==================== CHART CUSTOMIZATION (right-click + font popup) ====================
 function getChartObj(canvasId){
-    var map={'gisChart':gisChartObj,'sumChart1':sumChart1Obj,'sumChart2':sumChart2Obj,'pressureChart':pressureChartObj,'press2Chart':press2ChartObj,'pendingChart':pendingChartObj};
+    var map={'gisChart':gisChartObj,'sumChart1':sumChart1Obj,'sumChart2':sumChart2Obj,'pressureChart':pressureChartObj,'press2Chart':press2ChartObj,'pendingChart':pendingChartObj,'pd1Chart':pd1ChartObj,'pd2Chart':pd2ChartObj,'pd3Chart':pd3ChartObj};
     return map[canvasId]||null;
 }
 function hexToRgba(hex,alpha){
@@ -3617,6 +4519,190 @@ function showAxisDialog(canvasId,scaleKey,axisLabel,isNumeric){
         container.appendChild(sw);
     });
     document.getElementById('ctxChartBgCustom').onchange=function(){ctxChartSetBg(this.value);};
+})();
+
+// ==================== CARD 5 : งานรับแจ้งท่อแตกรั่ว ยังไม่เปิดงานซ่อม ====================
+var pd5Initialized=false;
+var PD5_DATA={};    // {branch: count}
+var PD5_RECORDS=[];
+var PD5_MONTH='';
+var pd5ChartObj=null;
+
+function pd5Init(){
+    pd5Initialized=true;
+    pd5Load();
+}
+
+function pd5Load(){
+    var fy=PENDING_FY||2569;
+    var qs='?fy='+fy;
+    var relUrl='/api/pending-nojob'+qs;
+    var absUrl='http://localhost:5002/api/pending-nojob'+qs;
+    var tryUrl=(location.protocol==='file:')?absUrl:relUrl;
+
+    fetch(tryUrl).then(function(r){return r.json();}).then(function(res){
+        if(res.ok){
+            PD5_DATA=res.by_branch||{};
+            PD5_RECORDS=res.records||[];
+            PD5_MONTH=res.month_key||'';
+        } else { PD5_DATA={}; PD5_RECORDS=[]; }
+        pd5Render();
+    }).catch(function(){
+        if(tryUrl===relUrl){
+            fetch(absUrl).then(function(r){return r.json();}).then(function(res){
+                if(res.ok){ PD5_DATA=res.by_branch||{}; PD5_RECORDS=res.records||[]; PD5_MONTH=res.month_key||''; }
+                else { PD5_DATA={}; PD5_RECORDS=[]; }
+                pd5Render();
+            }).catch(function(){ PD5_DATA={}; PD5_RECORDS=[]; pd5Render(); });
+        } else { PD5_DATA={}; PD5_RECORDS=[]; pd5Render(); }
+    });
+}
+
+function pd5Render(){
+    var isDark=document.body.classList.contains('dark');
+    var textColor=isDark?'#e0e0e0':'#333';
+
+    // Update title
+    var mkLabel='';
+    if(PD5_MONTH){
+        var p=PD5_MONTH.split('-');var mm=parseInt(p[1],10);var yy=parseInt(p[0],10);
+        mkLabel=MONTH_NAMES[mm<10?'0'+mm:''+mm]+yy;
+    }
+    var titleEl=document.getElementById('pd5CardTitle');
+    if(titleEl) titleEl.textContent='📋 ตารางที่ 5 : งานที่รับแจ้งท่อแตกรั่ว แต่ยังไม่เปิดงานซ่อม'+(mkLabel?' — '+mkLabel:'');
+
+    // Chart: bar chart per branch (only branches with data)
+    var labels=[];
+    var values=[];
+    BRANCHES.forEach(function(b){
+        var v=PD5_DATA[b]||0;
+        if(v>0){ labels.push(b); values.push(v); }
+    });
+
+    var canvas=document.getElementById('pd5Chart');
+    if(canvas){
+        var barColor='#e53935';
+        var config={
+            type:'bar',
+            data:{
+                labels:labels,
+                datasets:[{
+                    label:'จำนวน (งาน)',
+                    data:values,
+                    backgroundColor:barColor+'cc',
+                    borderColor:barColor,
+                    borderWidth:1,
+                    barPercentage:0.7,
+                    categoryPercentage:0.8,
+                    datalabels:{
+                        display:true,
+                        anchor:'end',align:'top',
+                        color:barColor,
+                        font:{size:12,weight:'bold'},
+                        formatter:function(v){return v>0?v:'';}
+                    }
+                }]
+            },
+            options:{
+                responsive:true,maintainAspectRatio:false,
+                plugins:{
+                    legend:{display:false},
+                    title:{display:true,text:'งานที่รับแจ้งท่อแตกรั่ว แต่ยังไม่เปิดงานซ่อม — '+(mkLabel||''),font:{size:15,weight:'bold'},color:textColor,padding:{bottom:16}},
+                    tooltip:{
+                        backgroundColor:'rgba(0,0,0,0.85)',titleColor:'#fff',bodyColor:'#fff',
+                        callbacks:{label:function(ctx){return ctx.parsed.y+' งาน';}}
+                    }
+                },
+                scales:{
+                    y:{beginAtZero:true,ticks:{color:textColor,font:{size:12},stepSize:1},grid:{color:isDark?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.05)'},title:{display:true,text:'จำนวน (งาน)',color:textColor,font:{size:13}}},
+                    x:{ticks:{color:textColor,font:{size:11},maxRotation:45,minRotation:30},grid:{display:false}}
+                }
+            }
+        };
+        config.plugins=[zebrahBgPlugin];
+        if(pd5ChartObj)pd5ChartObj.destroy();
+        pd5ChartObj=new Chart(canvas,config);
+    }
+
+    // Table: detail records
+    var thBg=isDark?'#5d1010':'#b71c1c';
+    var thBorder=isDark?'#c62828':'#c62828';
+    var borderColor=isDark?'#444':'#e0e0e0';
+    var rowAltBg=isDark?'rgba(255,255,255,0.04)':'#f9f9f9';
+    var thStyle='padding:8px 6px;background:'+thBg+';color:#fff;text-align:center;font-size:12px;border:1px solid '+thBorder+';font-weight:700;white-space:nowrap;position:sticky;top:0;z-index:2';
+    var tdBase='padding:6px 8px;border:1px solid '+borderColor+';font-size:12px;color:var(--text)';
+
+    var html='<table style="width:100%;border-collapse:collapse;border:2px solid '+thBorder+'">';
+    html+='<thead><tr>';
+    var cols=['ลำดับ','สาขา','เลขแจ้ง','วันที่แจ้ง','ด้านการร้องเรียน','หัวข้อการร้องเรียน','สถานะ'];
+    cols.forEach(function(c){html+='<th style="'+thStyle+'">'+c+'</th>';});
+    html+='</tr></thead><tbody>';
+
+    if(PD5_RECORDS.length===0){
+        html+='<tr><td colspan="7" style="'+tdBase+';text-align:center;padding:30px;color:var(--sub2)">ไม่พบข้อมูล</td></tr>';
+    } else {
+        PD5_RECORDS.forEach(function(rec,i){
+            var rowBg=(i%2===1)?'background:'+rowAltBg+';':'';
+            html+='<tr>';
+            html+='<td style="'+tdBase+';text-align:center;'+rowBg+'">'+(i+1)+'</td>';
+            html+='<td style="'+tdBase+';text-align:center;font-weight:600;'+rowBg+'">'+(rec.branch||'')+'</td>';
+            html+='<td style="'+tdBase+';'+rowBg+'">'+(rec.notify_no||'')+'</td>';
+            html+='<td style="'+tdBase+';text-align:center;'+rowBg+';white-space:nowrap">'+(rec.date||'')+'</td>';
+            html+='<td style="'+tdBase+';text-align:center;'+rowBg+'">'+(rec.side||'')+'</td>';
+            html+='<td style="'+tdBase+';'+rowBg+'">'+(rec.topic||'')+'</td>';
+            html+='<td style="'+tdBase+';text-align:center;'+rowBg+'">'+(rec.status||'')+'</td>';
+            html+='</tr>';
+        });
+    }
+    html+='</tbody></table>';
+    document.getElementById('pd5TableContainer').innerHTML=html;
+
+    // Note
+    var noteEl=document.getElementById('pd5Note');
+    if(noteEl){
+        noteEl.innerHTML='<strong>หมายเหตุ :</strong> เงื่อนไขการนับ — '
+            +'(1) ด้านการร้องเรียน = "ด้านท่อแตกรั่ว" หรือ หัวข้อ/รายละเอียด มีคำว่า ท่อแตก, ท่อรั่ว, แตกรั่ว '
+            +'(2) ยังไม่มีเลขที่งาน (Job No.) '
+            +'(3) สถานะไม่ใช่ "ดำเนินการแล้วเสร็จ" — '
+            +'<strong>รวมทั้งหมด '+PD5_RECORDS.length+' งาน</strong>';
+    }
+}
+
+function pd5ExportExcel(){
+    if(typeof ExcelJS==='undefined'){alert('ExcelJS ยังโหลดไม่เสร็จ');return;}
+    if(!PD5_RECORDS||PD5_RECORDS.length===0){alert('ไม่มีข้อมูล');return;}
+    var wb=new ExcelJS.Workbook();
+    var ws=wb.addWorksheet('รับแจ้งยังไม่เปิดงาน');
+    ws.columns=[
+        {header:'ลำดับ',key:'no',width:8},
+        {header:'สาขา',key:'branch',width:16},
+        {header:'เลขแจ้ง',key:'notify',width:18},
+        {header:'วันที่แจ้ง',key:'date',width:14},
+        {header:'ด้านการร้องเรียน',key:'side',width:20},
+        {header:'หัวข้อการร้องเรียน',key:'topic',width:35},
+        {header:'สถานะ',key:'status',width:24}
+    ];
+    PD5_RECORDS.forEach(function(r,i){
+        ws.addRow({no:i+1,branch:r.branch,notify:r.notify_no,date:r.date,side:r.side,topic:r.topic,status:r.status});
+    });
+    ws.getRow(1).eachCell(function(c){c.font={bold:true,color:{argb:'FFFFFFFF'}};c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFB71C1C'}};c.alignment={horizontal:'center'};});
+    wb.xlsx.writeBuffer().then(function(buf){
+        var b=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+        var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='รับแจ้งท่อแตกรั่ว_ยังไม่เปิดงาน.xlsx';a.click();
+    });
+}
+
+/* === Auto-refresh after data upload === */
+(function(){
+    var lastSeen = localStorage.getItem('dashboard_updated') || '0';
+    document.addEventListener('visibilitychange', function(){
+        if(document.visibilityState !== 'visible') return;
+        var flag = localStorage.getItem('dashboard_updated') || '0';
+        if(flag !== lastSeen){ lastSeen = flag; location.reload(); }
+    });
+    window.addEventListener('storage', function(e){
+        if(e.key === 'dashboard_updated'){ lastSeen = e.newValue; location.reload(); }
+    });
 })();
 </script>
 

@@ -202,6 +202,10 @@ body.hide-controls .ymt{display:none!important}
                 <button class="export-btn" onclick="exportExcelDeadMeter()" title="Excel"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button>
                 <button class="export-btn" onclick="dm1ExportPPTX()" title="PowerPoint"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#D04423"/><path d="M7 5v14h2v-5h3a4 4 0 000-8H7zm2 2h3a2 2 0 010 4H9V7z" fill="#fff"/></svg></button>
             </div>
+            <div style="margin-top:4px">
+      <textarea id="meter_mainNote" rows="2" placeholder="พิมพ์หมายเหตุเพิ่มเติม..." oninput="localStorage.setItem('meter_mainNote',this.value)" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--input-bg);color:var(--text);resize:vertical;font-family:inherit"></textarea>
+      <script>(function(){var v=localStorage.getItem('meter_mainNote');if(v)document.getElementById('meter_mainNote').value=v;})()</script>
+    </div>
         </div>
     </div>
 
@@ -786,6 +790,19 @@ document.addEventListener('DOMContentLoaded',function(){
         });
     }
 });
+
+/* === Auto-refresh after data upload === */
+(function(){
+    var lastSeen = localStorage.getItem('dashboard_updated') || '0';
+    document.addEventListener('visibilitychange', function(){
+        if(document.visibilityState !== 'visible') return;
+        var flag = localStorage.getItem('dashboard_updated') || '0';
+        if(flag !== lastSeen){ lastSeen = flag; location.reload(); }
+    });
+    window.addEventListener('storage', function(e){
+        if(e.key === 'dashboard_updated'){ lastSeen = e.newValue; location.reload(); }
+    });
+})();
 </script>
 </body>
 </html>

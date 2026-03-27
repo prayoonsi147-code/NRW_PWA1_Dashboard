@@ -21,7 +21,7 @@ API Endpoints:
 """
 
 from flask import Flask, request, jsonify, send_from_directory
-import os, sys, json, shutil, traceback, subprocess
+import os, sys, json, shutil, traceback, subprocess, threading, time
 from datetime import datetime
 import platform
 
@@ -42,6 +42,116 @@ CATEGORY_MAP = {
 os.makedirs(RAW_DATA_DIR, exist_ok=True)
 for folder in CATEGORY_MAP.values():
     os.makedirs(os.path.join(RAW_DATA_DIR, folder), exist_ok=True)
+
+# ─── Excel File Cache ─────────────────────────────────────────────────────────
+# Cache openpyxl workbook data to avoid re-reading the same Excel file
+# on every API call (pending-chart, pending-table, pending-detail all read the same file)
+
+_excel_cache = {}  # { filepath: { 'rows': [...], 'mtime': float, 'time': float } }
+_excel_lock = threading.Lock()
+CACHE_TTL = 60  # seconds
+
+def parse_thai_date(val):
+    """Parse วันที่ทั้ง datetime object และ string พ.ศ. เช่น '01/10/2568'
+    Returns: (datetime_obj, buddhist_year) or (None, None)"""
+    if isinstance(val, datetime):
+        by = val.year + 543 if val.year < 2500 else val.year
+        return val, by
+    if isinstance(val, str) and '/' in val:
+        try:
+            parts = val.strip().split('/')
+            dd, mm, yyyy = int(parts[0]), int(parts[1]), int(parts[2])
+            by = yyyy if yyyy > 2500 else yyyy + 543
+            ce_year = by - 543
+            dt = datetime(ce_year, mm, dd)
+            return dt, by
+        except Exception:
+            return None, None
+    return None, None
+
+def _serialize_val(v):
+    """แปลง datetime → dict สำหรับ JSON"""
+    if isinstance(v, datetime):
+        return {'__dt__': v.isoformat()}
+    return v
+
+def _deserialize_val(v):
+    """แปลง dict → datetime กลับ"""
+    if isinstance(v, dict) and '__dt__' in v:
+        return datetime.fromisoformat(v['__dt__'])
+    return v
+
+def _build_json_cache(xlsx_path):
+    """อ่าน Excel แล้วสร้าง .cache.json (เรียกตอน startup + upload)"""
+    import openpyxl
+    mtime = os.path.getmtime(xlsx_path)
+    wb = openpyxl.load_workbook(xlsx_path, data_only=True, read_only=True)
+    ws = wb.active
+    rows = [tuple(row) for row in ws.iter_rows(values_only=True)]
+    wb.close()
+
+    json_path = xlsx_path + '.cache.json'
+    json_rows = [[_serialize_val(c) for c in row] for row in rows]
+    with open(json_path, 'w', encoding='utf-8') as f:
+        json.dump({'mtime': mtime, 'rows': json_rows}, f, ensure_ascii=False)
+
+    with _excel_lock:
+        _excel_cache[xlsx_path] = {'rows': rows, 'mtime': mtime, 'time': time.time()}
+    return rows
+
+def get_pending_rows(fpath):
+    """อ่านข้อมูลค้างซ่อม — จาก memory → JSON cache → Excel (fallback)"""
+    mtime = os.path.getmtime(fpath)
+
+    # 1) Memory
+    with _excel_lock:
+        cached = _excel_cache.get(fpath)
+        if cached and cached['mtime'] == mtime and (time.time() - cached['time']) < CACHE_TTL:
+            return cached['rows']
+
+    # 2) JSON disk cache
+    json_path = fpath + '.cache.json'
+    if os.path.exists(json_path):
+        try:
+            data = json.load(open(json_path, 'r', encoding='utf-8'))
+            if data.get('mtime') == mtime:
+                rows = [tuple(_deserialize_val(c) for c in r) for r in data['rows']]
+                with _excel_lock:
+                    _excel_cache[fpath] = {'rows': rows, 'mtime': mtime, 'time': time.time()}
+                return rows
+        except Exception:
+            pass
+
+    # 3) Fallback: อ่าน Excel แล้วสร้าง cache
+    return _build_json_cache(fpath)
+
+def preload_pending_cache():
+    """เรียกตอน server เริ่ม — สร้าง JSON cache ล่วงหน้าสำหรับไฟล์ที่มีอยู่แล้ว"""
+    import re as _re
+    pending_dir = os.path.join(RAW_DATA_DIR, CATEGORY_MAP['pending'])
+    if not os.path.isdir(pending_dir):
+        return
+    for fname in os.listdir(pending_dir):
+        if not fname.lower().endswith(('.xlsx', '.xls')) or fname.startswith('~$'):
+            continue
+        fpath = os.path.join(pending_dir, fname)
+        json_path = fpath + '.cache.json'
+        # สร้าง cache เฉพาะเมื่อยังไม่มี หรือ Excel เปลี่ยน
+        needs_build = True
+        if os.path.exists(json_path):
+            try:
+                data = json.load(open(json_path, 'r', encoding='utf-8'))
+                if data.get('mtime') == os.path.getmtime(fpath):
+                    needs_build = False
+            except Exception:
+                pass
+        if needs_build:
+            try:
+                print(f'  Building cache for {fname}...')
+                _build_json_cache(fpath)
+                print(f'  ✓ Cache ready: {fname}')
+            except Exception as e:
+                print(f'  ✗ Cache failed: {fname} — {e}')
 
 # ─── Flask App ────────────────────────────────────────────────────────────────
 
@@ -378,6 +488,12 @@ def api_upload(category):
                 overwritten = os.path.exists(dest_path)
                 wb_out.save(dest_path)
 
+                # สร้าง JSON cache ทันทีหลัง upload
+                try:
+                    _build_json_cache(dest_path)
+                except Exception:
+                    pass
+
                 orig_names = ', '.join(item['filename'] for item in _pending_batch)
                 if overwritten:
                     results.append({
@@ -400,6 +516,573 @@ def api_upload(category):
         'results': results,
         'errors': errors
     })
+
+@app.route('/api/pending-chart')
+def api_pending_chart():
+    """
+    คำนวณข้อมูลกราฟงานค้างซ่อมสะสม (pd1, pd2) จากไฟล์ค้างซ่อม
+    นิยาม "ค้างซ่อม ณ สิ้นเดือน M":
+      - วันที่แจ้ง <= สิ้นเดือน M
+      - AND ( วันเวลาเสร็จสิ้น > สิ้นเดือน M  OR  สถานะ = ซ่อมไม่เสร็จ )
+    นับสะสมเฉพาะงานที่แจ้งตั้งแต่ 1 ม.ค. ของปีงบประมาณ
+    Query params:
+        fy (optional): ปีงบประมาณ พ.ศ. เช่น 2569
+    Returns: { ok, fy, fy_list, update_date, months, pd2_data: {month_key: {branch: count}}, pd2_months: [...] }
+    """
+    import re as _re
+    from collections import defaultdict as _ddict
+    import calendar
+
+    pending_dir = os.path.join(RAW_DATA_DIR, CATEGORY_MAP['pending'])
+    if not os.path.isdir(pending_dir):
+        return jsonify({'ok': False, 'error': 'ไม่พบโฟลเดอร์ข้อมูลค้างซ่อม'}), 404
+
+    # Scan files — same logic as pending-table
+    fy_files = {}
+    for fname in os.listdir(pending_dir):
+        if not fname.lower().endswith(('.xlsx', '.xls')):
+            continue
+        fpath = os.path.join(pending_dir, fname)
+        m = _re.search(r'(\d{1,2})-(\d{2})_to_(\d{1,2})-(\d{2})', fname)
+        if m:
+            start_mm, start_yy = int(m.group(1)), int(m.group(2))
+            fy_be = 2500 + start_yy + 1 if start_mm >= 10 else 2500 + start_yy
+            fy_files[fy_be] = fpath
+        else:
+            fy_files.setdefault(0, fpath)
+
+    if not fy_files:
+        return jsonify({'ok': False, 'error': 'ไม่พบไฟล์ข้อมูลค้างซ่อม'}), 404
+
+    fy_list = sorted([k for k in fy_files.keys() if k > 0])
+    req_fy = request.args.get('fy', '')
+    fy = int(req_fy) if req_fy and req_fy.isdigit() else (fy_list[-1] if fy_list else 0)
+    fpath = fy_files.get(fy, list(fy_files.values())[0])
+
+    if not os.path.isfile(fpath):
+        return jsonify({'ok': False, 'error': 'ไม่พบไฟล์'}), 404
+
+    try:
+        all_rows = get_pending_rows(fpath)
+    except Exception as e:
+        return jsonify({'ok': False, 'error': f'อ่านไฟล์ไม่ได้: {e}'}), 500
+
+    # Column indices (0-based)
+    col_date = 3        # วันที่แจ้ง (col 4)
+    col_finish = 5      # วันเวลาเสร็จสิ้น (col 6)
+    col_branch = 19     # สาขา (col 20)
+    col_status = 26     # สถานะ (col 27)
+    data_start = 8      # row 9 = index 8
+
+    branch_list = [
+        "ชลบุรี","พัทยา","บ้านบึง","พนัสนิคม","ศรีราชา","แหลมฉบัง",
+        "ฉะเชิงเทรา","บางปะกง","บางคล้า","พนมสารคาม","ระยอง","บ้านฉาง",
+        "ปากน้ำประแสร์","จันทบุรี","ขลุง","ตราด","คลองใหญ่",
+        "สระแก้ว","วัฒนานคร","อรัญประเทศ","ปราจีนบุรี","กบินทร์บุรี"
+    ]
+
+    fy_be = fy if fy > 0 else 2569
+    fy_ce = fy_be - 543  # แปลง พ.ศ. → ค.ศ. เพื่อเทียบกับ datetime
+    count_start = datetime(fy_ce, 1, 1)
+
+    # Read ALL records into memory
+    records = []
+    last_report_dt = None
+    for row in all_rows[data_start:]:
+        if len(row) <= col_status:
+            continue
+        date_val = row[col_date]
+        if not date_val:
+            continue
+        dt, by = parse_thai_date(date_val)
+        if dt is None:
+            continue
+
+        if last_report_dt is None or dt > last_report_dt:
+            last_report_dt = dt
+
+        finish_val = row[col_finish]
+        finish_dt = None
+        if finish_val:
+            fdt, _ = parse_thai_date(finish_val)
+            if fdt:
+                finish_dt = fdt
+            elif isinstance(finish_val, str):
+                try:
+                    finish_dt, _ = parse_thai_date(finish_val[:10])
+                except:
+                    pass
+
+        status = str(row[col_status] or '')
+        branch = str(row[col_branch] or '').strip()
+        if not branch:
+            continue
+
+        records.append({'dt': dt, 'finish_dt': finish_dt, 'status': status, 'branch': branch})
+
+    # Build update_date
+    if last_report_dt:
+        by_lrd = last_report_dt.year + 543 if last_report_dt.year < 2500 else last_report_dt.year
+        update_date = f"{last_report_dt.day:02d}-{last_report_dt.month:02d}-{by_lrd % 100}"
+    else:
+        update_date = ''
+
+    # Determine which months have data (from Jan of FY year onwards)
+    # Find months where we have records from count_start onwards
+    month_set = set()
+    for rec in records:
+        if rec['dt'] >= count_start:
+            month_set.add((rec['dt'].year, rec['dt'].month))
+
+    # Sort months and convert to yy-mm format
+    sorted_months = sorted(month_set)
+    pd2_months = []
+    for y, m in sorted_months:
+        yy = (y + 543) % 100 if y < 2500 else y % 100
+        pd2_months.append(f"{yy:02d}-{m:02d}")
+
+    # For each month, compute "ค้างซ่อม ณ สิ้นเดือน"
+    pd2_data = {}  # { "yy-mm": { branch: count } }
+    for y, m in sorted_months:
+        end_day = calendar.monthrange(y, m)[1]
+        end_of_month = datetime(y, m, end_day, 23, 59, 59)
+        yy = (y + 543) % 100 if y < 2500 else y % 100
+        mk = f"{yy:02d}-{m:02d}"
+        branch_counts = _ddict(int)
+
+        for rec in records:
+            # Only count jobs reported from count_start up to end_of_month
+            if rec['dt'] < count_start or rec['dt'] > end_of_month:
+                continue
+            # ค้างซ่อม = finish_dt > end_of_month OR status = ซ่อมไม่เสร็จ
+            is_pending = False
+            if rec['finish_dt'] and rec['finish_dt'] > end_of_month:
+                is_pending = True
+            elif 'ซ่อมไม่เสร็จ' in rec['status']:
+                is_pending = True
+            if is_pending:
+                branch_counts[rec['branch']] += 1
+
+        pd2_data[mk] = dict(branch_counts)
+
+    # ── Derive pd1_data from pd2_data ──
+    # pd1_data[month] = {branch: [prev_month_count, curr_month_count]}
+    # prev_month = pd2 snapshot of the previous month (0 if first month)
+    pd1_data = {}
+    for i, mk in enumerate(pd2_months):
+        prev_mk = pd2_months[i - 1] if i > 0 else None
+        prev_snap = pd2_data.get(prev_mk, {}) if prev_mk else {}
+        curr_snap = pd2_data.get(mk, {})
+        branch_pairs = {}
+        for b in branch_list:
+            pv = prev_snap.get(b, 0)
+            cv = curr_snap.get(b, 0)
+            branch_pairs[b] = [pv, cv]
+        pd1_data[mk] = branch_pairs
+
+    return jsonify({
+        'ok': True,
+        'fy': fy,
+        'fy_list': fy_list,
+        'update_date': update_date,
+        'pd2_months': pd2_months,
+        'pd2_data': pd2_data,
+        'pd1_data': pd1_data,
+        'branches': branch_list
+    })
+
+@app.route('/api/pending-table')
+def api_pending_table():
+    """
+    คำนวณตาราง "งานซ่อมที่ยังไม่ปิดในระบบ" จากไฟล์ค้างซ่อมในโฟลเดอร์ข้อมูลดิบ
+    Query params:
+        fy (optional): ปีงบประมาณ พ.ศ. เช่น 2569 (default = ล่าสุดที่มี)
+    Returns: { ok, fy, fy_list, update_date, branches, months, data: {branch: {month: count}}, col_totals, grand_total }
+    """
+    import re as _re
+    from collections import defaultdict as _ddict
+
+    pending_dir = os.path.join(RAW_DATA_DIR, CATEGORY_MAP['pending'])
+    if not os.path.isdir(pending_dir):
+        return jsonify({'ok': False, 'error': 'ไม่พบโฟลเดอร์ข้อมูลค้างซ่อม'}), 404
+
+    # Scan all xlsx files — extract fiscal year from filename pattern: ค้างซ่อม_MM-YY_to_MM-YY.xlsx
+    fy_files = {}  # { fy_year_be: filepath }
+    for fname in os.listdir(pending_dir):
+        if not fname.lower().endswith(('.xlsx', '.xls')):
+            continue
+        fpath = os.path.join(pending_dir, fname)
+        # Extract start month from filename: ค้างซ่อม_10-68_to_03-69.xlsx → start=10-68
+        m = _re.search(r'(\d{1,2})-(\d{2})_to_(\d{1,2})-(\d{2})', fname)
+        if m:
+            start_mm, start_yy = int(m.group(1)), int(m.group(2))
+            # Fiscal year: if start month is 10 (ต.ค.) → FY = 25(yy+1)
+            if start_mm >= 10:
+                fy_be = 2500 + start_yy + 1
+            else:
+                fy_be = 2500 + start_yy
+            fy_files[fy_be] = fpath
+        else:
+            # Fallback: try to read data to determine FY
+            fy_files.setdefault(0, fpath)
+
+    if not fy_files:
+        return jsonify({'ok': False, 'error': 'ไม่พบไฟล์ข้อมูลค้างซ่อม'}), 404
+
+    fy_list = sorted([k for k in fy_files.keys() if k > 0])
+
+    # Determine requested FY
+    req_fy = request.args.get('fy', '')
+    if req_fy and req_fy.isdigit():
+        fy = int(req_fy)
+    elif fy_list:
+        fy = fy_list[-1]
+    else:
+        fy = 0
+
+    fpath = fy_files.get(fy, list(fy_files.values())[0])
+    if not os.path.isfile(fpath):
+        return jsonify({'ok': False, 'error': 'ไม่พบไฟล์'}), 404
+
+    # ── Parse the Excel file (cached) ──
+    try:
+        all_rows = get_pending_rows(fpath)
+    except Exception as e:
+        return jsonify({'ok': False, 'error': f'อ่านไฟล์ไม่ได้: {e}'}), 500
+
+    # Column indices (0-based)
+    col_date = 3       # วันที่แจ้ง (col 4)
+    col_branch = 19    # สาขา (col 20)
+    col_status = 26    # สถานะ (col 27)
+    data_start = 8     # row 9 = index 8
+
+    # Determine fiscal year months: ต.ค.(YY-1) to ก.ย.(YY)
+    fy_yy_start = (fy - 2500 - 1) if fy > 0 else 68
+    fy_yy_end = fy_yy_start + 1
+    fy_months = []
+    for mm in [10, 11, 12]:
+        fy_months.append(f"{fy_yy_start:02d}-{mm:02d}")
+    for mm in range(1, 10):
+        fy_months.append(f"{fy_yy_end:02d}-{mm:02d}")
+
+    # Standard branch list
+    branch_list = [
+        "ชลบุรี","พัทยา","บ้านบึง","พนัสนิคม","ศรีราชา","แหลมฉบัง",
+        "ฉะเชิงเทรา","บางปะกง","บางคล้า","พนมสารคาม","ระยอง","บ้านฉาง",
+        "ปากน้ำประแสร์","จันทบุรี","ขลุง","ตราด","คลองใหญ่",
+        "สระแก้ว","วัฒนานคร","อรัญประเทศ","ปราจีนบุรี","กบินทร์บุรี"
+    ]
+
+    # Count: filter records where สถานะ contains "ซ่อมไม่เสร็จ"
+    result = _ddict(lambda: _ddict(int))
+    last_report_dt = None
+
+    for row in all_rows[data_start:]:
+        if len(row) <= col_status:
+            continue
+        date_val = row[col_date]
+        if not date_val:
+            continue
+
+        dt, by = parse_thai_date(date_val)
+        if dt is None:
+            continue
+
+        if last_report_dt is None or dt > last_report_dt:
+            last_report_dt = dt
+
+        status = row[col_status]
+        if not status or 'ซ่อมไม่เสร็จ' not in str(status):
+            continue
+
+        branch = row[col_branch]
+        if not branch:
+            continue
+        branch = str(branch).strip()
+
+        yy = by % 100
+        mm = dt.month
+        mk = f"{yy:02d}-{mm:02d}"
+
+        if mk in fy_months:
+            result[branch][mk] += 1
+
+    # Build update_date from latest วันที่แจ้ง in data
+    if last_report_dt:
+        by_lrd = last_report_dt.year + 543 if last_report_dt.year < 2500 else last_report_dt.year
+        update_date = f"{last_report_dt.day:02d}-{last_report_dt.month:02d}-{by_lrd % 100}"
+    else:
+        update_date = ''
+
+    # Build response
+    data_out = {}
+    col_totals = {mk: 0 for mk in fy_months}
+    grand_total = 0
+    for branch in branch_list:
+        bd = result.get(branch, {})
+        if bd:
+            data_out[branch] = dict(bd)
+            for mk, v in bd.items():
+                col_totals[mk] += v
+                grand_total += v
+
+    return jsonify({
+        'ok': True,
+        'fy': fy,
+        'fy_be': fy,
+        'fy_list': fy_list,
+        'update_date': update_date,
+        'branches': branch_list,
+        'months': fy_months,
+        'data': data_out,
+        'col_totals': col_totals,
+        'grand_total': grand_total
+    })
+
+@app.route('/api/pending-detail')
+def api_pending_detail():
+    """
+    รายละเอียดงานค้างซ่อม (สถานะ = ซ่อมไม่เสร็จ) ตามเดือนที่เลือก
+    Query params:
+        fy: ปีงบประมาณ พ.ศ. (default=2569)
+        month: month key เช่น 69-01 (default=all)
+        branch: ชื่อสาขา (default=all)
+    Returns: { ok, records: [...], total }
+    """
+    import re as _re
+
+    pending_dir = os.path.join(RAW_DATA_DIR, CATEGORY_MAP['pending'])
+    if not os.path.isdir(pending_dir):
+        return jsonify({'ok': False, 'error': 'ไม่พบโฟลเดอร์ข้อมูลค้างซ่อม'}), 404
+
+    # Find file by FY (same logic as pending-table)
+    fy_files = {}
+    for fname in os.listdir(pending_dir):
+        if not fname.lower().endswith(('.xlsx', '.xls')) or fname.startswith('~$'):
+            continue
+        fpath = os.path.join(pending_dir, fname)
+        m = _re.search(r'(\d{1,2})-(\d{2})_to_(\d{1,2})-(\d{2})', fname)
+        if m:
+            start_mm, start_yy = int(m.group(1)), int(m.group(2))
+            fy_be = (2500 + start_yy + 1) if start_mm >= 10 else (2500 + start_yy)
+            fy_files[fy_be] = fpath
+        else:
+            fy_files.setdefault(0, fpath)
+
+    if not fy_files:
+        return jsonify({'ok': False, 'error': 'ไม่พบไฟล์ข้อมูลค้างซ่อม'}), 404
+
+    fy_list = sorted([k for k in fy_files.keys() if k > 0])
+    req_fy = request.args.get('fy', '')
+    fy = int(req_fy) if req_fy and req_fy.isdigit() else (fy_list[-1] if fy_list else 0)
+    fpath = fy_files.get(fy, list(fy_files.values())[0])
+
+    req_month = request.args.get('month', '').strip()
+    req_branch = request.args.get('branch', '').strip()
+
+    try:
+        rows = get_pending_rows(fpath)
+    except Exception as e:
+        return jsonify({'ok': False, 'error': f'อ่านไฟล์ไม่ได้: {e}'}), 500
+
+    # Column indices (0-based for cached rows)
+    C_DATE = 3       # วันที่แจ้ง (col 4)
+    C_NOTIFY = 2     # เลขแจ้ง (col 3)
+    C_JOB = 6        # เลขที่งาน (col 7)
+    C_TYPE = 7       # ประเภทการร้องเรียน (col 8)
+    C_ASPECT = 8     # ด้านการร้องเรียน (col 9)
+    C_BRANCH = 19    # สาขา (col 20)
+    C_TEAM = 20      # ทีมซ่อม (col 21)
+    C_TECH = 21      # ช่างซ่อม (col 22)
+    C_PIPE = 25      # ขนาดท่อ (col 26)
+    C_STATUS = 26    # สถานะ (col 27)
+
+    data_start = 8  # row 9 = index 8 (0-based)
+    records = []
+
+    for row in rows[data_start:]:
+        if len(row) <= C_STATUS:
+            continue
+        status = row[C_STATUS]
+        if not status or 'ซ่อมไม่เสร็จ' not in str(status):
+            continue
+
+        date_val = row[C_DATE]
+        if not date_val:
+            continue
+
+        dt, by = parse_thai_date(date_val)
+        if dt is None:
+            continue
+
+        yy = by % 100
+        mk = f"{yy:02d}-{dt.month:02d}"
+
+        # Filter by month if specified
+        if req_month and mk != req_month:
+            continue
+
+        branch = str(row[C_BRANCH] or '').strip()
+        # Filter by branch if specified
+        if req_branch and branch != req_branch:
+            continue
+
+        rec = {
+            'branch': branch,
+            'notify_no': str(row[C_NOTIFY] or ''),
+            'date': str(date_val) if isinstance(date_val, str) else dt.strftime('%d/%m/%Y'),
+            'job_no': str(row[C_JOB] or ''),
+            'type': str(row[C_TYPE] or ''),
+            'aspect': str(row[C_ASPECT] or ''),
+            'team': str(row[C_TEAM] or ''),
+            'tech': str(row[C_TECH] or ''),
+            'pipe': str(row[C_PIPE] or ''),
+            'status': str(row[C_STATUS] or ''),
+            'month': mk
+        }
+        records.append(rec)
+
+    return jsonify({
+        'ok': True,
+        'records': records,
+        'total': len(records)
+    })
+
+
+@app.route('/api/pending-nojob')
+def api_pending_nojob():
+    """
+    ตารางที่ 5: งานที่รับแจ้งท่อแตกรั่วแล้ว แต่ยังไม่เปิดงานซ่อม
+    เงื่อนไข:
+      - ด้านการร้องเรียน = "ด้านท่อแตกรั่ว" หรือ หัวข้อ/รายละเอียด มีคำว่า ท่อแตก/ท่อรั่ว/แตกรั่ว
+      - ยังไม่มีเลขที่งาน (col 6 ว่าง)
+      - สถานะ ไม่มีคำว่า "ดำเนินการแล้วเสร็จ"
+    Returns: { ok, by_branch: {branch: count}, total, update_date, month_label }
+    """
+    import re as _re
+
+    pending_dir = os.path.join(RAW_DATA_DIR, CATEGORY_MAP['pending'])
+    if not os.path.isdir(pending_dir):
+        return jsonify({'ok': False, 'error': 'ไม่พบโฟลเดอร์'}), 404
+
+    fy_files = {}
+    for fname in os.listdir(pending_dir):
+        if not fname.lower().endswith(('.xlsx', '.xls')) or fname.startswith('~'):
+            continue
+        fpath = os.path.join(pending_dir, fname)
+        m = _re.search(r'(\d{1,2})-(\d{2})_to_(\d{1,2})-(\d{2})', fname)
+        if m:
+            start_mm, start_yy = int(m.group(1)), int(m.group(2))
+            fy_be = 2500 + start_yy + 1 if start_mm >= 10 else 2500 + start_yy
+            fy_files[fy_be] = fpath
+
+    if not fy_files:
+        return jsonify({'ok': False, 'error': 'ไม่พบไฟล์'}), 404
+
+    fy_list = sorted(fy_files.keys())
+    req_fy = request.args.get('fy', '')
+    fy = int(req_fy) if req_fy and req_fy.isdigit() else (fy_list[-1] if fy_list else 0)
+    fpath = fy_files.get(fy, list(fy_files.values())[0])
+
+    try:
+        all_rows = get_pending_rows(fpath)
+    except Exception as e:
+        return jsonify({'ok': False, 'error': f'อ่านไฟล์ไม่ได้: {e}'}), 500
+
+    # Column indices (0-based)
+    C_DATE = 3
+    C_JOB = 6
+    C_SIDE = 8       # ด้านการร้องเรียน
+    C_TOPIC = 9      # หัวข้อการร้องเรียน
+    C_DETAIL = 10    # รายละเอียดการรับแจ้ง
+    C_BRANCH = 19
+    C_STATUS = 26
+    data_start = 8
+
+    # Find latest month in data
+    latest_mk = None
+    for row in all_rows[data_start:]:
+        if len(row) <= C_BRANCH or not row[C_BRANCH]:
+            continue
+        date_val = row[C_DATE]
+        dt, by = parse_thai_date(date_val)
+        if dt and by:
+            mm = dt.month
+            yy = by % 100
+            mk = f"{yy:02d}-{mm:02d}"
+            if latest_mk is None or mk > latest_mk:
+                latest_mk = mk
+
+    by_branch = {}
+    records = []
+
+    for row in all_rows[data_start:]:
+        if len(row) <= C_STATUS or not row[C_BRANCH]:
+            continue
+
+        branch = str(row[C_BRANCH]).strip()
+        date_val = row[C_DATE]
+        job_no = row[C_JOB]
+        status = str(row[C_STATUS] or '')
+        side = str(row[C_SIDE] or '')
+        topic = str(row[C_TOPIC] or '')
+        detail = str(row[C_DETAIL] or '')
+
+        # Parse date to filter latest month only
+        dt, by = parse_thai_date(date_val)
+        if not dt or not by:
+            continue
+        mm = dt.month
+        yy = by % 100
+        mk = f"{yy:02d}-{mm:02d}"
+        if mk != latest_mk:
+            continue
+
+        # Condition: pipe complaint
+        is_pipe = (side == 'ด้านท่อแตกรั่ว' or
+                   'ท่อแตก' in topic or 'ท่อรั่ว' in topic or 'แตกรั่ว' in topic or
+                   'ท่อแตก' in detail or 'ท่อรั่ว' in detail or 'แตกรั่ว' in detail)
+        if not is_pipe:
+            continue
+
+        # Condition: no job number
+        has_no_job = (job_no is None or str(job_no).strip() == '')
+        if not has_no_job:
+            continue
+
+        # Condition: status not done
+        if 'ดำเนินการแล้วเสร็จ' in status:
+            continue
+
+        by_branch[branch] = by_branch.get(branch, 0) + 1
+        records.append({
+            'branch': branch,
+            'notify_no': str(row[2] or ''),
+            'date': str(date_val) if isinstance(date_val, str) else dt.strftime('%d/%m/%Y'),
+            'side': side,
+            'topic': topic,
+            'detail': str(detail)[:100],
+            'status': status
+        })
+
+    # Get update date from file mod time
+    import time as _time
+    fmod = os.path.getmtime(fpath)
+    update_date = _time.strftime('%d/%m/%Y', _time.localtime(fmod))
+
+    # Month label
+    month_label = latest_mk or ''
+
+    return jsonify({
+        'ok': True,
+        'by_branch': by_branch,
+        'records': records,
+        'total': len(records),
+        'update_date': update_date,
+        'month_key': latest_mk,
+        'fy': fy
+    })
+
 
 @app.route('/api/data/<category>/<filename>', methods=['DELETE', 'OPTIONS'])
 def api_delete_file(category, filename):
@@ -516,4 +1199,8 @@ if __name__ == '__main__':
     print(f"  Raw data dir   : {RAW_DATA_DIR}")
     print()
 
-    app.run(host='0.0.0.0', port=PORT, debug=True)
+    # Pre-build JSON cache สำหรับไฟล์ที่มีอยู่แล้ว (ทำครั้งเดียวตอน start)
+    preload_pending_cache()
+    print()
+
+    app.run(host='0.0.0.0', port=PORT, debug=True, threaded=True)

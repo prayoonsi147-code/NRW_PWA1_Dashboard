@@ -1000,7 +1000,7 @@ def process_mnf_file(filepath):
     Returns (year_str, {branch_or_regional: {actual:[12], acceptable:[12], target:[12], production:[12]}})
     """
     basename = os.path.basename(filepath)
-    m = re.search(r'MNF-(\d{4})', basename)
+    m = re.search(r'MNF[-_](\d{4})', basename)
     if not m:
         print(f"  ⚠️  ไม่พบปี พ.ศ. ในชื่อไฟล์ MNF: {basename}")
         return None, None
@@ -1269,46 +1269,58 @@ def process_p3_files(p3_dir):
     if not os.path.isdir(p3_dir):
         return result
 
-    # Scan year subfolders
-    for year_folder in sorted(os.listdir(p3_dir)):
-        year_path = os.path.join(p3_dir, year_folder)
-        if not os.path.isdir(year_path):
-            continue
-
-        # Process all .xlsx and .csv files in year folder
-        files = sorted(glob.glob(os.path.join(year_path, '*.xlsx')) +
-                      glob.glob(os.path.join(year_path, '*.csv')))
-
+    # Helper to process a list of files and group into result
+    def _process_files(files, year_key):
         for filepath in files:
             fname = os.path.basename(filepath)
+            if fname.startswith('~$'):
+                continue
 
-            # Parse filename: {branch}_{YY}-{MM}.xlsx or .csv
-            # e.g. "ชลบุรี_69-03.xlsx" -> branch="ชลบุรี", month="69-03"
-            match = re.match(r'^(.+?)_((\d{2})-(\d{2}))\.(xlsx|csv)$', fname)
+            # Try pattern: P3_{branch}_{YY}-{MM}.xlsx (files directly in P3/)
+            match = re.match(r'^P3_(.+?)_((\d{2})-(\d{2}))\.(xlsx|csv)$', fname)
+            if not match:
+                # Try pattern: {branch}_{YY}-{MM}.xlsx (files in year subfolder)
+                match = re.match(r'^(.+?)_((\d{2})-(\d{2}))\.(xlsx|csv)$', fname)
             if not match:
                 continue
 
             branch = match.group(1)
             month_key = match.group(2)  # "69-03"
-            file_ext = match.group(5).lower()  # "xlsx" or "csv"
+            file_ext = match.group(5).lower()
+
+            # Derive year from month_key if not given
+            yy = int(match.group(3))
+            yk = year_key if year_key else str(2500 + yy)
 
             try:
                 if file_ext == 'xlsx':
                     p3_points = _parse_p3_xlsx(filepath)
-                else:  # csv
+                else:
                     p3_points = _parse_p3_csv(filepath)
 
                 if p3_points:
-                    # Initialize nested structure
-                    if year_folder not in result:
-                        result[year_folder] = {}
-                    if month_key not in result[year_folder]:
-                        result[year_folder][month_key] = {}
-
-                    result[year_folder][month_key][branch] = p3_points
+                    if yk not in result:
+                        result[yk] = {}
+                    if month_key not in result[yk]:
+                        result[yk][month_key] = {}
+                    result[yk][month_key][branch] = p3_points
             except Exception as e:
-                # Silently skip files with parsing errors
-                pass
+                pass  # Silently skip files with parsing errors
+
+    # 1) Scan year subfolders (original structure)
+    for year_folder in sorted(os.listdir(p3_dir)):
+        year_path = os.path.join(p3_dir, year_folder)
+        if not os.path.isdir(year_path):
+            continue
+        files = sorted(glob.glob(os.path.join(year_path, '*.xlsx')) +
+                      glob.glob(os.path.join(year_path, '*.csv')))
+        _process_files(files, year_folder)
+
+    # 2) Scan files directly in P3/ folder (flat structure)
+    flat_files = sorted(glob.glob(os.path.join(p3_dir, 'P3_*.xlsx')) +
+                       glob.glob(os.path.join(p3_dir, 'P3_*.csv')))
+    if flat_files:
+        _process_files(flat_files, None)
 
     return result
 
@@ -1798,8 +1810,8 @@ def main():
     rl_dir = os.path.join(script_dir, 'ข้อมูลดิบ', 'Real Leak')
     rl_data = {}
     if os.path.isdir(rl_dir):
-        rl_files = sorted(glob.glob(os.path.join(rl_dir, 'RL-*.xlsx')) +
-                          glob.glob(os.path.join(rl_dir, 'RL-*.xls')))
+        rl_files = sorted(glob.glob(os.path.join(rl_dir, 'RL*.xlsx')) +
+                          glob.glob(os.path.join(rl_dir, 'RL*.xls')))
         if rl_files:
             print(f"\n📂 พบไฟล์ Real Leak {len(rl_files)} ไฟล์:")
             for f in rl_files:
@@ -1859,8 +1871,8 @@ def main():
     mnf_dir = os.path.join(script_dir, 'ข้อมูลดิบ', 'MNF')
     mnf_data = {}
     if os.path.isdir(mnf_dir):
-        mnf_files = sorted(glob.glob(os.path.join(mnf_dir, 'MNF-*.xlsx')) +
-                           glob.glob(os.path.join(mnf_dir, 'MNF-*.xls')))
+        mnf_files = sorted(glob.glob(os.path.join(mnf_dir, 'MNF*.xlsx')) +
+                           glob.glob(os.path.join(mnf_dir, 'MNF*.xls')))
         if mnf_files:
             print(f"\n📂 พบไฟล์ MNF {len(mnf_files)} ไฟล์:")
             for f in mnf_files:
@@ -1891,8 +1903,8 @@ def main():
     kpi_data = {}
     for kd in [kpi_dir, kpi_dir2]:
         if os.path.isdir(kd):
-            kpi_files = sorted(glob.glob(os.path.join(kd, 'KPI_Lea*-*.xlsx')) +
-                               glob.glob(os.path.join(kd, 'KPI_Lea*-*.xls')))
+            kpi_files = sorted(glob.glob(os.path.join(kd, 'KPI*.xlsx')) +
+                               glob.glob(os.path.join(kd, 'KPI*.xls')))
             if kpi_files:
                 print(f"\n📂 พบไฟล์ KPI Leak {len(kpi_files)} ไฟล์:")
                 for f in kpi_files:

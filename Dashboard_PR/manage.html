@@ -1298,6 +1298,8 @@
 
                 // Reload data
                 await loadData();
+                // Signal main dashboard to refresh
+                try { localStorage.setItem('dashboard_updated', Date.now().toString()); } catch(e){}
             } catch (error) {
                 const userMsg = 'ไฟล์นี้ไม่ใช่รูปแบบที่รองรับ ไม่สามารถ Upload ได้ กรุณาตรวจสอบอีกครั้ง';
                 showStatus(slug, userMsg, 'error');
@@ -1551,6 +1553,7 @@
 
                 closePrEdit();
                 await loadData();
+                try { localStorage.setItem('dashboard_updated', Date.now().toString()); } catch(e){}
                 addLog(`บันทึกข้อมูล PR ${mkToLabel(currentEditingMk)} สำเร็จ`, 'success');
             } catch (error) {
                 addLog(`ข้อผิดพลาด: ${error.message}`, 'error');
@@ -1581,6 +1584,7 @@
 
                 closeAonEdit();
                 await loadData();
+                try { localStorage.setItem('dashboard_updated', Date.now().toString()); } catch(e){}
                 addLog(`บันทึกข้อมูล AON ${mkToLabel(currentEditingMk)} สำเร็จ`, 'success');
             } catch (error) {
                 addLog(`ข้อผิดพลาด: ${error.message}`, 'error');
@@ -1612,6 +1616,7 @@
                 }
 
                 await loadData();
+                try { localStorage.setItem('dashboard_updated', Date.now().toString()); } catch(e){}
                 addLog(`ลบข้อมูล ${type.toUpperCase()} ${mkToLabel(mk)} สำเร็จ`, 'success');
             } catch (error) {
                 addLog(`ข้อผิดพลาด: ${error.message}`, 'error');
@@ -1630,6 +1635,7 @@
                 }
 
                 await loadData();
+                try { localStorage.setItem('dashboard_updated', Date.now().toString()); } catch(e){}
                 addLog('ล้างข้อมูลทั้งหมดสำเร็จ', 'success');
             } catch (error) {
                 addLog(`ข้อผิดพลาด: ${error.message}`, 'error');

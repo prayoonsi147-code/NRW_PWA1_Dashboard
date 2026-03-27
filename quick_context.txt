@@ -75,11 +75,31 @@ Dashboard_Meter   | 5003 | ม่วง #4a148c    | ~22KB
     - PD2 = snapshot ค้างซ่อม ณ สิ้นเดือน: 69-01(95), 69-02(164), 69-03(269)
     - ตรวจสอบแล้ว: 69-01 ตรง 100% ทุกสาขา, PD1↔PD2 สอดคล้อง 100%
 
+งานที่ทำ (26 มี.ค. — ต่อ session 2):
+  - GIS TAB 3 (pd3): สร้างตาราง "งานซ่อมที่ยังไม่ปิดในระบบ" แยกสาขา×เดือน ปีงบ 2569
+    - คำนวณจากไฟล์ ค้างซ่อม_10-68_to_03-69.xlsx (filter สถานะ=ซ่อมไม่เสร็จ, 304 records)
+    - Header: กปภ.สาขา(rowspan=2) | descriptive text(colspan=12) | รวมรายสาขา(rowspan=2)
+    - descriptive text: "งานซ่อมที่ยังไม่ปิดในระบบ ปีงบประมาณ xxxx (ค่าสะสมตั้งแต่ ต้นปีงบฯ) Update ข้อมูล ณ วันที่ dd-mm-yy"
+    - dd-mm-yy = วันที่รับแจ้งล่าสุดจาก ALL records ในไฟล์
+  - GIS server.py: เพิ่ม API GET /api/pending-table?fy=YYYY
+    - parse Excel header row 7, data row 9+, Col4=วันที่แจ้ง, Col20=สาขา, Col27=สถานะ
+    - return: fy, fy_list, update_date, branches, months, data, col_totals, grand_total
+  - GIS index.html: dual-mode (API live + PD3_FALLBACK hardcode) สำหรับ file:// mode
+  - GIS TAB 3 pd3: toggle กราฟ/ตาราง, export bar (PNG, copy, Excel, PPTX)
+  - ตัวเลือกปีงบประมาณ: ย้ายจาก Card 3 → Card 1 (pendingFySel)
+    - pendingFYInit/Populate/Changed → ตั้ง PENDING_FY → pd1/pd2/pd3 LoadFY() อ้างอิง
+    - Card 1/2/3 ทั้งหมดอ้างอิง PENDING_FY จาก dropdown ใน Card 1
+  - API: GET /api/pending-chart?fy=YYYY → คำนวณค้างซ่อมสะสม (finish>eom OR ซ่อมไม่เสร็จ)
+    - return: pd2_data (snapshot ค้างซ่อม ณ สิ้นเดือน), pd2_months, pd1_data (derive จาก pd2), update_date
+    - ทั้ง 3 กราฟใช้ API endpoint เดียวกัน คำนวณจากข้อมูลดิบชุดเดียว
+  - GIS pd1 (กราฟที่ 1): เปลี่ยนจาก const → var, เพิ่ม pd1LoadFY/pd1UseFallback/pd1PopulateMonthSel
+    - fallback: PD1_DATA_FALLBACK สำหรับ file:// mode
+  - GIS pd2 (กราฟที่ 2): เปลี่ยนจาก const → var, เพิ่ม pd2LoadFY/pd2UseFallback/pd2UpdateTitle
+    - fallback: PD2_DATA_FALLBACK สำหรับ file:// mode
+  - pendingFYChanged() trigger ทั้ง pd1, pd2 และ pd3
+
 งานค้าง:
   1. ตรวจสอบ scale sync กราฟ volume — อาจต้องปรับ rounding
-
-งานถัดไป (รอดำเนินการ):
-  2. GIS TAB 3: เพิ่มตาราง (table view) ใน Tab งานค้างซ่อม — User จะแจ้งรายละเอียด
 
 หมายเหตุ: ยกเลิกการบันทึก prompt_history แล้ว ไม่ต้องเขียนเพิ่ม
 ================================================================================

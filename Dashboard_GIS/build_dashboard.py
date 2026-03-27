@@ -9,7 +9,7 @@ import os
 import re
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.join(SCRIPT_DIR, "ข้อมูลดิบ", "ลงข้อมูลซ๋อมท่อ")
+DATA_DIR = os.path.join(SCRIPT_DIR, "ข้อมูลดิบ", "ลงข้อมูลซ่อมท่อ")
 HTML_TEMPLATE = os.path.join(SCRIPT_DIR, "index.html")
 
 MONTH_NAMES = ['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.',

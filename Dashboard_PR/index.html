@@ -604,6 +604,10 @@ function overviewTickFont(ctx){
       <button class="export-btn" onclick="pr1ExportExcel()"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button>
       <button class="export-btn" onclick="pr1ExportPPTX()"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#D04423"/><path d="M7 5v14h2v-5h3a4 4 0 000-8H7zm2 2h3a2 2 0 010 4H9V7z" fill="#fff"/></svg></button>
     </div>
+    <div style="margin-top:4px">
+      <textarea id="pr_pr1Note" rows="2" placeholder="พิมพ์หมายเหตุเพิ่มเติม..." oninput="localStorage.setItem('pr_pr1Note',this.value)" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--input-bg);color:var(--text);resize:vertical;font-family:inherit"></textarea>
+      <script>(function(){var v=localStorage.getItem('pr_pr1Note');if(v)document.getElementById('pr_pr1Note').value=v;})()</script>
+    </div>
     </div><!-- /pr1ControlBody -->
   </div>
 
@@ -702,6 +706,10 @@ function overviewTickFont(ctx){
       <button class="export-btn" onclick="pr2CopyChart()"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M16 1H4a2 2 0 00-2 2v14h2V3h12V1zm3 4H8a2 2 0 00-2 2v14a2 2 0 002 2h11a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h11v14z"/></svg></button>
       <button class="export-btn" onclick="pr2ExportExcel()"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button>
       <button class="export-btn" onclick="pr2ExportPPTX()"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#D04423"/><path d="M7 5v14h2v-5h3a4 4 0 000-8H7zm2 2h3a2 2 0 010 4H9V7z" fill="#fff"/></svg></button>
+    </div>
+    <div style="margin-top:4px">
+      <textarea id="pr_pr2Note" rows="2" placeholder="พิมพ์หมายเหตุเพิ่มเติม..." oninput="localStorage.setItem('pr_pr2Note',this.value)" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--input-bg);color:var(--text);resize:vertical;font-family:inherit"></textarea>
+      <script>(function(){var v=localStorage.getItem('pr_pr2Note');if(v)document.getElementById('pr_pr2Note').value=v;})()</script>
     </div>
     </div><!-- /pr2ControlBody -->
   </div>
@@ -2338,6 +2346,10 @@ pr2Init();
 
     <!-- Export bar -->
     <div class="export-bar pr-option"><button class="export-btn" onclick="resetChartSize(this)" title="รีเซ็ตขนาดกราฟ">&#8634; รีเซ็ต</button><label class="export-btn" style="cursor:pointer"><input type="checkbox" onchange="toggleDataLabels(this)" style="margin-right:4px">แสดงค่า</label><button class="export-btn" onclick="openFontPopup(this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M9.93 2L4 22h3.2l1.67-5.5h6.26L16.8 22H20L14.07 2H9.93zm-.34 11.5L12 5.88l2.41 7.62H9.59z"/></svg></button><button class="export-btn" onclick="exportPNG('aonChart1','PWA-AlwaysOn')"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></button><button class="export-btn" onclick="copyToClipboard('aonChart1',this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M16 1H4a2 2 0 00-2 2v14h2V3h12V1zm3 4H8a2 2 0 00-2 2v14a2 2 0 002 2h11a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h11v14z"/></svg></button><button class="export-btn" onclick="exportPPTX('aonChart1','PWA-AlwaysOn')"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#D04423"/><path d="M7 5v14h2v-5h3a4 4 0 000-8H7zm2 2h3a2 2 0 010 4H9V7z" fill="#fff"/></svg></button><button class="export-btn" onclick="exportExcel('aon1')"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button></div>
+    <div style="margin-top:4px">
+      <textarea id="pr_aon1Note" rows="2" placeholder="พิมพ์หมายเหตุเพิ่มเติม..." oninput="localStorage.setItem('pr_aon1Note',this.value)" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--input-bg);color:var(--text);resize:vertical;font-family:inherit"></textarea>
+      <script>(function(){var v=localStorage.getItem('pr_aon1Note');if(v)document.getElementById('pr_aon1Note').value=v;})()</script>
+    </div>
     </div><!-- /aon1ControlBody -->
 
   </div><!-- /Card 1 -->
@@ -2389,6 +2401,10 @@ pr2Init();
 
     <!-- Export bar -->
     <div class="export-bar pr-option"><button class="export-btn" onclick="resetChartSize(this)" title="รีเซ็ตขนาดกราฟ">&#8634; รีเซ็ต</button><label class="export-btn" style="cursor:pointer"><input type="checkbox" onchange="toggleDataLabels(this)" style="margin-right:4px">แสดงค่า</label><button class="export-btn" onclick="openFontPopup(this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M9.93 2L4 22h3.2l1.67-5.5h6.26L16.8 22H20L14.07 2H9.93zm-.34 11.5L12 5.88l2.41 7.62H9.59z"/></svg></button><button class="export-btn" onclick="exportPNG('aonCmpChart','PWA-AlwaysOn-Compare')"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></button><button class="export-btn" onclick="copyToClipboard('aonCmpChart',this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M16 1H4a2 2 0 00-2 2v14h2V3h12V1zm3 4H8a2 2 0 00-2 2v14a2 2 0 002 2h11a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h11v14z"/></svg></button><button class="export-btn" onclick="exportPPTX('aonCmpChart','PWA-AlwaysOn-Compare')"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#D04423"/><path d="M7 5v14h2v-5h3a4 4 0 000-8H7zm2 2h3a2 2 0 010 4H9V7z" fill="#fff"/></svg></button><button class="export-btn" onclick="exportExcel('aonCmp')"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button></div>
+    <div style="margin-top:4px">
+      <textarea id="pr_aon2Note" rows="2" placeholder="พิมพ์หมายเหตุเพิ่มเติม..." oninput="localStorage.setItem('pr_aon2Note',this.value)" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--input-bg);color:var(--text);resize:vertical;font-family:inherit"></textarea>
+      <script>(function(){var v=localStorage.getItem('pr_aon2Note');if(v)document.getElementById('pr_aon2Note').value=v;})()</script>
+    </div>
     </div><!-- /aonCmpControlBody -->
 
   </div><!-- /Card 2: Compare -->
@@ -2458,6 +2474,10 @@ pr2Init();
 
     <!-- Export Bar -->
     <div class="export-bar pr-option"><button class="export-btn" onclick="resetChartSize(this)" title="รีเซ็ตขนาดกราฟ">&#8634; รีเซ็ต</button><label class="export-btn" style="cursor:pointer"><input type="checkbox" onchange="toggleDataLabels(this)" style="margin-right:4px">แสดงค่า</label><button class="export-btn" onclick="openFontPopup(this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M9.93 2L4 22h3.2l1.67-5.5h6.26L16.8 22H20L14.07 2H9.93zm-.34 11.5L12 5.88l2.41 7.62H9.59z"/></svg></button><button class="export-btn" onclick="exportPNG('aonChart2','PWA-AlwaysOn-Compare')"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></button><button class="export-btn" onclick="copyToClipboard('aonChart2',this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><path d="M16 1H4a2 2 0 00-2 2v14h2V3h12V1zm3 4H8a2 2 0 00-2 2v14a2 2 0 002 2h11a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h11v14z"/></svg></button><button class="export-btn" onclick="exportPPTX('aonChart2','PWA-AlwaysOn-Compare')"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#D04423"/><path d="M7 5v14h2v-5h3a4 4 0 000-8H7zm2 2h3a2 2 0 010 4H9V7z" fill="#fff"/></svg></button><button class="export-btn" onclick="exportExcel('aon2')"><svg width="20" height="20" viewBox="0 0 24 24" style="vertical-align:middle"><rect width="24" height="24" rx="3" fill="#217346"/><path d="M6 6l4 6-4 6h3l2.5-4 2.5 4h3l-4-6 4-6h-3L12 10 9.5 6H6z" fill="#fff"/></svg></button></div>
+    <div style="margin-top:4px">
+      <textarea id="pr_aon3Note" rows="2" placeholder="พิมพ์หมายเหตุเพิ่มเติม..." oninput="localStorage.setItem('pr_aon3Note',this.value)" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--input-bg);color:var(--text);resize:vertical;font-family:inherit"></textarea>
+      <script>(function(){var v=localStorage.getItem('pr_aon3Note');if(v)document.getElementById('pr_aon3Note').value=v;})()</script>
+    </div>
   </div><!-- /Card 2 -->
 
 </div><!-- /tab-alwayson -->
@@ -6624,5 +6644,19 @@ loadCardNotes();
     </div>
 </div>
 
+<script>
+/* === Auto-refresh after data upload === */
+(function(){
+    var lastSeen = localStorage.getItem('dashboard_updated') || '0';
+    document.addEventListener('visibilitychange', function(){
+        if(document.visibilityState !== 'visible') return;
+        var flag = localStorage.getItem('dashboard_updated') || '0';
+        if(flag !== lastSeen){ lastSeen = flag; location.reload(); }
+    });
+    window.addEventListener('storage', function(e){
+        if(e.key === 'dashboard_updated'){ lastSeen = e.newValue; location.reload(); }
+    });
+})();
+</script>
 </body>
 </html>

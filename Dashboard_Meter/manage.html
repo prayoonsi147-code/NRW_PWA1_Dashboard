@@ -1026,6 +1026,8 @@
 
                 // Reload data
                 await loadData();
+                // Signal main dashboard to refresh
+                try { localStorage.setItem('dashboard_updated', Date.now().toString()); } catch(e){}
             } catch (error) {
                 showStatus(slug, `ข้อผิดพลาด: ${error.message}`, 'error');
                 addLog(`Upload ${slug} ล้มเหลว: ${error.message}`, 'error');
@@ -1167,6 +1169,7 @@
 
                         addLog(`ลบไฟล์สำเร็จ: ${filename}`, 'success');
                         await loadData();
+                        try { localStorage.setItem('dashboard_updated', Date.now().toString()); } catch(e){}
                     } catch (error) {
                         addLog(`ลบไฟล์ล้มเหลว: ${error.message}`, 'error');
                     }
