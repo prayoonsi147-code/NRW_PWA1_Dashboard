@@ -1,6 +1,6 @@
 ================================================================================
   Quick Context — Dashboard กปภ.ข.1 (อ่านไฟล์นี้แทน README+prompt_history)
-  อัปเดตล่าสุด: 26 มี.ค. 2569
+  อัปเดตล่าสุด: 27 มี.ค. 2569
 ================================================================================
 
 โปรเจค: 4 Dashboard + 1 Landing Page (index.html ราก)
@@ -98,8 +98,58 @@ Dashboard_Meter   | 5003 | ม่วง #4a148c    | ~22KB
     - fallback: PD2_DATA_FALLBACK สำหรับ file:// mode
   - pendingFYChanged() trigger ทั้ง pd1, pd2 และ pd3
 
+งานที่ทำ (27 มี.ค.):
+  - GIS TAB 1 กราฟ 1: เปลี่ยน default chart type เป็น bar (ใช้ selected attribute ไม่ reorder options)
+  - GIS TAB 2 กราฟ 1: เปลี่ยน default chart type เป็น bar (selected attribute)
+  - GIS TAB 2 กราฟ 1: เพิ่มช่อง หมายเหตุ (textarea) ท้ายกราฟ + localStorage persist
+  - GIS TAB 3 ตารางที่ 3-4: เพิ่ม "ตารางที่ x" ในชื่อ Card + วันที่ Update
+  - GIS ตารางที่ 1-4: เพิ่มเงื่อนไขการนับข้อมูล (append ต่อจากหมายเหตุเดิม ไม่ซ้ำ)
+    - กราฟ 1+2 มีหมายเหตุเดิมอยู่แล้ว → append ด้วย <br> ใน JS
+    - ตารางที่ 3+4 → เพิ่ม static div ใหม่
+  - เพิ่ม textarea "หมายเหตุ" ทุกกราฟ ทุก Dashboard ทุก TAB (localStorage persist ถาวร)
+    - GIS: pd1Note, pd2Note, pd3Note, pd4Note, pressureNote + gisNote (TAB 1)
+    - Leak: 15 textareas (ทุกกราฟ)
+    - PR: 5 textareas เพิ่ม (pr1, pr2, aon1-3) — มี saveCardNote อยู่แล้ว 5 อัน
+    - Meter: 1 textarea เพิ่ม
+    - localStorage key pattern: {dashboard}_{chartId}Note เช่น gis_pressureNote, leak_kpi1Note
+  - GIS TAB 3 ตาราง 4: max-height 520px (แสดง ~15 แถว ที่เหลือ scroll)
+  - Leak build_dashboard.py: แก้ file pattern ให้ match ไฟล์จริง
+    - KPI: KPI*.xlsx (เดิม KPI_Lea*-*.xlsx)
+    - RL: RL*.xlsx (เดิม RL-*.xlsx)
+    - MNF: MNF*.xlsx + regex MNF[-_](\d{4}) (เดิม MNF-*.xlsx)
+    - P3: เพิ่ม flat file support (P3_สาขา_YY-MM.xlsx ใน P3/ โดยตรง)
+  - .gitignore: เพิ่ม *.cache.json (ป้องกัน push ไฟล์ใหญ่)
+  - update_dashboards.bat: แก้ bug errorlevel ถูก reset โดย cd ..
+    - เปลี่ยน cd/cd.. → pushd/popd + เก็บ PYERR ก่อนเช็ค
+
+สถาปัตยกรรมสำคัญ (อ่านให้ดี!):
+  - GIS build_dashboard.py: ฝังข้อมูลทั้ง 3 TAB ลง index.html:
+    - TAB 1: const DATA = {...}  (KPI จุดซ่อมท่อ)
+    - TAB 2: const PRESSURE_DATA = {...}, PRESSURE_MONTHS = [...]  (แรงดันน้ำ)
+    - TAB 3: PD1/PD2 _DATA_FALLBACK, PD3_FALLBACK, PENDING_UPDATE_DATE, PENDING_FY_LIST
+    ⚠️ ใช้ index.html เป็นทั้ง template+output — แทนที่เฉพาะ JS variables ไม่แตะ HTML
+    ⚠️ HTML changes (textareas, card titles ฯลฯ) จะไม่หาย
+  - GIS Dual Mode:
+    - บนเครื่อง (server.py): TAB 2+3 ใช้ API สด → ข้อมูลล่าสุดทันที
+    - GitHub Pages / file://: TAB 2+3 ใช้ fallback data ที่ build ฝังไว้
+  - Leak/PR/Meter: build_dashboard.py ฝังข้อมูลทั้งหมดลง index.html → ทำงานบน GitHub Pages ได้
+  - push_to_github.bat: ★ run build ทุก Dashboard ก่อน → git add → commit → push
+    ⚠️ ทำให้ข้อมูลบน GitHub Pages อัพเดตอัตโนมัติ ไม่ต้อง run build แยก
+
+  - GIS build_dashboard.py ฝังข้อมูล TAB 2+3 เป็น static fallback ด้วย (แก้ 27 มี.ค.)
+    - อ่านจาก ข้อมูลดิบ/แรงดันน้ำ/ → PRESSURE_DATA, PRESSURE_MONTHS
+    - อ่านจาก ข้อมูลดิบ/ซ่อมท่อค้างระบบ/ → PD1/PD2/PD3 fallback data
+    - กรอง pressure เดือนที่ค่า = 0 ทั้งหมดออก
+
 งานค้าง:
   1. ตรวจสอบ scale sync กราฟ volume — อาจต้องปรับ rounding
+
+คำเตือนสำคัญสำหรับ Claude session ใหม่:
+  - ห้าม reorder options ใน <select> → ใช้ selected attribute แทน
+  - กราฟที่มีหมายเหตุอยู่แล้ว → append ต่อ ไม่ซ้ำ (ดู JS ที่สร้าง HTML)
+  - file naming: ใช้ _ separator (RL_2569.xlsx) ไม่ใช่ - (RL-2569.xlsx)
+  - build_dashboard.py ทุกตัว: อ่าน index.html → replace data → เขียนกลับ index.html เดิม
+  - อ่านไฟล์นี้ก่อนทำงาน!
 
 หมายเหตุ: ยกเลิกการบันทึก prompt_history แล้ว ไม่ต้องเขียนเพิ่ม
 ================================================================================

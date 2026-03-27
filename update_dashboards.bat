@@ -37,11 +37,12 @@ for /d %%D in (Dashboard_*) do (
     if exist "%%D\build_dashboard.py" (
         set /a COUNT+=1
         echo [!COUNT!/%TOTAL%] Updating %%D ...
-        cd "%%D"
+        pushd "%%D"
         %PYCMD% build_dashboard.py
-        cd ..
-        if errorlevel 1 (
-            echo   [ERROR] %%D update failed!
+        set PYERR=!errorlevel!
+        popd
+        if !PYERR! neq 0 (
+            echo   [ERROR] %%D update failed! ^(exit code !PYERR!^)
         ) else (
             echo   [OK] %%D updated.
         )
