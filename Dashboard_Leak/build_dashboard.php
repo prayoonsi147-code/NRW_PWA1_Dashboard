@@ -1179,11 +1179,13 @@ function build_embedded_data($all_data) {
  * Replace a JavaScript variable declaration in HTML content using strpos/substr.
  * Avoids preg_replace which fails on large content due to PCRE backtrack limits.
  * Finds "var VARNAME={...};" or "const VARNAME={...};" and replaces the entire statement.
+ * Returns the modified content, or false on error.
  */
 function replace_js_var($content, $varName, $replacement) {
-    // Try both "var " and "const " prefixes
+    $original_len = strlen($content);
+    // Try "const " first (original files use const), then "var " (after first build replaces to var)
     $found = false;
-    foreach (['var ', 'const '] as $prefix) {
+    foreach (['const ', 'var '] as $prefix) {
         $needle = $prefix . $varName;
         $offset = 0;
         while (($pos = strpos($content, $needle, $offset)) !== false) {
@@ -1192,7 +1194,6 @@ function replace_js_var($content, $varName, $replacement) {
             if ($after_name < strlen($content)) {
                 $next_ch = $content[$after_name];
                 if ($next_ch !== '=' && $next_ch !== ' ' && $next_ch !== "\t" && $next_ch !== "\n" && $next_ch !== "\r") {
-                    // Not an exact match (e.g., "var Dashboard" when looking for "var D")
                     $offset = $pos + 1;
                     continue;
                 }
@@ -1200,9 +1201,13 @@ function replace_js_var($content, $varName, $replacement) {
             // Find the '=' after the variable name
             $eq_pos = strpos($content, '=', $after_name);
             if ($eq_pos === false) { $offset = $pos + 1; continue; }
+            // Make sure '=' is close to the variable name (within 5 chars)
+            if ($eq_pos - $after_name > 5) { $offset = $pos + 1; continue; }
             // Find the '{' that starts the object
             $brace_start = strpos($content, '{', $eq_pos);
             if ($brace_start === false) { $offset = $pos + 1; continue; }
+            // Make sure '{' is right after '=' (within 3 chars for whitespace)
+            if ($brace_start - $eq_pos > 3) { $offset = $pos + 1; continue; }
             // Count braces to find matching '}'
             $depth = 0;
             $len = strlen($content);
@@ -1227,19 +1232,27 @@ function replace_js_var($content, $varName, $replacement) {
             }
             if ($depth !== 0) { $offset = $pos + 1; continue; }
             // $i now points to the closing '}'
-            // Check for semicolon after '}'
             $end_pos = $i + 1;
             if ($end_pos < $len && $content[$end_pos] === ';') {
                 $end_pos++;
             }
-            // Replace from $pos to $end_pos with the replacement
+            // Safety: log what we're replacing
+            $old_len = $end_pos - $pos;
+            echo "   🔄 Replacing '$prefix$varName' at pos $pos (old: {$old_len} bytes, new: " . strlen($replacement) . " bytes)\n";
+            // Replace
             $content = substr($content, 0, $pos) . $replacement . substr($content, $end_pos);
             $found = true;
-            break 2; // break both while and foreach
+            break 2;
         }
     }
     if (!$found) {
         echo "   ⚠️  Variable '$varName' not found in index.html — skipping\n";
+    }
+    // Safety check: content should not be drastically smaller
+    $new_len = strlen($content);
+    if ($new_len < $original_len * 0.3) {
+        echo "   ❌ SAFETY: Content shrunk from $original_len to $new_len bytes — aborting!\n";
+        return false;
     }
     return $content;
 }
@@ -1301,7 +1314,7 @@ function build_dashboard($all_data, $rl_data, $eu_data, $mnf_data, $kpi_data, $p
 
     // Use strpos/substr instead of preg_replace to avoid PCRE backtrack limit on large files
     foreach ($replacements as $varName => $json) {
-        $content = replace_js_var($content, $varName, "var $varName=$json;");
+        $content = replace_js_var($content, $varName, "const $varName=$json;");
         if ($content === false) {
             echo "   ❌ Failed to replace var $varName in index.html\n";
             return false;
@@ -1351,11 +1364,32 @@ function build_dashboard($all_data, $rl_data, $eu_data, $mnf_data, $kpi_data, $p
 
     $content = replace_js_var($content, 'YC', $yc_lines);
 
-    if ($content !== false && file_put_contents(INDEX_HTML, $content)) {
-        echo "   ✅ index.html updated\n";
+    // Final safety checks before writing
+    if ($content === false) {
+        echo "   ❌ Content corrupted during replacement — NOT writing index.html\n";
+        return false;
+    }
+    if (strlen($content) < 1000) {
+        echo "   ❌ Content too small (" . strlen($content) . " bytes) — NOT writing index.html\n";
+        return false;
+    }
+    if (strpos($content, '<!DOCTYPE html>') === false) {
+        echo "   ❌ Content missing DOCTYPE — NOT writing index.html\n";
+        return false;
+    }
+
+    // Create backup before writing
+    $backup = INDEX_HTML . '.bak';
+    copy(INDEX_HTML, $backup);
+
+    if (file_put_contents(INDEX_HTML, $content)) {
+        echo "   ✅ index.html updated (" . number_format(strlen($content)) . " bytes)\n";
+        @unlink($backup);
         return true;
     } else {
-        echo "   ❌ Failed to write index.html\n";
+        echo "   ❌ Failed to write index.html — restoring backup\n";
+        copy($backup, INDEX_HTML);
+        @unlink($backup);
         return false;
     }
 }
