@@ -32,26 +32,183 @@
 
 ---
 
-## โครงสร้างโฟลเดอร์
+## โครงสร้างไฟล์โปรเจค (File Tree)
 
-### Dashboard_PR/ (port 5000, ส้ม #c43e00)
+อัปเดตล่าสุด: 28 มี.ค. 2569
+
+```
+Claude Test Cowork/
+│
+├── index.html                  ← Landing Page หน้าหลัก (เลือก Dashboard)
+├── composer.json                ← PHP dependencies (PhpSpreadsheet)
+├── composer.lock
+├── vendor/                      ← PHP libraries (phpoffice/phpspreadsheet, ...)
+│
+├── quick_context.txt            ← ★ สรุปงาน+สถาปัตยกรรม (Claude อ่านก่อนเสมอ)
+├── PROJECT_README.md            ← Reference เพิ่มเติม (ไฟล์นี้)
+├── prompt_history.txt           ← ประวัติ prompt (ยกเลิกการบันทึกแล้ว)
+├── .gitignore                   ← git ignore rules (*.cache.json, __pycache__, ...)
+│
+├── push_to_github.bat           ← ★ Build ทุก Dashboard → git add → commit → push
+├── update_dashboards.bat        ← Run build_dashboard ทุกตัว (pushd/popd pattern)
+├── start_server.bat             ← [เลิกใช้] เรียก Python Flask
+├── start_xampp.bat              ← [ใช้ manual แทน] setup+start XAMPP Apache
+│
+│
+├── Dashboard_PR/                ─── ข้อร้องเรียน+AlwayON (ส้ม #c43e00) ───
+│   ├── index.html               ← Dashboard หลัก (~1.6MB, ข้อมูลฝังใน HTML)
+│   ├── manage.html              ← หน้าจัดการข้อมูล (upload/delete/notes)
+│   ├── api.php                  ← ★ PHP API (upload, data, notes, delete)
+│   ├── .htaccess                ← Apache rewrite rules
+│   ├── data.json                ← ข้อมูลรวม (build สร้าง)
+│   ├── build_dashboard.py       ← [เลิกใช้] Python build script
+│   ├── server.py                ← [เลิกใช้] Python Flask server
+│   ├── requirements.txt         ← [เลิกใช้] Python dependencies
+│   ├── AlwayON_Data_District1.csv  ← ข้อมูล AON (reference)
+│   ├── AlwayON_Data_District1.js   ← ข้อมูล AON (JS format)
+│   ├── AlwayON_Data_Summary.txt    ← สรุปข้อมูล AON
+│   ├── README_AlwayON_Data.txt     ← คำอธิบายข้อมูล AON
+│   ├── Excel_Structure_Reference.txt ← อ้างอิงโครงสร้าง Excel
+│   ├── Untitled.jpg             ← รูปประกอบ
+│   ├── _รายงานข้องร้องเรียน ก.พ.69 (รปก.3).pdf ← ตัวอย่างรายงาน
+│   │
+│   ├── ข้อมูลดิบ/
+│   │   ├── data.json            ← ข้อมูลรวม + notes (API เก็บที่นี่)
+│   │   ├── เรื่องร้องเรียน/     ← PR_YY-MM.xlsx (เช่น PR_69-03.xlsx)
+│   │   └── AlwayON/             ← AON_YY-MM.xls (เช่น AON_69-01.xls)
+│   │
+│   └── uploaded_data/           ← สำเนาไฟล์ที่ upload ผ่าน manage.html
+│       ├── data.json
+│       ├── pr/                  ← PR_YY-MM.xlsx (ปี 66-69)
+│       └── aon/                 ← AON_YY-MM.xls
+│
+│
+├── Dashboard_Leak/              ─── น้ำสูญเสีย (น้ำเงิน #1e3a5f) ───
+│   ├── index.html               ← Dashboard หลัก (~4.7MB, ข้อมูลฝังใน HTML)
+│   ├── manage.html              ← หน้าจัดการข้อมูล
+│   ├── api.php                  ← ★ PHP API
+│   ├── .htaccess                ← Apache rewrite rules
+│   ├── data.json                ← ข้อมูลรวม
+│   ├── data_embed.js            ← ข้อมูลฝังสำหรับ build
+│   ├── build_dashboard.py       ← [เลิกใช้] Python build script
+│   ├── server.py                ← [เลิกใช้] Python Flask server
+│   ├── PROJECT_README.md        ← README เฉพาะ Leak
+│   ├── อัพเดท Dashboard.bat     ← Shortcut run build
+│   │
+│   ├── Temp/                    ← ไฟล์ชั่วคราว/อ้างอิง
+│   │   ├── กราฟน้ำสูญเสีย.xlsx
+│   │   └── รายงานน้ำรับ-น้ำส่ง-69.xlsx
+│   │
+│   └── ข้อมูลดิบ/
+│       ├── OIS/                 ← OIS_YYYY.xls (ปี 2557-2569)
+│       ├── Real Leak/           ← RL_YYYY.xlsx (เช่น RL_2569.xlsx)
+│       ├── MNF/                 ← MNF_YYYY.xlsx (เช่น MNF_2569.xlsx)
+│       ├── P3/                  ← P3_สาขา_YY-MM.xlsx (เช่น P3_ชลบุรี_69-03.xlsx)
+│       ├── Activities/          ← ACT_กิจกรรมลดน้ำสูญเสีย.xlsx
+│       ├── หน่วยไฟ/             ← EU_YYYY.xlsx (เช่น EU_2569.xlsx)
+│       ├── เกณฑ์ชี้วัด/         ← KPI_YYYY.xlsx (เช่น KPI_2569.xlsx)
+│       └── เกณฑ์วัดน้ำสูญเสีย/  ← KPI2_YYYY.xlsx (เช่น KPI2_2569.xlsx)
+│
+│
+├── Dashboard_GIS/               ─── จุดซ่อมท่อ+แรงดัน+ค้างซ่อม (Teal #004d40) ───
+│   ├── index.html               ← Dashboard หลัก (~146KB + fallback data)
+│   ├── manage.html              ← หน้าจัดการข้อมูล
+│   ├── api.php                  ← ★ PHP API (data, pending-chart, pending-table, pressure, notes)
+│   ├── build_sqlite.php         ← สร้าง .sqlite จาก Excel ค้างซ่อม
+│   ├── debug_sqlite.php         ← Debug tool สำหรับ SQLite
+│   ├── .htaccess                ← Apache rewrite rules
+│   ├── .cache/                  ← Cache files (runtime)
+│   ├── build_dashboard.py       ← [เลิกใช้] Python build script
+│   ├── server.py                ← [เลิกใช้] Python Flask server
+│   │
+│   └── ข้อมูลดิบ/
+│       ├── ลงข้อมูลซ่อมท่อ/     ← GIS_YYMMDD.xlsx (เช่น GIS_690218.xlsx)
+│       ├── แรงดันน้ำ/           ← PRESSURE_สาขา_ปีงบYY.xlsx (22 สาขา)
+│       │                          เช่น PRESSURE_ชลบุรี_ปีงบ69.xlsx
+│       └── ซ่อมท่อค้างระบบ/     ← ค้างซ่อม_MM-YY_to_MM-YY.xlsx + .sqlite + .cache.json
+│                                  เช่น ค้างซ่อม_10-68_to_03-69.xlsx
+│
+│
+└── Dashboard_Meter/             ─── มาตรวัดน้ำผิดปกติ (ม่วง #4a148c) ───
+    ├── index.html               ← Dashboard หลัก (~22KB)
+    ├── manage.html              ← หน้าจัดการข้อมูล
+    ├── api.php                  ← ★ PHP API
+    ├── .htaccess                ← Apache rewrite rules
+    ├── data.json                ← ข้อมูลรวม
+    ├── test_path.php            ← Debug tool
+    ├── New Text Document.txt    ← (ว่าง)
+    ├── server.py                ← [เลิกใช้] Python Flask server
+    ├── update_dead_meter.py     ← [เลิกใช้] Python update script
+    │
+    └── ข้อมูลดิบ/
+        └── มาตรวัดน้ำผิดปกติ/   ← METER_MMYY.xlsx (เช่น METER_1102.xlsx = ก.พ.69)
+                                   มี 23 ไฟล์ (METER_1102 ถึง METER_1123)
+```
+
+### สรุปไฟล์แต่ละ Dashboard
+
+| ไฟล์ | หน้าที่ | มีทุก Dashboard |
+|------|---------|:-:|
+| index.html | Dashboard หลัก (แสดงกราฟ/ตาราง) | ✅ |
+| manage.html | หน้าจัดการข้อมูล (upload/delete/notes) | ✅ |
+| api.php | ★ PHP API หลัก (XAMPP) | ✅ |
+| .htaccess | Apache URL rewrite | ✅ |
+| data.json | ข้อมูลรวม (บาง Dashboard) | PR, Leak, Meter |
+| build_dashboard.py | [เลิกใช้] Python build | PR, Leak, GIS |
+| server.py | [เลิกใช้] Python Flask | ✅ |
+| ข้อมูลดิบ/ | โฟลเดอร์เก็บไฟล์ Excel ต้นฉบับ | ✅ |
+
+### สถานะไฟล์เก่า (รอลบ)
+
+| ไฟล์ | อยู่ใน | หมายเหตุ |
+|------|--------|----------|
+| server.py | ทุก Dashboard | Python Flask server → แทนด้วย api.php |
+| build_dashboard.py | PR, Leak, GIS | Python build → แทนด้วย PHP build / ฝังข้อมูลตรง |
+| update_dead_meter.py | Meter | Python script → แทนด้วย api.php |
+| requirements.txt | PR | Python dependencies → ไม่ใช้แล้ว |
+| __pycache__/ | ทุก Dashboard | Python cache → ลบได้เลย |
+| start_server.bat | root | เรียก Python Flask → ใช้ XAMPP แทน |
+
+### Tab ของแต่ละ Dashboard
+
+**Dashboard_PR** (ส้ม #c43e00):
 - Tab 1: ข้อร้องเรียน (กราฟ 1-2)
 - Tab 2: รายงานข้อร้องเรียน (กราฟ 3)
 - Tab 3: Always-On (กราฟ AON 1-3)
-- ข้อมูลดิบ/: เรื่องร้องเรียน/ (PR_YY-MM.xlsx), AlwayON/ (AON_YY-MM.xls), data.json
 
-### Dashboard_Leak/ (port 5001, น้ำเงิน #1e3a5f)
-- Tab OIS, Tab Real Leak, Tab WSC-R, Tab MNF, Tab P3, Tab Custom Chart
-- ข้อมูลดิบ/: OIS/, Real Leak/ (RL_YYYY.xlsx), MNF/ (MNF_YYYY.xlsx), P3/, Activities/, หน่วยไฟ/ (EU_YYYY.xlsx), เกณฑ์ชี้วัด/ (KPI_YYYY.xlsx)
+**Dashboard_Leak** (น้ำเงิน #1e3a5f):
+- Tab 1: OIS
+- Tab 2: น้ำสูญเสีย (Real Leak + WSC-R)
+- Tab 3: MNF
+- Tab 4: P3
+- Tab 5: Custom Chart
 
-### Dashboard_GIS/ (port 5002, teal #004d40)
-- Tab 1: จุดซ่อมท่อ (KPI กราฟ 1-2) — ข้อมูลฝังโดย build_dashboard.py
-- Tab 2: แรงดันน้ำ (กราฟ 1-2) — ข้อมูลจาก server.py API
-- Tab 3: งานค้างซ่อม (กราฟ 1-2, ตาราง 3-4) — ข้อมูลจาก server.py API + fallback
-- ข้อมูลดิบ/: ลงข้อมูลซ่อมท่อ/ (GIS_YYMMDD.xlsx), แรงดันน้ำ/ (PRESSURE_สาขา_ปีงบYY.xlsx), ซ่อมท่อค้างระบบ/
+**Dashboard_GIS** (Teal #004d40):
+- Tab 1: จุดซ่อมท่อ (KPI กราฟ 1-2) — ข้อมูลฝังใน HTML
+- Tab 2: แรงดันน้ำ (กราฟ 1) — API สด + fallback
+- Tab 3: งานค้างซ่อม (กราฟ pd1-pd2, ตาราง pd3-pd5) — API สด + fallback
 
-### Dashboard_Meter/ (port 5003, ม่วง #4a148c)
-- ข้อมูลดิบ/: มาตรวัดน้ำผิดปกติ/ (METER_MMYY.xlsx)
+**Dashboard_Meter** (ม่วง #4a148c):
+- Tab 1: มาตรวัดน้ำผิดปกติ (กราฟ 1)
+
+### Naming Convention ไฟล์ข้อมูลดิบ
+
+| ประเภท | Pattern | ตัวอย่าง |
+|--------|---------|----------|
+| ข้อร้องเรียน | PR_YY-MM.xlsx | PR_69-03.xlsx |
+| AlwayON | AON_YY-MM.xls | AON_69-01.xls |
+| OIS | OIS_YYYY.xls | OIS_2569.xls |
+| Real Leak | RL_YYYY.xlsx | RL_2569.xlsx |
+| MNF | MNF_YYYY.xlsx | MNF_2569.xlsx |
+| P3 | P3_สาขา_YY-MM.xlsx | P3_ชลบุรี_69-03.xlsx |
+| Activities | ACT_*.xlsx | ACT_กิจกรรมลดน้ำสูญเสีย.xlsx |
+| หน่วยไฟ | EU_YYYY.xlsx | EU_2569.xlsx |
+| เกณฑ์ชี้วัด | KPI_YYYY.xlsx | KPI_2569.xlsx |
+| เกณฑ์วัดน้ำสูญเสีย | KPI2_YYYY.xlsx | KPI2_2569.xlsx |
+| จุดซ่อมท่อ | GIS_YYMMDD.xlsx | GIS_690218.xlsx |
+| แรงดันน้ำ | PRESSURE_สาขา_ปีงบYY.xlsx | PRESSURE_ชลบุรี_ปีงบ69.xlsx |
+| ค้างซ่อม | ค้างซ่อม_MM-YY_to_MM-YY.xlsx | ค้างซ่อม_10-68_to_03-69.xlsx |
+| มาตรวัดน้ำ | METER_MMYY.xlsx | METER_1102.xlsx (=ก.พ.69, รหัส 11=Meter) |
 
 ---
 

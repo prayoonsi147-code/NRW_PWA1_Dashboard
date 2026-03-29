@@ -26,3 +26,6 @@ prompt_history.txt
 
 # Cache files (too large for GitHub)
 *.cache.json
+
+# SQLite databases (generated from xlsx — too large for GitHub)
+*.sqlite

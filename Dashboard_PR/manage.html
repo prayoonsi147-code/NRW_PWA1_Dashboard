@@ -6,7 +6,7 @@
     <title>จัดการแหล่งข้อมูล — Dashboard งานลูกค้าสัมพันธ์</title>
     <script>
         if (location.protocol === 'file:') {
-            location.href = 'http://localhost:5000/manage.html';
+            alert('จัดการแหล่งข้อมูลใช้ได้เฉพาะผ่าน XAMPP\n\nเปิด XAMPP Control Panel → Start Apache\nแล้วเข้าผ่าน http://localhost/Claude Test Cowork/Dashboard_PR/manage.html');
         }
     </script>
     <style>
@@ -859,7 +859,7 @@
                 <h1>จัดการแหล่งข้อมูล — Dashboard งานลูกค่าสัมพันธ์</h1>
             </div>
             <div style="display:flex;align-items:center;gap:12px">
-                <a href="/" class="back-btn">← กลับหน้า Dashboard</a>
+                <a href="index.html" class="back-btn">← กลับหน้า Dashboard</a>
                 <div class="theme-toggle" onclick="toggleTheme()">
                     <span class="theme-icon">&#9788;</span>
                     <div class="theme-switch"></div>
@@ -926,7 +926,7 @@
 
     <script>
         // Configuration
-        const API_BASE = 'http://localhost:5000';
+        const API_BASE = 'api.php';
         const MONTH_NAMES = ['', 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 
         // CATEGORIES definition
@@ -1039,6 +1039,15 @@
                         <div id="fileList-${slug}" style="margin-top:10px;padding-top:10px;border-top:1px dashed ${cat.color}40;display:none"></div>
                     </div>
 
+                    <div id="srcUrl-${slug}" class="source-url-row" style="margin-top:8px;font-size:13px;color:var(--sub,#666);display:flex;align-items:center;gap:6px;min-height:24px">
+                        <span style="flex-shrink:0">&#128279; แหล่งโหลดข้อมูล :</span>
+                        <a id="srcUrlLink-${slug}" href="#" target="_blank" style="color:#1565c0;text-decoration:underline;word-break:break-all;display:none"></a>
+                        <span id="srcUrlEmpty-${slug}" style="color:#aaa;font-style:italic;display:none">ยังไม่ได้ระบุ</span>
+                        <input id="srcUrlInput-${slug}" type="text" placeholder="วาง URL แหล่งข้อมูล..." style="flex:1;padding:4px 8px;border:1px solid ${cat.color}50;border-radius:5px;font-size:13px;font-family:inherit;background:var(--card,#fff);color:var(--text,#333);display:none;outline:none" />
+                        <button id="srcUrlEdit-${slug}" onclick="srcUrlToggleEdit('${slug}')" title="แก้ไข" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;color:var(--sub,#888);flex-shrink:0">&#9998;</button>
+                        <span id="srcUrlSaved-${slug}" style="font-size:11px;color:#2e7d32;opacity:0;transition:opacity .3s;flex-shrink:0">&#10003;</span>
+                    </div>
+
                     <div class="note-box" style="margin-top:12px">
                         <label for="noteBox-${slug}" style="font-size:13px;font-weight:600;color:var(--sub,#666);display:flex;align-items:center;gap:5px;margin-bottom:6px">
                             &#9997; บันทึกช่วยจำ (${cat.thai})
@@ -1064,6 +1073,65 @@
             buildUI();
             setupEventListeners();
             await loadData();
+        }
+
+        // ── Source URL (editable link per tab, saved in notes.json) ──
+        const _srcUrlDefaults = {};
+
+        function srcUrlRender(slug, url) {
+            const link = document.getElementById(`srcUrlLink-${slug}`);
+            const empty = document.getElementById(`srcUrlEmpty-${slug}`);
+            const input = document.getElementById(`srcUrlInput-${slug}`);
+            if (!link) return;
+            input.style.display = 'none';
+            if (url) {
+                link.href = url;
+                link.textContent = url.replace(/^https?:\/\//, '').replace(/\/$/, '');
+                link.style.display = '';
+                empty.style.display = 'none';
+            } else {
+                link.style.display = 'none';
+                empty.style.display = '';
+            }
+        }
+
+        function srcUrlToggleEdit(slug) {
+            const link = document.getElementById(`srcUrlLink-${slug}`);
+            const empty = document.getElementById(`srcUrlEmpty-${slug}`);
+            const input = document.getElementById(`srcUrlInput-${slug}`);
+            if (input.style.display === 'none' || !input.style.display) {
+                input.value = link.style.display !== 'none' ? link.href : '';
+                link.style.display = 'none';
+                empty.style.display = 'none';
+                input.style.display = '';
+                input.focus();
+                input.select();
+            } else {
+                srcUrlSave(slug);
+            }
+        }
+
+        async function srcUrlSave(slug) {
+            const input = document.getElementById(`srcUrlInput-${slug}`);
+            const saved = document.getElementById(`srcUrlSaved-${slug}`);
+            const url = (input.value || '').trim();
+            srcUrlRender(slug, url);
+            try {
+                await fetch(`${API_BASE}/api/notes/${slug}_source_url`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: url })
+                });
+                saved.style.opacity = '1';
+                setTimeout(() => { saved.style.opacity = '0'; }, 2000);
+            } catch (e) { console.error('Source URL save error:', e); }
+        }
+
+        function setupSrcUrl(slug) {
+            const input = document.getElementById(`srcUrlInput-${slug}`);
+            if (!input) return;
+            input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); srcUrlSave(slug); } });
+            input.addEventListener('blur', () => srcUrlSave(slug));
         }
 
         // Setup event listeners
@@ -1134,6 +1202,8 @@
 
                 // Note auto-save
                 setupNoteAutoSave(slug);
+                // Source URL
+                setupSrcUrl(slug);
 
                 // Drop zone
                 const dropZone = document.getElementById(`dropZone-${slug}`);
@@ -1333,6 +1403,10 @@
                 Object.keys(CATEGORIES).forEach(slug => {
                     const tb = document.getElementById(`noteBox-${slug}`);
                     if (tb && savedNotes[slug]) tb.value = savedNotes[slug];
+                    // Load source URL (from notes or default)
+                    const urlKey = slug + '_source_url';
+                    const savedUrl = savedNotes[urlKey] || _srcUrlDefaults[slug] || '';
+                    srcUrlRender(slug, savedUrl);
                 });
 
                 // Update management panel
@@ -1358,24 +1432,26 @@
             const chipClass = type === 'pr' ? 'pr-chip' : 'aon-chip';
             const yearClass = type === 'pr' ? 'pr-year' : 'aon-year';
 
-            // Group by year
-            const byYear = {};
+            // Group by fiscal year (ปีงบฯ: ต.ค.-ก.ย. → ถ้าเดือน >= 10 ปีงบฯ = ปี+1)
+            const byFiscal = {};
             Object.keys(monthData).sort().forEach(mk => {
-                const yy = mk.split('-')[0];
-                if (!byYear[yy]) byYear[yy] = [];
-                byYear[yy].push(mk);
+                const yy = Number(mk.split('-')[0]);
+                const mm = Number(mk.split('-')[1]);
+                const fiscalYY = mm >= 10 ? yy + 1 : yy;
+                if (!byFiscal[fiscalYY]) byFiscal[fiscalYY] = [];
+                byFiscal[fiscalYY].push(mk);
             });
 
-            Object.keys(byYear).sort().forEach(yy => {
+            Object.keys(byFiscal).sort().forEach(fy => {
                 const yearGroup = document.createElement('div');
                 yearGroup.className = 'year-group';
 
                 const yearLabel = document.createElement('span');
                 yearLabel.className = `year-label ${yearClass}`;
-                yearLabel.textContent = (2500 + Number(yy)).toString();
+                yearLabel.textContent = 'ปีงบฯ ' + fy;
                 yearGroup.appendChild(yearLabel);
 
-                byYear[yy].forEach(mk => {
+                byFiscal[fy].forEach(mk => {
                     const mm = Number(mk.split('-')[1]);
                     const chip = document.createElement('div');
                     chip.className = `chip ${chipClass}`;

@@ -1,6 +1,6 @@
 ================================================================================
   Quick Context — Dashboard กปภ.ข.1 (อ่านไฟล์นี้แทน README+prompt_history)
-  อัปเดตล่าสุด: 27 มี.ค. 2569
+  อัปเดตล่าสุด: 28 มี.ค. 2569
 ================================================================================
 
 โปรเจค: 4 Dashboard + 1 Landing Page (index.html ราก)
@@ -126,30 +126,217 @@ Dashboard_Meter   | 5003 | ม่วง #4a148c    | ~22KB
   - GIS build_dashboard.py: ฝังข้อมูลทั้ง 3 TAB ลง index.html:
     - TAB 1: const DATA = {...}  (KPI จุดซ่อมท่อ)
     - TAB 2: const PRESSURE_DATA = {...}, PRESSURE_MONTHS = [...]  (แรงดันน้ำ)
-    - TAB 3: PD1/PD2 _DATA_FALLBACK, PD3_FALLBACK, PENDING_UPDATE_DATE, PENDING_FY_LIST
+    - TAB 3: PD1/PD2 _DATA_FALLBACK, PD3_FALLBACK, PD4_FALLBACK, PD5_*_FALLBACK, PENDING_UPDATE_DATE, PENDING_FY_LIST
     ⚠️ ใช้ index.html เป็นทั้ง template+output — แทนที่เฉพาะ JS variables ไม่แตะ HTML
     ⚠️ HTML changes (textareas, card titles ฯลฯ) จะไม่หาย
   - GIS Dual Mode:
-    - บนเครื่อง (server.py): TAB 2+3 ใช้ API สด → ข้อมูลล่าสุดทันที
-    - GitHub Pages / file://: TAB 2+3 ใช้ fallback data ที่ build ฝังไว้
+    - บนเครื่อง (api.php): TAB 2+3 ใช้ API สด → ข้อมูลล่าสุดทันที
+    - GitHub Pages / file://: ทุก TAB ใช้ fallback data ที่ build ฝังไว้
+  - ★ Dual Mode ครบทั้ง 4 Dashboard:
+    - Dashboard_Leak ✅ (6/6 categories: D, RL, EU, MNF, KPI, P3)
+    - Dashboard_GIS ✅ (TAB 2+3 API, TAB 1 embedded only)
+    - Dashboard_Meter ✅ (dead_meter + total_meters)
+    - Dashboard_PR ✅ (PR + AON — AON values=0 ปัญหา parser เดิม, fallback ใช้ได้)
   - Leak/PR/Meter: build_dashboard.py ฝังข้อมูลทั้งหมดลง index.html → ทำงานบน GitHub Pages ได้
   - push_to_github.bat: ★ run build ทุก Dashboard ก่อน → git add → commit → push
     ⚠️ ทำให้ข้อมูลบน GitHub Pages อัพเดตอัตโนมัติ ไม่ต้อง run build แยก
 
-  - GIS build_dashboard.py ฝังข้อมูล TAB 2+3 เป็น static fallback ด้วย (แก้ 27 มี.ค.)
+  - GIS build ฝังข้อมูล TAB 2+3 เป็น static fallback (แก้ 27 มี.ค.)
     - อ่านจาก ข้อมูลดิบ/แรงดันน้ำ/ → PRESSURE_DATA, PRESSURE_MONTHS
-    - อ่านจาก ข้อมูลดิบ/ซ่อมท่อค้างระบบ/ → PD1/PD2/PD3 fallback data
+    - อ่านจาก ข้อมูลดิบ/ซ่อมท่อค้างระบบ/ → PD1/PD2/PD3 + PD4/PD5 fallback data
     - กรอง pressure เดือนที่ค่า = 0 ทั้งหมดออก
+    - pd4/pd5 fallback: ฝังผ่าน marker /*FALLBACK_PD4_START*/.../*FALLBACK_PD4_END*/
+    - pd4UseFallback() / pd5UseFallback() ทำงานอัตโนมัติเมื่อ API ไม่ตอบ
+    - ★ ทำให้ pd4+pd5 ทำงานบน GitHub Pages / file:// ได้โดยไม่ต้องพึ่ง XAMPP
+
+  ★ แนวคิดการ Deploy (จดไว้):
+    - ปัจจุบัน: Push ขึ้น GitHub Pages ให้คนอื่นใช้ชั่วคราว (ไม่มี PHP → ใช้ fallback)
+    - อนาคต: เอาขึ้น Server จริงของสำนักงาน (มี PHP/XAMPP → ใช้ API สด)
+    - ดังนั้น fallback data ต้องอัปเดตทุกครั้งที่ push (build script ต้องฝังข้อมูลล่าสุด)
+    - build script ต้องฝัง: PD4_FALLBACK (จาก SQLite query status=ซ่อมไม่เสร็จ)
+      และ PD5_*_FALLBACK (จาก SQLite query เดือนล่าสุด+ท่อแตกรั่ว+ไม่มีเลขงาน)
+
+⚠️ เปลี่ยนจาก Python → PHP/XAMPP แล้ว (27 มี.ค.):
+  - ★ server.py ทุก Dashboard + update_dead_meter.py + start_server.bat = ลบแล้ว (28 มี.ค.)
+  - build_dashboard.py ทุกตัว → ลบแล้ว (28 มี.ค.) แทนที่ด้วย build_dashboard.php (ใช้ PhpSpreadsheet)
+  - push_to_github.bat + update_dashboards.bat → แก้ให้เรียก PHP แทน Python แล้ว
+  - start_xampp.bat = ใช้ไม่ได้บน Cowork (encoding/linter ทำพัง) → ใช้วิธี manual แทน
+  - composer.json + vendor/ = PHP dependencies (PhpSpreadsheet)
+
+★ วิธีเปิด Dashboard บนเครื่องใหม่ (Manual — ทำครั้งเดียวต่อเครื่อง):
+  ขั้นตอนที่ 1: ติดตั้ง XAMPP (C:\xampp) + เปิด XAMPP Control Panel
+  ขั้นตอนที่ 2: แก้ DocumentRoot ใน httpd.conf (ทำครั้งเดียว)
+    - XAMPP Control Panel → Config (แถว Apache) → httpd.conf
+    - Ctrl+H → Find: C:/xampp/htdocs → Replace: C:/Users/ชื่อuser
+    - ★ ชื่อ user ดูจาก cmd พิมพ์ echo %USERNAME% หรือดูที่ C:\Users\
+    - กด Replace All → Save
+    - ทดสอบ: เปิด cmd → "C:\xampp\apache\bin\httpd.exe" -t → ต้องขึ้น Syntax OK
+  ขั้นตอนที่ 3: Start Apache ใน XAMPP Control Panel
+  ขั้นตอนที่ 4: เปิด browser → http://localhost/Claude Test Cowork/index.html
+  ★ ถ้า httpd.conf พัง: restore backup → copy /Y "C:\xampp\apache\conf\httpd.conf.backup" "C:\xampp\apache\conf\httpd.conf"
+  ★ เครื่องปัจจุบัน: user = prayo (C:/Users/prayo)
+
+งานที่ทำ (27 มี.ค. — session 2):
+  - GIS TAB 3 pd4+pd5: เพิ่ม fallback data ฝังใน HTML (แก้ปัญหากราฟ 4-5 ไม่ขึ้นถาวร)
+    - สาเหตุเดิม: pd4/pd5 ดึงจาก api.php เท่านั้น ไม่มี fallback → พังทุกครั้งที่ไม่มี XAMPP
+    - แก้: เพิ่ม PD4_FALLBACK, PD5_BY_BRANCH_FALLBACK, PD5_RECORDS_FALLBACK, PD5_MONTH_FALLBACK
+    - ใช้ marker /*FALLBACK_PD4_START*/.../*FALLBACK_PD4_END*/ สำหรับ build script แทนที่
+    - เพิ่ม pd4UseFallback() / pd5UseFallback() → ทำงานอัตโนมัติเมื่อ API fail
+    - pd4 = 304 records (~82KB), pd5 = 10 records
+    - ★ ตอนนี้ทุกกราฟใน GIS TAB 3 (pd1-pd5) มี fallback ครบหมดแล้ว
+  - รวม setup_xampp.bat เข้า start_xampp.bat (แต่ bat ใช้ไม่ได้บน Cowork → ใช้ manual)
+  - ลบ setup_xampp.bat แล้ว
+  - ปุ่ม "หน้าหลัก" ทุก Dashboard: ลบ onclick ที่เรียก /api/open-main (API เก่าของ Python Flask)
+    - เดิม: localhost → fetch('/api/open-main') ซึ่งไม่มีใน PHP → กดแล้วไม่เกิดอะไร
+    - แก้: ใช้ href="../index.html" ตรงๆ ทุกกรณี (file://, localhost, GitHub Pages)
+    - แก้แล้วทั้ง 4 Dashboard: GIS, Leak, PR, Meter
+  - manage.html ทุก Dashboard: แก้ปุ่ม "กลับหน้า Dashboard" → goBack() ใช้ 'index.html' แทน '/'
+    - เดิม: GIS/Meter → '/', Leak → smart pattern ไป root, PR → href="/"
+    - แก้: ทุกตัวใช้ window.location.href='index.html' หรือ href="index.html" ตรงๆ
+  - ★ ลบ reference Python Flask ทั้งหมดออกจาก HTML (ทุก Dashboard):
+    - manage.html: file:// redirect จาก localhost:500X → alert บอกใช้ XAMPP แทน
+    - index.html ปุ่มจัดการฯ: ลบ redirect ไป localhost:500X + แก้ alert อ้าง XAMPP แทน start_server.bat
+    - PR manage.html: API_BASE จาก 'http://localhost:5000' → window.location.origin
+    - Meter index.html: SERVER_API_BASE จาก 'http://localhost:5003' → '' (same origin)
+    - PR index.html: แก้ comment Flask → XAMPP
+    - ★ ตรวจแล้ว: ไม่เหลือ localhost:500X หรือ start_server.bat ใน HTML ใดเลย
+
+งานที่ทำ (27 มี.ค. — session 3, Leak TAB 2 น้ำสูญเสีย):
+  - กราฟที่ 1 (wl0Chart): เพิ่ม 9 Checkboxes ควบคุมการแสดงชุดข้อมูล
+    - wl0CB_cur, wl0CB_prev, wl0CB_cumCur, wl0CB_cumPrev, wl0CB_kpi1-5
+    - สีตัวอักษร label ตรงกับสีชุดข้อมูล (#2980b9, #999, #1a237e, #e74c3c, #e67e22, #f1c40f, #2ecc71, #3498db)
+    - Legend Chart.js default ยังคงแสดงด้านล่างกราฟ
+  - กราฟที่ 1 Legend: ⚠️ ยังเสีย — wl0LegendColorPlugin ถูกลบออก ไม่มี per-item text coloring
+    - ลองแก้ 3 ครั้ง ไม่สำเร็จ → ผู้ใช้สั่งหยุด ("พอแล้ว")
+    - สาเหตุ: plugin เดิมใช้ color:'transparent' + วาดข้อความสีทับ → พอเปลี่ยน usePointStyle ทำให้ตำแหน่งเลื่อน
+  - กราฟที่ 2 (wlChart1): เปลี่ยน default ช่วงปี = ปีล่าสุดปีเดียว
+    - wl1YearFrom.value = years[years.length-1]
+  - กราฟที่ 2: เพิ่ม Checkbox "เปรียบเทียบกับเดือน/ปี ก่อนหน้า" (wl1PrevCB)
+    - เมื่อ checked → เพิ่ม dataset ปีก่อน (สีเทา rgba(180,180,180,1), borderWidth:1.5)
+  - กราฟที่ 2: แสดงค่าเป้าบนเส้นเป้าหมายขวาสุด (wl1TargetLabelPlugin)
+    - plugin ใหม่แทน wl1TargetNotePlugin เดิม
+    - วาด "เป้า X.XX%" ที่จุดขวาสุดของ dataset ชื่อ 'เป้าหมาย'
+  - กราฟที่ 2: เพิ่ม datalabels บนกราฟแท่ง (สีตรงกับ borderColor ของแต่ละ dataset)
+    - ใช้ dlConfig() ที่มีอยู่แล้ว + ds.borderColor
+  - กราฟที่ 3 (wlChart2): ❌ ฟีเจอร์ "แกน X (ช่วงเวลา/สาขา)" — ทำแล้ว Undo ทั้งหมด
+    - สาเหตุ Undo: กราฟแสดงผลผิดเพี้ยน (ซิกแซกเชื่อม 22 สาขา)
+    - ลบ HTML (select แกน X + เลือกเดือน-ปี), JS (wl2XAxis, wl2SetXAxis, wl2PopulateMonthYear)
+    - ลบ branch chart logic block + guard condition จากเส้นเป้าหมาย
+
+งานที่ทำ (28 มี.ค.):
+  - ★ Leak Auto-Update: ครบ 100% ทั้ง 6 หมวด (D, RL, EU, MNF, KPI, P3)
+    - api.php: เพิ่ม 6 GET endpoints (/api/ois-data, /api/eu-data, /api/rl-data, /api/mnf-data, /api/kpi-data, /api/p3-data)
+    - แต่ละ endpoint: parse Excel จาก ข้อมูลดิบ/ → JSON + file-based caching (CACHE_DIR/.cache, TTL=60s)
+    - index.html: เพิ่ม _tryFetchD/EU/RL/MNF/KPI/P3() → fetch API อัตโนมัติเมื่อรันบน localhost
+    - เปลี่ยน const → var สำหรับ D, RL, EU, MNF, KPI, P3 (ให้ overwrite ได้)
+    - fallback: ถ้า API ไม่ตอบ → ใช้ข้อมูลที่ฝังไว้ (GitHub Pages / file://)
+    - re-init: ถ้า tab เปิดแล้ว → re-init กราฟอัตโนมัติหลังโหลดข้อมูลใหม่
+    - PhpSpreadsheet 2.x compatible: ใช้ getCell([$col,$row]) แทน getCellByColumnAndRow()
+  - D (OIS) parser: ซับซ้อนที่สุด — รองรับ .xls/.xlsx 13 ไฟล์ (2557-2569)
+    - dynamic header detection (หา row ที่มี 6+ month keywords)
+    - dynamic month column mapping (short+long Thai month names)
+    - total column detection ("รวม")
+    - LABEL_NORMALIZE_MAP (5 variant names across years)
+    - fix_trailing_zeros (30% threshold for incomplete fiscal years)
+    - skip "เป้าหมาย" sheet
+  - api.php: เพิ่ม branch normalization (STANDARD_BRANCHES, BRANCH_ALIASES, normalize_branch_name())
+  - api.php: เพิ่ม cache helpers (load_cache/save_cache/get_folder_mtime)
+  - XAMPP เครื่องใหม่: ต้องเปิด extension=zip ใน php.ini (PhpSpreadsheet ต้องใช้)
+  - ★ Meter Dual Mode: ครบ 100%
+    - api.php: เพิ่ม GET /api/meter-data endpoint
+      - parse METER_XXXX.xlsx (22 ไฟล์สาขา) → dead_meter (col 12=มาตรไม่เดิน, col 16≠เปลี่ยนแล้ว, dedup by col 2)
+      - อ่าน OIS ล่าสุดจาก ../Dashboard_Leak/ข้อมูลดิบ/OIS/ → total_meters (OIS_SHEET_MAP 22 sheets → branches)
+      - auto-detect latest month column (row 6, cols 6-17 in 1-based)
+      - file-based caching (CACHE_DIR/.cache, TTL=60s)
+    - index.html: เพิ่ม _tryFetchMeter() → fetch API + renderDeadMeterTable() re-init
+    - Dual Mode call: if(location.protocol!=='file:') _tryFetchMeter()
+    - ⚠️ แก้ OIS row/col indexing: Python xlrd 0-based → PhpSpreadsheet 1-based (row 5→6, col 5→6, range 5-16→6-17)
+  - ★ PR Dual Mode: ครบ 100%
+    - api.php: เพิ่ม GET /api/pr-data endpoint
+      - scan ข้อมูลดิบ/เรื่องร้องเรียน/ → PR_*.xlsx → reuse parse_pr_file()
+      - คำนวณ 13-month rolling window (เหมือน build_dashboard.py)
+      - return: {months, branches, all_months, data, cat_names}
+    - api.php: เพิ่ม GET /api/aon-data endpoint
+      - scan ข้อมูลดิบ/AlwayON/ → AON_*.xls/*.xlsx → reuse parse_aon_file()
+      - return: {month_key: {branch: percentage}}
+    - index.html: เปลี่ยน const → var สำหรับ DATA, BRANCHES, RAW, PR_CATEGORIES
+    - index.html: เพิ่ม Dual Mode script block ก่อน </body>
+      - _tryFetchPR(): fetch pr-data → overwrite DATA/BRANCHES/RAW/PR_CATEGORIES → pr1Init()+pr2Init()
+      - _tryFetchAON(): fetch aon-data → overwrite AON/AON_KEYS_SORTED/AON_ALL_MONTHS → aonRender()+aonCmpRender()+aon2Render()
+    - ⚠️ แก้ function_exists() → class_exists() สำหรับ PhpSpreadsheet check
+    - ⚠️ AON values ยังเป็น 0 (ปัญหา parse_aon_sheet_with_col เดิม) → fallback ยังใช้ได้
 
 งานค้าง:
-  1. ตรวจสอบ scale sync กราฟ volume — อาจต้องปรับ rounding
+  1. ★ scale sync กราฟ Leak เสร็จแล้ว (28 มี.ค.) — ทั้ง % และ Volume sync 2 กราฟใน Card เดียวกัน
+  2. ★ ลบไฟล์ .py เสร็จแล้วทั้งหมด (28 มี.ค.) — ไม่มี Python dependency เหลือ
+  3. ~~แก้ Legend กราฟที่ 1 (wl0Chart)~~ — ยกเลิก ไม่แก้แล้ว
+
+งานที่ทำ (28 มี.ค. — session 3):
+  - ★ Y-axis scale sync กราฟ Leak:
+    - กราฟ % (wscRChart3+wscRChart4): เปลี่ยนจาก max:70 คงที่ → dynamic sync ด้วย wscRPercentSyncYAxis()
+      - หา max จากข้อมูลทั้ง 2 กราฟ → ปัดขึ้นเป็นทวีคูณของ 5 + เผื่อ 5% → set ทั้งคู่เท่ากัน
+    - กราฟ Volume (wscRChart3V+wscRChart4V): มี wscRVolSyncYAxis() อยู่แล้ว (ปัดขึ้นทวีคูณ 200,000)
+  - ★ Paired chart Y-axis sync เมื่อ user ปรับ scale:
+    - PAIRED_CHARTS mapping: wscRChart3↔wscRChart4, wscRChart3V↔wscRChart4V
+    - syncPairedChart(): copy min/max/stepSize จากกราฟที่ปรับไปกราฟคู่
+    - ทำงานกับทั้ง 3 กลไก: scroll (zoom), drag (pan), double-click (dialog)
+    - Reset ใน dialog ก็ reset กราฟคู่ด้วย
+  - ★ PR Dashboard TAB ข้อร้องเรียน — Paired chart Y-axis sync:
+    - PAIRED_CHARTS mapping: waterQty1↔2, pipe1↔2, quality1↔2, service1↔2, staff1↔2 (ทั้ง 5 ด้าน)
+    - syncPairedChart() เหมือน Leak — hook เข้า scroll/drag/dialog/right-click context menu
+    - มี syncYScale() อยู่เดิมสำหรับ initial sync → เพิ่ม interactive sync เข้าไป
+  - ยกเลิก Legend กราฟที่ 1 (wl0Chart) — ไม่แก้แล้ว
+
+งานที่ทำ (28 มี.ค. — session 2):
+  - Smart Header Detection ทุก Dashboard:
+    - GIS: detect_repair_columns() + fallback flag
+    - Meter: detect_meter_columns() + fallback flag
+    - PR: parse_pr_file() ใช้ $data_start_idx/$branch_col/$cust_col แทนค่าตายตัว
+    - PR: parse_aon_sheet_with_col() ค้นหา "หน่วยงาน/สาขา/เขต" แบบ dynamic
+    - Leak EU: ค้นหาคอลัมน์สาขาและเดือนแรก (ต.ค.) แบบ dynamic
+    - Leak KPI: ค้นหาคอลัมน์สาขา/เป้าหมาย/ระดับ/ผลดำเนินการ แบบ dynamic
+  - ★ ตรวจสอบรูปแบบไฟล์ก่อน Upload (ครบทุก Dashboard):
+    - validate_gis_file(): repair ต้องเจอ สาขา+ปิดงาน/สำเร็จ/คะแนน
+    - validate_meter_file(): ต้องเจอ CA/รหัสผู้ใช้น้ำ+สภาพมาตร
+    - validate_pr_file(): ต้องเจอ pattern "ด้าน" (เช่น "1. ด้านคุณภาพน้ำ")
+    - validate_aon_file(): ต้องเจอ "หน่วยงาน/สาขา"
+    - validate_leak_file(): EU ต้องเจอ สาขา+เดือน, KPI ต้องเจอ สาขา+เป้าหมาย
+    - ถ้า format ไม่ตรง → บล็อก upload + แสดง ⚠️ error ให้ user เห็น
+  - manage.html ทุก Dashboard: ปรับ error display แยก "ทุกไฟล์ fail" / "บางไฟล์ fail"
+  - ★ ลบ server.py ทุก Dashboard (4 ไฟล์) + update_dead_meter.py + start_server.bat
+  - ★ เปลี่ยน build_dashboard.py → build_dashboard.php ทั้ง 3 Dashboard (GIS/PR/Leak)
+    - ใช้ PhpSpreadsheet อ่าน Excel → ฝัง JSON ลง index.html เหมือนเดิม
+    - ลบ build_dashboard.py ทั้ง 3 ไฟล์ (ไม่ต้องการ Python อีกต่อไป)
+  - ★ แก้ push_to_github.bat + update_dashboards.bat → เรียก PHP แทน Python
 
 คำเตือนสำคัญสำหรับ Claude session ใหม่:
   - ห้าม reorder options ใน <select> → ใช้ selected attribute แทน
   - กราฟที่มีหมายเหตุอยู่แล้ว → append ต่อ ไม่ซ้ำ (ดู JS ที่สร้าง HTML)
   - file naming: ใช้ _ separator (RL_2569.xlsx) ไม่ใช่ - (RL-2569.xlsx)
-  - build_dashboard.py ทุกตัว: อ่าน index.html → replace data → เขียนกลับ index.html เดิม
+  - build_dashboard.php ทุกตัว: อ่าน index.html → replace data → เขียนกลับ index.html เดิม (ใช้ PhpSpreadsheet)
   - อ่านไฟล์นี้ก่อนทำงาน!
 
 หมายเหตุ: ยกเลิกการบันทึก prompt_history แล้ว ไม่ต้องเขียนเพิ่ม
+
+★ มาตรฐานแกน Y สำหรับทุกกราฟ (Chart.js) — ใช้เหมือนกันทุก Dashboard:
+  1. Scroll เม้าส์ปรับ Scale แกน Y:
+     - ถ้า Origin เดิม = 0 → ยึด Origin ไว้ที่ 0 (ปรับเฉพาะ Max)
+     - ถ้า Origin เดิม ≠ 0 → Zoom รอบจุดกึ่งกลาง (ปรับทั้ง Min และ Max)
+  2. ลากเม้าส์ Pan แกน Y:
+     - ถ้า Origin = 0 → ยึด Min=0, ปรับ Max ตาม
+     - ถ้า Origin ≠ 0 → Pan อิสระ ทั้ง Min และ Max
+  3. Double-click บนแกน → dialog ตั้งค่า Min / Max / Interval
+  4. Right-click บนแกน → context menu ปรับ:
+     - Min / Max / Interval
+     - สีแกน (tick labels, title)
+     - สีเส้น Grid, รูปแบบ (Solid/Dashed/Dotted), ซ่อน/แสดง
+  
+  โค้ดอยู่ใน: axisSettings{}, axisEnforcer plugin, handleWheel(), handleMouseMove(),
+  showAxisDialog(), showAxisCtxMenu(), ctxAxisApply(), ctxAxisReset()
+  
+  ★ เมื่อสร้างกราฟใหม่ ต้องมีลักษณะแกน Y แบบนี้เสมอ
+
+★ ตารางทุกตาราง: มี class="table-resizable" (resize:both; overflow:auto)
+  ปรับขนาดได้โดยลากมุมล่างขวา
+
 ================================================================================

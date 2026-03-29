@@ -6,7 +6,7 @@
     <title>จัดการแหล่งข้อมูล — Dashboard น้ำสูญเสีย</title>
     <script>
         if (location.protocol === 'file:') {
-            location.href = 'http://localhost:5001/manage.html';
+            alert('จัดการแหล่งข้อมูลใช้ได้เฉพาะผ่าน XAMPP\n\nเปิด XAMPP Control Panel → Start Apache\nแล้วเข้าผ่าน http://localhost/Claude Test Cowork/Dashboard_Leak/manage.html');
         }
     </script>
     <style>
@@ -425,7 +425,8 @@
 
         .file-chips {
             display: flex;
-            flex-direction: column;
+            flex-wrap: wrap;
+            align-items: flex-start;
             gap: 5px;
             margin-bottom: 12px;
         }
@@ -436,6 +437,7 @@
             align-items: center;
             gap: 5px;
             margin-bottom: 8px;
+            width: 100%;
         }
 
         .year-label {
@@ -699,11 +701,8 @@
                 <button class="upload-tab" data-category="eu" onclick="switchTab('eu')">
                     ⚡ หน่วยไฟ <span class="tab-count" id="eu-count">-</span>
                 </button>
-                <button class="upload-tab" data-category="kpi" onclick="switchTab('kpi')">
-                    🎯 เกณฑ์ชี้วัด <span class="tab-count" id="kpi-count">-</span>
-                </button>
                 <button class="upload-tab" data-category="kpi2" onclick="switchTab('kpi2')">
-                    📊 KPI น้ำสูญ <span class="tab-count" id="kpi2-count">-</span>
+                    📊 เกณฑ์วัดน้ำสูญเสีย <span class="tab-count" id="kpi2-count">-</span>
                 </button>
             </div>
 
@@ -715,9 +714,14 @@
         <div class="management-panel">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
                 <h2 class="section-title" style="margin-bottom:0">📂 ข้อมูลปัจจุบัน</h2>
-                <button class="btn btn-secondary" onclick="openFolder()" style="font-size:12px;padding:6px 14px;display:inline-flex;align-items:center;gap:5px">
-                    📂 เปิดโฟลเดอร์ข้อมูล
-                </button>
+                <div style="display:flex;align-items:center;gap:12px">
+                    <label style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--sub,#888);cursor:pointer;user-select:none">
+                        <input type="checkbox" id="showFilenamesChk" onchange="toggleShowFilenames(this.checked)" style="cursor:pointer"> แสดงชื่อไฟล์
+                    </label>
+                    <button class="btn btn-secondary" onclick="openFolder()" style="font-size:12px;padding:6px 14px;display:inline-flex;align-items:center;gap:5px">
+                        📂 เปิดโฟลเดอร์ข้อมูล
+                    </button>
+                </div>
             </div>
             <div id="management-content"></div>
         </div>
@@ -745,7 +749,7 @@
     </div>
 
     <script>
-        const API_BASE = window.location.origin;
+        const API_BASE = 'api.php';
         const CATEGORIES = {
             'ois': { thai: 'OIS', icon: '📊', color: '#2980b9', dark: '#1a5276',
                 hint: 'ไฟล์ OIS รายปี ตั้งชื่อเป็นปี พ.ศ. เช่น <code>2569.xls</code>, <code>2568.xls</code>' },
@@ -759,14 +763,17 @@
                 hint: 'ไฟล์กิจกรรมลดน้ำสูญเสีย เช่น <code>กิจกรรมลดน้ำสูญเสีย.xlsx</code>' },
             'eu': { thai: 'หน่วยไฟ', icon: '⚡', color: '#f57f17', dark: '#e65100',
                 hint: 'ไฟล์หน่วยไฟ (EU) ตั้งชื่อ <code>EU-ปี.xlsx</code> เช่น <code>EU-2569.xlsx</code>' },
-            'kpi': { thai: 'เกณฑ์ชี้วัด', icon: '🎯', color: '#c62828', dark: '#8e0000',
-                hint: 'ไฟล์เกณฑ์ชี้วัด KPI ตั้งชื่อ <code>KPI_Leak-ปี.xlsx</code> เช่น <code>KPI_Leak-2569.xlsx</code>' },
-            'kpi2': { thai: 'KPI น้ำสูญ', icon: '📊', color: '#d84315', dark: '#8f2800',
+            'kpi2': { thai: 'เกณฑ์วัดน้ำสูญเสีย', icon: '📊', color: '#d84315', dark: '#8f2800',
                 hint: 'ไฟล์เกณฑ์วัดน้ำสูญเสีย ตั้งชื่อ <code>KPI_Leal-ปี.xlsx</code> เช่น <code>KPI_Leal-2569.xlsx</code>' }
         };
 
         let currentCategory = 'ois';
         let cachedData = {};
+        let _showFilenames = false;
+        function toggleShowFilenames(checked) {
+            _showFilenames = checked;
+            renderManagementPanel();
+        }
         let confirmCallback = null;
 
         // ─── Initialization ───────────────────────────────────────────────────
@@ -792,13 +799,7 @@
         }
 
         function goBack() {
-            if (location.protocol === 'file:') {
-                window.location.href = 'index.html';
-            } else if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
-                window.location.href = 'http://' + location.host + '/';
-            } else {
-                window.location.href = 'index.html';
-            }
+            window.location.href = 'index.html';
         }
 
         // ─── Create Upload Panels ─────────────────────────────────────────────
@@ -819,6 +820,15 @@
                         </div>
                         <input type="file" id="fileInput-${slug}" class="file-input" accept=".xlsx,.xls,.csv" multiple>
                         <div id="fileList-${slug}" style="margin-top:10px;padding-top:10px;border-top:1px dashed ${cat.color}40;display:none"></div>
+                    </div>
+
+                    <div id="srcUrl-${slug}" class="source-url-row" style="margin-top:8px;font-size:13px;color:var(--sub,#666);display:flex;align-items:center;gap:6px;min-height:24px">
+                        <span style="flex-shrink:0">&#128279; แหล่งโหลดข้อมูล :</span>
+                        <a id="srcUrlLink-${slug}" href="#" target="_blank" style="color:#1565c0;text-decoration:underline;word-break:break-all;display:none"></a>
+                        <span id="srcUrlEmpty-${slug}" style="color:#aaa;font-style:italic;display:none">ยังไม่ได้ระบุ</span>
+                        <input id="srcUrlInput-${slug}" type="text" placeholder="วาง URL แหล่งข้อมูล..." style="flex:1;padding:4px 8px;border:1px solid ${cat.color}50;border-radius:5px;font-size:13px;font-family:inherit;background:var(--card,#fff);color:var(--text,#333);display:none;outline:none" />
+                        <button id="srcUrlEdit-${slug}" onclick="srcUrlToggleEdit('${slug}')" title="แก้ไข" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;color:var(--sub,#888);flex-shrink:0">&#9998;</button>
+                        <span id="srcUrlSaved-${slug}" style="font-size:11px;color:#2e7d32;opacity:0;transition:opacity .3s;flex-shrink:0">&#10003;</span>
                     </div>
 
                     <div class="note-box" style="margin-top:12px">
@@ -864,10 +874,71 @@
             });
         }
 
+        // ── Source URL (editable link per tab, saved in notes.json) ──
+        const _srcUrlDefaults = { ois: 'https://reg1.pwa.co.th/pwa1/index.php/compare/ReportPerformance' };
+
+        function srcUrlRender(slug, url) {
+            const link = document.getElementById(`srcUrlLink-${slug}`);
+            const empty = document.getElementById(`srcUrlEmpty-${slug}`);
+            const input = document.getElementById(`srcUrlInput-${slug}`);
+            if (!link) return;
+            input.style.display = 'none';
+            if (url) {
+                link.href = url;
+                link.textContent = url.replace(/^https?:\/\//, '').replace(/\/$/, '');
+                link.style.display = '';
+                empty.style.display = 'none';
+            } else {
+                link.style.display = 'none';
+                empty.style.display = '';
+            }
+        }
+
+        function srcUrlToggleEdit(slug) {
+            const link = document.getElementById(`srcUrlLink-${slug}`);
+            const empty = document.getElementById(`srcUrlEmpty-${slug}`);
+            const input = document.getElementById(`srcUrlInput-${slug}`);
+            if (input.style.display === 'none' || !input.style.display) {
+                input.value = link.style.display !== 'none' ? link.href : '';
+                link.style.display = 'none';
+                empty.style.display = 'none';
+                input.style.display = '';
+                input.focus();
+                input.select();
+            } else {
+                srcUrlSave(slug);
+            }
+        }
+
+        async function srcUrlSave(slug) {
+            const input = document.getElementById(`srcUrlInput-${slug}`);
+            const saved = document.getElementById(`srcUrlSaved-${slug}`);
+            const url = (input.value || '').trim();
+            srcUrlRender(slug, url);
+            try {
+                await fetch(`${API_BASE}/api/notes/${slug}_source_url`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: url })
+                });
+                saved.style.opacity = '1';
+                setTimeout(() => { saved.style.opacity = '0'; }, 2000);
+            } catch (e) { console.error('Source URL save error:', e); }
+        }
+
+        function setupSrcUrl(slug) {
+            const input = document.getElementById(`srcUrlInput-${slug}`);
+            if (!input) return;
+            input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); srcUrlSave(slug); } });
+            input.addEventListener('blur', () => srcUrlSave(slug));
+        }
+
         function setupEventListeners() {
             Object.keys(CATEGORIES).forEach(slug => {
                 // Note auto-save
                 setupNoteAutoSave(slug);
+                // Source URL
+                setupSrcUrl(slug);
 
                 // Drop zone
                 const dropZone = document.getElementById(`dropZone-${slug}`);
@@ -970,6 +1041,37 @@
 
         // ─── Upload Files ─────────────────────────────────────────────────────
 
+        // ตรวจไฟล์ซ้ำ: เทียบ key ของไฟล์ใหม่กับไฟล์ที่มีอยู่
+        function findDuplicateFiles(slug, newFiles) {
+            const existing = (cachedData[slug]?.files || []);
+            if (existing.length === 0) return [];
+
+            if (slug === 'p3') {
+                // P3: เทียบ branch+month (P3_ชลบุรี_69-03)
+                const existKeys = new Set(existing.map(f => {
+                    const m = f.match(/P3_(.+?)_(\d{2}-\d{2})/);
+                    return m ? m[1] + '_' + m[2] : f;
+                }));
+                return newFiles.filter(f => {
+                    const m = f.name.match(/(.+?)_(\d{2}-\d{2})/);
+                    if (m) return existKeys.has(m[1] + '_' + m[2]);
+                    return existKeys.has(f.name);
+                });
+            }
+            // หมวดอื่น: เทียบปี
+            const existYears = new Set(existing.map(f => extractYear(slug, f)).filter(Boolean));
+            const dupes = newFiles.filter(f => {
+                const y = extractYear(slug, f.name);
+                return y && existYears.has(y);
+            });
+            // fallback: ถ้าไม่มี year match ลองเทียบชื่อตรง
+            if (dupes.length === 0) {
+                const existSet = new Set(existing.map(f => f.toLowerCase()));
+                return newFiles.filter(f => existSet.has(f.name.toLowerCase()));
+            }
+            return dupes;
+        }
+
         async function uploadFiles(slug) {
             const store = window._fileStore[slug] || [];
 
@@ -978,11 +1080,17 @@
                 return;
             }
 
+            // ตรวจไฟล์ซ้ำ
+            const duplicates = findDuplicateFiles(slug, store);
+
             let fileList = store.map(f => f.name).join(', ');
             let confirmMsg = `อัปโหลด ${store.length} ไฟล์:\n${fileList}`;
+            if (duplicates.length > 0) {
+                confirmMsg += `\n\n⚠️ ไฟล์ต่อไปนี้มีอยู่แล้ว จะถูกเขียนทับ:\n${duplicates.map(f => f.name).join(', ')}`;
+            }
 
             showConfirmDialog(
-                'ยืนยันการอัปโหลด',
+                duplicates.length > 0 ? '⚠️ ยืนยันเขียนทับข้อมูลเดิม' : 'ยืนยันการอัปโหลด',
                 confirmMsg,
                 async () => {
                     await performUpload(slug, store);
@@ -1013,10 +1121,14 @@
                 const errors = result.errors || [];
                 const successes = result.results || [];
 
-                if (errors.length > 0) {
-                    const failMsg = errors.map(e => `${e.filename}: ${e.error}`).join('\n');
-                    showStatus(slug, `${successes.length} ไฟล์สำเร็จ, ${errors.length} ไฟล์ล้มเหลว`, 'error');
-                    addLog(`Upload ${slug} บางส่วนล้มเหลว:\n${failMsg}`, 'error');
+                if (errors.length > 0 && successes.length === 0) {
+                    showStatus(slug, '⚠️ ไฟล์ไม่ตรงรูปแบบที่ระบบรองรับ ไม่สามารถ Upload ได้', 'error');
+                    errors.forEach(e => addLog(`${e.filename}: ${e.error}`, 'error'));
+                } else if (errors.length > 0) {
+                    const failNames = errors.map(e => e.filename).join(', ');
+                    showStatus(slug, `${successes.length} สำเร็จ, ${errors.length} ล้มเหลว (${failNames})`, 'error');
+                    successes.forEach(r => addLog(`อัปโหลดสำเร็จ: ${r.filename}`, 'success'));
+                    errors.forEach(e => addLog(`${e.filename}: ${e.error}`, 'error'));
                 } else {
                     const names = files.map(f => f.name).join(', ');
                     showStatus(slug, `อัปโหลดสำเร็จ ${successes.length} ไฟล์`, 'success');
@@ -1068,6 +1180,10 @@
                 Object.keys(CATEGORIES).forEach(slug => {
                     const tb = document.getElementById(`noteBox-${slug}`);
                     if (tb && savedNotes[slug]) tb.value = savedNotes[slug];
+                    // Load source URL (from notes or default)
+                    const urlKey = slug + '_source_url';
+                    const savedUrl = savedNotes[urlKey] || _srcUrlDefaults[slug] || '';
+                    srcUrlRender(slug, savedUrl);
                 });
 
                 // Render management panel
@@ -1095,13 +1211,26 @@
 
         const MNAMES = ['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
 
+        // ดึง group key สำหรับ P3 (จัดกลุ่มตามเดือน-ปี)
+        // P3_ชลบุรี_69-03 → "69-03" (sort key) + label "มี.ค. 69"
+        function extractP3MonthKey(filename) {
+            const m = filename.match(/P3_.+?_(\d{2})-(\d{2})/);
+            if (m) return { key: m[1] + '-' + m[2], label: (MNAMES[parseInt(m[2])] || m[2]) + ' ' + m[1] };
+            return null;
+        }
+
+        // ดึงชื่อสาขาจาก P3 filename สำหรับ chip
+        function extractP3Branch(filename) {
+            const m = filename.match(/P3_(.+?)_\d{2}-\d{2}/);
+            return m ? m[1] : filename;
+        }
+
         // ดึง label สั้นสำหรับ chip
         function extractChipLabel(slug, filename) {
             const name = filename.replace(/\.[^.]+$/, '');
             if (slug === 'p3') {
-                // P3_ชลบุรี_69-03 → "ชลบุรี มี.ค."
-                const m = name.match(/P3_(.+?)_(\d{2})-(\d{2})/);
-                if (m) return m[1] + ' ' + (MNAMES[parseInt(m[3])] || m[3]);
+                // P3_ชลบุรี_69-03 → "ชลบุรี"
+                return extractP3Branch(name);
             }
             // OIS_2569 → 2569, RL_2569 → 2569 etc — ปีเป็น label เดียวกับ year-group ให้แสดงชื่อเต็มสั้นลง
             // ตัด prefix ออก: OIS_2569 → "2569", EU_2569 → "2569"
@@ -1140,7 +1269,59 @@
 
                 const chipsDiv = section.querySelector(`#chips-${slug}`);
 
-                // จัดกลุ่มตามปี
+                // P3: จัดกลุ่มตามเดือน-ปี (เช่น "มี.ค. 69") แทนที่จะจัดตามปี
+                if (slug === 'p3') {
+                    const byMonth = {};
+                    const noMonth = [];
+                    files.forEach(filename => {
+                        const mk = extractP3MonthKey(filename);
+                        if (mk) {
+                            if (!byMonth[mk.key]) byMonth[mk.key] = { label: mk.label, files: [] };
+                            byMonth[mk.key].files.push(filename);
+                        } else {
+                            noMonth.push(filename);
+                        }
+                    });
+                    const monthKeys = Object.keys(byMonth).sort();
+                    monthKeys.forEach(mk => {
+                        const group = document.createElement('div');
+                        group.className = 'year-group';
+                        const mLabel = document.createElement('span');
+                        mLabel.className = 'year-label';
+                        mLabel.style.background = cat.dark || cat.color;
+                        mLabel.textContent = byMonth[mk].label;
+                        group.appendChild(mLabel);
+
+                        byMonth[mk].files.forEach(filename => {
+                            const chip = document.createElement('div');
+                            chip.className = 'chip';
+                            chip.style.borderColor = cat.color + '60';
+                            chip.style.background = cat.color + '0a';
+                            const label = _showFilenames ? filename : extractP3Branch(filename);
+                            chip.innerHTML = `
+                                <span class="chip-label" style="color:${cat.color}">${label}</span>
+                                <button class="chip-btn chip-delete" title="ลบ ${filename}" onclick="deleteFile('${slug}', '${filename.replace(/'/g,"\\'")}')">✕</button>
+                            `;
+                            chip.title = filename;
+                            group.appendChild(chip);
+                        });
+                        chipsDiv.appendChild(group);
+                    });
+                    noMonth.forEach(filename => {
+                        const chip = document.createElement('div');
+                        chip.className = 'chip';
+                        chip.style.borderColor = cat.color + '60';
+                        chip.style.background = cat.color + '0a';
+                        chip.innerHTML = `
+                            <span class="chip-label" style="color:${cat.color}">${filename}</span>
+                            <button class="chip-btn chip-delete" title="ลบ" onclick="deleteFile('${slug}', '${filename.replace(/'/g,"\\'")}')">✕</button>
+                        `;
+                        chipsDiv.appendChild(chip);
+                    });
+                    return; // P3 จัดกลุ่มเสร็จแล้ว ไม่ต้องทำ byYear
+                }
+
+                // จัดกลุ่มตามปี (หมวดอื่นๆ)
                 const byYear = {};
                 const noYear = [];
                 files.forEach(filename => {
@@ -1178,7 +1359,7 @@
                         const yearLabel = document.createElement('span');
                         yearLabel.className = 'year-label';
                         yearLabel.style.background = cat.dark || cat.color;
-                        yearLabel.textContent = year;
+                        yearLabel.textContent = 'ปีงบฯ ' + (year - 2500);
                         group.appendChild(yearLabel);
 
                         byYear[year].forEach(filename => {
@@ -1186,7 +1367,7 @@
                             chip.className = 'chip';
                             chip.style.borderColor = cat.color + '60';
                             chip.style.background = cat.color + '0a';
-                            const label = extractChipLabel(slug, filename);
+                            const label = _showFilenames ? filename : extractChipLabel(slug, filename);
                             chip.innerHTML = `
                                 <span class="chip-label" style="color:${cat.color}">${label}</span>
                                 <button class="chip-btn chip-delete" title="ลบ ${filename}" onclick="deleteFile('${slug}', '${filename.replace(/'/g,"\\'")}')">✕</button>

@@ -1,0 +1,23 @@
+# Dashboard Leak — Apache Rewrite Rules for PHP API
+# ===================================================
+# Rewrite /api/* requests to api.php while preserving PATH_INFO
+# Static files (index.html, manage.html, etc.) served directly by Apache
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # Preserve path info for PHP routing
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^api/(.*)$ api.php [QSA,L]
+</IfModule>
+
+# UTF-8 support
+AddDefaultCharset UTF-8
+AddType application/json .json
+
+# Performance: enable gzip compression
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE application/json text/html text/plain text/xml text/css application/javascript
+</IfModule>

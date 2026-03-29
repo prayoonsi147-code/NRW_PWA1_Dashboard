@@ -1,0 +1,34 @@
+# ─────────────────────────────────────────────────────────────────────────
+# Dashboard PR — Apache Rewrite Rules for PHP Backend
+# ─────────────────────────────────────────────────────────────────────────
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # ─── Rewrite API routes to api.php ─────────────────────────────────────
+    # /api/* → api.php with PATH_INFO
+    RewriteRule ^api/(.*)$ api.php [L]
+
+    # ─── Serve static files directly ───────────────────────────────────────
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    # If it's not a file or directory, serve index.html for SPA routing
+    RewriteRule ^(.*)$ index.html [L]
+</IfModule>
+
+<IfModule mod_headers.c>
+    # Allow cross-origin requests (CORS)
+    Header set Access-Control-Allow-Origin "*"
+    Header set Access-Control-Allow-Methods "GET, POST, DELETE, OPTIONS"
+    Header set Access-Control-Allow-Headers "Content-Type, Authorization"
+</IfModule>
+
+# ─── UTF-8 Encoding ──────────────────────────────────────────────────────
+AddDefaultCharset utf-8
+
+# ─── PHP Configuration ───────────────────────────────────────────────────
+# Ensure PHP handles large file uploads
+php_value upload_max_filesize 100M
+php_value post_max_size 100M
+php_value max_input_time 300
+php_value max_execution_time 300

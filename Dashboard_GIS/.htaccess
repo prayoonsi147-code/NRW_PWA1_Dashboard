@@ -1,0 +1,57 @@
+# Dashboard GIS — Apache Rewrite Rules for XAMPP
+# Rewrites all /api/* requests to api.php with PATH_INFO preserved
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Preserve original request info
+    RewriteBase /Dashboard_GIS/
+
+    # Skip if it's a real file or directory
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+
+    # Route /api/* to api.php, preserving path as PATH_INFO
+    RewriteRule ^api(/.*)?$ api.php [L,E=PATH_INFO:/$1]
+
+    # Allow static files to be served directly
+    RewriteCond %{REQUEST_FILENAME} -f
+    RewriteRule ^.*$ - [L]
+
+    # Allow directories to be accessed directly
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^.*$ - [L]
+
+    # Default to index.html for root
+    RewriteRule ^$ index.html [L]
+</IfModule>
+
+# PHP Configuration
+<FilesMatch "\.php$">
+    SetHandler application/x-httpd-php
+</FilesMatch>
+
+# UTF-8 Encoding
+AddType text/html; charset=utf-8 .html
+AddCharset UTF-8 .html .php .json
+
+# CORS Headers (backup if not set in PHP)
+<FilesMatch "\.php$">
+    Header always set Access-Control-Allow-Origin "*"
+    Header always set Access-Control-Allow-Methods "GET, POST, DELETE, OPTIONS"
+    Header always set Access-Control-Allow-Headers "Content-Type"
+</FilesMatch>
+
+# Browser Caching (Optional)
+<IfModule mod_expires.c>
+    ExpiresActive On
+    # Cache static files for 7 days
+    ExpiresByType text/css "access plus 7 days"
+    ExpiresByType application/javascript "access plus 7 days"
+    ExpiresByType image/jpeg "access plus 7 days"
+    ExpiresByType image/png "access plus 7 days"
+    ExpiresByType image/svg+xml "access plus 7 days"
+    # Don't cache HTML and JSON
+    ExpiresByType text/html "access plus 0 seconds"
+    ExpiresByType application/json "access plus 0 seconds"
+</IfModule>

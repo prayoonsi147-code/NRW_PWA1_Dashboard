@@ -129,11 +129,11 @@ body.hide-controls .ymt{display:none!important}
 
 <!-- ===== HEADER ===== -->
 <div class="header">
-    <a href="../index.html" onclick="var h=location.hostname;if((h==='localhost'||h==='127.0.0.1')&&location.protocol!=='file:'){fetch('/api/open-main',{method:'POST'});return false;}" style="position:absolute;left:18px;top:50%;transform:translateY(-50%);text-decoration:none;color:white;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;transition:background 0.2s" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">&larr; หน้าหลัก</a>
+    <a href="../index.html" style="position:absolute;left:18px;top:50%;transform:translateY(-50%);text-decoration:none;color:white;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;transition:background 0.2s" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">&larr; หน้าหลัก</a>
     <h1>Dashboard งานมาตรวัดน้ำ</h1>
     <p>งานมาตรวัดน้ำ กองระบบจำหน่าย กปภ.ข.1</p>
     <div style="position:absolute;top:50%;right:32px;transform:translateY(-50%);display:flex;align-items:center;gap:12px">
-        <a href="manage.html" onclick="var h=location.hostname;if(h==='localhost'||h==='127.0.0.1'){return true;}if(location.protocol==='file:'){location.href='http://localhost:5003/manage.html';return false;}alert('จัดการแหล่งข้อมูลใช้ได้เฉพาะบนเครื่อง Local\n\nกรุณาเปิด start_server.bat แล้วเข้าผ่าน http://localhost:5003');return false;" style="text-decoration:none;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.4);color:#fff;padding:7px 18px;border-radius:8px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;transition:background .2s;cursor:pointer" onmouseover="this.style.background='rgba(255,255,255,.35)'" onmouseout="this.style.background='rgba(255,255,255,.18)'">&#9881; จัดการแหล่งข้อมูล</a>
+        <a href="manage.html" onclick="var h=location.hostname;if(h==='localhost'||h==='127.0.0.1'){return true;}alert('จัดการแหล่งข้อมูลใช้ได้เฉพาะบนเครื่อง Local\n\nเปิด XAMPP → Start Apache แล้วเข้าผ่าน localhost');return false;" style="text-decoration:none;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.4);color:#fff;padding:7px 18px;border-radius:8px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;transition:background .2s;cursor:pointer" onmouseover="this.style.background='rgba(255,255,255,.35)'" onmouseout="this.style.background='rgba(255,255,255,.18)'">&#9881; จัดการแหล่งข้อมูล</a>
         <div class="theme-toggle" onclick="toggleTheme()" style="position:static;transform:none">
             <span>&#9788;</span>
             <div class="theme-switch" id="themeSwitch"></div>
@@ -587,7 +587,7 @@ async function exportExcelDeadMeter(){
 // ===== Server API =====
 var SERVER_API_BASE=(function(){
     var h=location.hostname;
-    if(h==='localhost'||h==='127.0.0.1')return 'http://localhost:5003';
+    if(h==='localhost'||h==='127.0.0.1')return '';
     return null;
 })();
 
@@ -780,14 +780,34 @@ document.addEventListener('click',function(e){
     }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Dual Mode: Try API first, fall back to embedded data (silent fail)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function _tryFetchMeter(){
+    fetch('api.php/meter-data')
+        .then(function(r){return r.json();})
+        .then(function(res){
+            if(!res.ok||!res.has_data)return;
+            if(res.dead_meter) DEAD_METER=res.dead_meter;
+            if(res.total_meters) TOTAL_METERS=res.total_meters;
+            renderDeadMeterTable();
+            console.log('[Dual Mode] Meter data loaded from API');
+        }).catch(function(){/* silent fallback to embedded data */});
+}
+
 // ===== Init =====
 document.addEventListener('DOMContentLoaded',function(){
     renderDeadMeterTable();
-    // ถ้ารันบน localhost ดึงข้อมูลจาก server
+    // ถ้ารันบน localhost ดึงข้อมูลจาก server (snapshot system)
     if(SERVER_API_BASE){
         _serverGetData().then(function(d){
             if(d)mergeServerData(d);
         });
+    }
+    // Dual Mode: fetch fresh data from Excel files
+    if(location.protocol!=='file:'){
+        _tryFetchMeter();
     }
 });
 

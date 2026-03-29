@@ -1,0 +1,104 @@
+# Dashboard Meter — Apache Rewrite Configuration for XAMPP
+# ========================================================================
+# Routes all /api/* requests to api.php
+# Static files (index.html, manage.html, css, js, etc.) served directly
+#
+# Requires:
+#   - Apache mod_rewrite enabled
+#   - AllowOverride All in Apache config for this directory
+#
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Base directory context (no leading slash in RewriteBase for local paths)
+    RewriteBase /Dashboard_Meter/
+
+    # ─── API Routes ────────────────────────────────────────────────────
+    # All /api/* requests go to api.php, preserving the path
+    RewriteRule ^api/(.*)$ api.php [L]
+
+    # ─── Static Files ──────────────────────────────────────────────────
+    # If request is a real file, let Apache serve it directly
+    RewriteCond %{REQUEST_FILENAME} -f
+    RewriteRule ^ - [L]
+
+    # If request is a real directory, let Apache handle it
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # ─── Fallback for Static HTML ──────────────────────────────────────
+    # Requests to /manage.html or /index.html pass through
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(manage|index)\.html$ $1.html [L]
+
+    # Default to index.html for unknown routes (SPA fallback)
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ index.html [L]
+</IfModule>
+
+# ─── MIME Types ────────────────────────────────────────────────────────
+# Ensure proper content-type headers for various file types
+<IfModule mod_mime.c>
+    AddType application/json .json
+    AddType text/plain .txt
+    AddCharset utf-8 .html .htm .js .css .json
+</IfModule>
+
+# ─── File Upload Limits ────────────────────────────────────────────────
+# Allow larger file uploads (default is often too small)
+php_value upload_max_filesize 100M
+php_value post_max_size 100M
+
+# ─── Security ──────────────────────────────────────────────────────────
+# Prevent access to hidden files and sensitive paths
+<FilesMatch "^\.|^\.json$|^\.php$|^composer">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Specifically block .htaccess from being viewed/modified
+<Files .htaccess>
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</Files>
+
+# ─── Headers ────────────────────────────────────────────────────────────
+# Set expiry headers for caching
+<IfModule mod_expires.c>
+    ExpiresActive On
+
+    # Cache static assets
+    ExpiresByType text/html "access plus 1 day"
+    ExpiresByType text/css "access plus 30 days"
+    ExpiresByType text/javascript "access plus 30 days"
+    ExpiresByType application/javascript "access plus 30 days"
+    ExpiresByType image/jpeg "access plus 30 days"
+    ExpiresByType image/png "access plus 30 days"
+    ExpiresByType image/gif "access plus 30 days"
+
+    # Don't cache JSON responses (API)
+    ExpiresByType application/json "now"
+</IfModule>
+
+# ─── Compression ──────────────────────────────────────────────────────
+# Enable gzip compression for faster transfer
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css
+    AddOutputFilterByType DEFLATE application/xml application/xhtml+xml
+    AddOutputFilterByType DEFLATE application/javascript application/x-javascript
+    AddOutputFilterByType DEFLATE text/javascript
+    AddOutputFilterByType DEFLATE application/json
+</IfModule>

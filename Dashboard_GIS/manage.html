@@ -6,7 +6,7 @@
     <title>จัดการแหล่งข้อมูล — Dashboard แผนที่แนวท่อ</title>
     <script>
         if (location.protocol === 'file:') {
-            location.href = 'http://localhost:5002/manage.html';
+            alert('จัดการแหล่งข้อมูลใช้ได้เฉพาะผ่าน XAMPP\n\nเปิด XAMPP Control Panel → Start Apache\nแล้วเข้าผ่าน http://localhost/Claude Test Cowork/Dashboard_GIS/manage.html');
         }
     </script>
     <style>
@@ -700,9 +700,14 @@
         <div class="management-panel">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
                 <h2 class="section-title" style="margin-bottom:0">📂 ข้อมูลปัจจุบัน</h2>
-                <button class="btn btn-secondary" onclick="openFolder()" style="font-size:12px;padding:6px 14px;display:inline-flex;align-items:center;gap:5px">
-                    📂 เปิดโฟลเดอร์ข้อมูล
-                </button>
+                <div style="display:flex;align-items:center;gap:12px">
+                    <label style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--sub,#888);cursor:pointer;user-select:none">
+                        <input type="checkbox" id="showFilenamesChk" onchange="toggleShowFilenames(this.checked)" style="cursor:pointer"> แสดงชื่อไฟล์
+                    </label>
+                    <button class="btn btn-secondary" onclick="openFolder()" style="font-size:12px;padding:6px 14px;display:inline-flex;align-items:center;gap:5px">
+                        📂 เปิดโฟลเดอร์ข้อมูล
+                    </button>
+                </div>
             </div>
             <div id="management-content"></div>
         </div>
@@ -745,7 +750,7 @@
     </div>
 
     <script>
-        const API_BASE = window.location.origin;
+        const API_BASE = 'api.php';
         const CATEGORIES = {
             'repair': { thai: 'ลงข้อมูลซ่อมท่อ', icon: '🔧', color: '#00838f', dark: '#004d40',
                 hint: 'ไฟล์สรุปข้อมูลจำนวนข้อร้องเรียนงานซ่อม เช่น <code>สรุปข้อมูลจำนวนข้อร้องเรียนงานซ่อม 690218.xlsx</code>' },
@@ -757,6 +762,11 @@
 
         let currentCategory = 'repair';
         let cachedData = {};
+        let _showFilenames = false;
+        function toggleShowFilenames(checked) {
+            _showFilenames = checked;
+            renderManagementPanel();
+        }
         let confirmCallback = null;
 
         // ─── Initialization ───────────────────────────────────────────────────
@@ -782,7 +792,7 @@
         }
 
         function goBack() {
-            window.location.href = '/';
+            window.location.href = 'index.html';
         }
 
         // ─── Create Upload Panels ─────────────────────────────────────────────
@@ -803,6 +813,15 @@
                         </div>
                         <input type="file" id="fileInput-${slug}" class="file-input" accept=".xlsx,.xls,.csv" multiple>
                         <div id="fileList-${slug}" style="margin-top:10px;padding-top:10px;border-top:1px dashed ${cat.color}40;display:none"></div>
+                    </div>
+
+                    <div id="srcUrl-${slug}" class="source-url-row" style="margin-top:8px;font-size:13px;color:var(--sub,#666);display:flex;align-items:center;gap:6px;min-height:24px">
+                        <span style="flex-shrink:0">&#128279; แหล่งโหลดข้อมูล :</span>
+                        <a id="srcUrlLink-${slug}" href="#" target="_blank" style="color:#1565c0;text-decoration:underline;word-break:break-all;display:none"></a>
+                        <span id="srcUrlEmpty-${slug}" style="color:#aaa;font-style:italic;display:none">ยังไม่ได้ระบุ</span>
+                        <input id="srcUrlInput-${slug}" type="text" placeholder="วาง URL แหล่งข้อมูล..." style="flex:1;padding:4px 8px;border:1px solid ${cat.color}50;border-radius:5px;font-size:13px;font-family:inherit;background:var(--card,#fff);color:var(--text,#333);display:none;outline:none" />
+                        <button id="srcUrlEdit-${slug}" onclick="srcUrlToggleEdit('${slug}')" title="แก้ไข" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;color:var(--sub,#888);flex-shrink:0">&#9998;</button>
+                        <span id="srcUrlSaved-${slug}" style="font-size:11px;color:#2e7d32;opacity:0;transition:opacity .3s;flex-shrink:0">&#10003;</span>
                     </div>
 
                     <div class="note-box" style="margin-top:12px">
@@ -848,10 +867,71 @@
             });
         }
 
+        // ── Source URL (editable link per tab, saved in notes.json) ──
+        const _srcUrlDefaults = {};
+
+        function srcUrlRender(slug, url) {
+            const link = document.getElementById(`srcUrlLink-${slug}`);
+            const empty = document.getElementById(`srcUrlEmpty-${slug}`);
+            const input = document.getElementById(`srcUrlInput-${slug}`);
+            if (!link) return;
+            input.style.display = 'none';
+            if (url) {
+                link.href = url;
+                link.textContent = url.replace(/^https?:\/\//, '').replace(/\/$/, '');
+                link.style.display = '';
+                empty.style.display = 'none';
+            } else {
+                link.style.display = 'none';
+                empty.style.display = '';
+            }
+        }
+
+        function srcUrlToggleEdit(slug) {
+            const link = document.getElementById(`srcUrlLink-${slug}`);
+            const empty = document.getElementById(`srcUrlEmpty-${slug}`);
+            const input = document.getElementById(`srcUrlInput-${slug}`);
+            if (input.style.display === 'none' || !input.style.display) {
+                input.value = link.style.display !== 'none' ? link.href : '';
+                link.style.display = 'none';
+                empty.style.display = 'none';
+                input.style.display = '';
+                input.focus();
+                input.select();
+            } else {
+                srcUrlSave(slug);
+            }
+        }
+
+        async function srcUrlSave(slug) {
+            const input = document.getElementById(`srcUrlInput-${slug}`);
+            const saved = document.getElementById(`srcUrlSaved-${slug}`);
+            const url = (input.value || '').trim();
+            srcUrlRender(slug, url);
+            try {
+                await fetch(`${API_BASE}/api/notes/${slug}_source_url`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: url })
+                });
+                saved.style.opacity = '1';
+                setTimeout(() => { saved.style.opacity = '0'; }, 2000);
+            } catch (e) { console.error('Source URL save error:', e); }
+        }
+
+        function setupSrcUrl(slug) {
+            const input = document.getElementById(`srcUrlInput-${slug}`);
+            if (!input) return;
+            input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); srcUrlSave(slug); } });
+            input.addEventListener('blur', () => srcUrlSave(slug));
+        }
+
         function setupEventListeners() {
             Object.keys(CATEGORIES).forEach(slug => {
                 // Note auto-save
                 setupNoteAutoSave(slug);
+                // Source URL
+                setupSrcUrl(slug);
 
                 // Drop zone
                 const dropZone = document.getElementById(`dropZone-${slug}`);
@@ -953,6 +1033,22 @@
             document.getElementById(`panel-${slug}`).classList.add('active');
         }
 
+        // ─── Duplicate Detection ────────────────────────────────────────────
+        function findDuplicateFiles(slug, newFiles) {
+            const existing = (cachedData[slug]?.files || []);
+            if (existing.length === 0) return [];
+            const existYears = new Set(existing.map(f => extractYear(slug, f)).filter(Boolean));
+            const dupes = newFiles.filter(f => {
+                const y = extractYear(slug, f.name);
+                return y && existYears.has(y);
+            });
+            if (dupes.length === 0) {
+                const existSet = new Set(existing.map(f => f.toLowerCase()));
+                return newFiles.filter(f => existSet.has(f.name.toLowerCase()));
+            }
+            return dupes;
+        }
+
         // ─── Upload Files ─────────────────────────────────────────────────────
 
         async function uploadFiles(slug) {
@@ -966,8 +1062,13 @@
             let fileList = store.map(f => f.name).join(', ');
             let confirmMsg = `อัปโหลด ${store.length} ไฟล์:\n${fileList}`;
 
+            const duplicates = findDuplicateFiles(slug, store);
+            if (duplicates.length > 0) {
+                confirmMsg += `\n\n⚠️ ไฟล์ต่อไปนี้มีอยู่แล้ว จะถูกเขียนทับ:\n${duplicates.map(f => f.name).join(', ')}`;
+            }
+
             showConfirmDialog(
-                'ยืนยันการอัปโหลด',
+                duplicates.length > 0 ? '⚠️ ยืนยันเขียนทับข้อมูลเดิม' : 'ยืนยันการอัปโหลด',
                 confirmMsg,
                 async () => {
                     await performUpload(slug, store);
@@ -1006,11 +1107,17 @@
                 const errors = result.errors || [];
                 const successes = result.results || [];
 
-                if (errors.length > 0) {
+                if (errors.length > 0 && successes.length === 0) {
                     if (isPendingMerge) closeLoadingModal();
                     const failMsg = errors.map(e => `${e.filename}: ${e.error}`).join('\n');
-                    showStatus(slug, `${successes.length} ไฟล์สำเร็จ, ${errors.length} ไฟล์ล้มเหลว`, 'error');
-                    addLog(`Upload ${slug} บางส่วนล้มเหลว:\n${failMsg}`, 'error');
+                    showStatus(slug, '⚠️ ไฟล์ไม่ตรงรูปแบบที่ระบบรองรับ ไม่สามารถ Upload ได้', 'error');
+                    errors.forEach(e => addLog(`${e.filename}: ${e.error}`, 'error'));
+                } else if (errors.length > 0) {
+                    if (isPendingMerge) closeLoadingModal();
+                    const failNames = errors.map(e => e.filename).join(', ');
+                    showStatus(slug, `${successes.length} สำเร็จ, ${errors.length} ล้มเหลว (${failNames})`, 'error');
+                    successes.forEach(r => addLog(`อัปโหลดสำเร็จ: ${r.filename}`, 'success'));
+                    errors.forEach(e => addLog(`${e.filename}: ${e.error}`, 'error'));
                 } else {
                     const names = files.map(f => f.name).join(', ');
                     showStatus(slug, `อัปโหลดสำเร็จ ${successes.length} ไฟล์`, 'success');
@@ -1070,6 +1177,10 @@
                 Object.keys(CATEGORIES).forEach(slug => {
                     const tb = document.getElementById(`noteBox-${slug}`);
                     if (tb && savedNotes[slug]) tb.value = savedNotes[slug];
+                    // Load source URL (from notes or default)
+                    const urlKey = slug + '_source_url';
+                    const savedUrl = savedNotes[urlKey] || _srcUrlDefaults[slug] || '';
+                    srcUrlRender(slug, savedUrl);
                 });
 
                 // Render management panel
@@ -1081,22 +1192,31 @@
             }
         }
 
-        // ดึงปี (พ.ศ.) จากชื่อไฟล์ ตาม pattern ของแต่ละหมวด
-        // repair: GIS_YYMMDD → ปี YY → 25YY
-        // pending: Repair_MM-YY → ปี YY → 25YY
-        // pressure: PRESSURE_สาขา_ปีงบYY → ปี YY → 25YY
+        // ดึงปีงบประมาณ (พ.ศ.) จากชื่อไฟล์ ตาม pattern ของแต่ละหมวด
+        // ปีงบประมาณ: ต.ค.(เดือน10) - ก.ย.(เดือน9) → ถ้าเดือน >= 10 ปีงบฯ = ปี+1
+        // repair: GIS_YYMMDD → คำนวณปีงบฯ จากเดือน
+        // pending: Repair_MM-YY → คำนวณปีงบฯ จากเดือน
+        // pressure: PRESSURE_สาขา_ปีงบYY → ปีงบฯ อยู่แล้ว
         function extractYear(slug, filename) {
             let m;
             if (slug === 'repair') {
-                // GIS_YYMMDD.xlsx → YY = ตัวเลข 2 ตัวแรกของ 6 หลัก
-                m = filename.match(/(\d{2})\d{4}/);
-                if (m) return 2500 + parseInt(m[1]);
+                // GIS_YYMMDD.xlsx → YY=ปี, MM=เดือน
+                m = filename.match(/(\d{2})(\d{2})\d{2}/);
+                if (m) {
+                    const yy = parseInt(m[1]);
+                    const mm = parseInt(m[2]);
+                    return 2500 + (mm >= 10 ? yy + 1 : yy);
+                }
             } else if (slug === 'pending') {
-                // Repair_MM-YY.xlsx → YY
+                // Repair_MM-YY.xlsx → MM=เดือน, YY=ปี
                 m = filename.match(/(\d{2})-(\d{2})/);
-                if (m) return 2500 + parseInt(m[2]);
+                if (m) {
+                    const mm = parseInt(m[1]);
+                    const yy = parseInt(m[2]);
+                    return 2500 + (mm >= 10 ? yy + 1 : yy);
+                }
             } else if (slug === 'pressure') {
-                // PRESSURE_สาขา_ปีงบYY.xlsx → YY
+                // PRESSURE_สาขา_ปีงบYY.xlsx → ปีงบฯ อยู่แล้ว
                 m = filename.match(/ปีงบ(\d{2})/);
                 if (m) return 2500 + parseInt(m[1]);
             }
@@ -1180,7 +1300,7 @@
                         const yearLabel = document.createElement('span');
                         yearLabel.className = 'year-label';
                         yearLabel.style.background = cat.dark || cat.color;
-                        yearLabel.textContent = year;
+                        yearLabel.textContent = 'ปีงบฯ ' + (year - 2500);
                         group.appendChild(yearLabel);
 
                         byYear[year].forEach(filename => {
@@ -1188,7 +1308,7 @@
                             chip.className = 'chip';
                             chip.style.borderColor = cat.color + '60';
                             chip.style.background = cat.color + '0a';
-                            const label = extractChipLabel(slug, filename);
+                            const label = _showFilenames ? filename : extractChipLabel(slug, filename);
                             chip.innerHTML = `
                                 <span class="chip-label" style="color:${cat.color}">${label}</span>
                                 <button class="chip-btn chip-delete" title="ลบ ${filename}" onclick="deleteFile('${slug}', '${filename.replace(/'/g,"\\'")}')">✕</button>
