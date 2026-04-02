@@ -1984,7 +1984,6 @@ function build_dashboard($all_data, $rl_data, $eu_data, $mnf_data, $kpi_data, $p
         if (!empty($sheets)) { $ois_has_data = true; break; }
     }
 
-    echo "   ℹ️  [API-Only Mode] ไม่ embed data ลง HTML — ข้อมูลโหลดจาก api.php\n";
     echo "   📊 D (OIS): " . ($ois_has_data ? "parsed ✅" : "ไม่มีข้อมูลใหม่") . "\n";
     echo "   📊 RL: " . (!empty($rl_data) ? "parsed ✅" : "ไม่มีข้อมูลใหม่") . "\n";
     echo "   📊 EU: " . (!empty($eu_data) ? "parsed ✅" : "ไม่มีข้อมูลใหม่") . "\n";
@@ -1992,16 +1991,42 @@ function build_dashboard($all_data, $rl_data, $eu_data, $mnf_data, $kpi_data, $p
     echo "   📊 KPI: " . (!empty($kpi_data) ? "parsed ✅" : "ไม่มีข้อมูลใหม่") . "\n";
     echo "   📊 P3: " . (!empty($p3_data) ? "parsed ✅" : "ไม่มีข้อมูลใหม่") . "\n";
 
-    // Skip HTML embedding — data variables in index.html remain as empty objects
-    // The API-only IIFE in index.html fetches from api.php endpoints on page load
-    // Cache files (.cache/) are still written by the parsers above for api.php to serve
+    // ── Embed data into index.html for GitHub Pages / file:// fallback ──
+    // On localhost, API endpoints override these; on GitHub Pages, these are the only data source.
+    $embed_map = [
+        'D'   => $all_data,
+        'RL'  => $rl_data,
+        'EU'  => $eu_data,
+        'MNF' => $mnf_data,
+        'KPI' => $kpi_data,
+        'P3'  => $p3_data,
+    ];
+    $embed_count = 0;
+    foreach ($embed_map as $varName => $data) {
+        if (!empty($data)) {
+            $json = json_encode($data, JSON_UNESCAPED_UNICODE);
+            $replacement = 'var ' . $varName . '=' . $json . ';';
+            $result = replace_js_var($content, $varName, $replacement);
+            if ($result !== false) {
+                $content = $result;
+                $embed_count++;
+            }
+        } else {
+            echo "   ⏭️  $varName: ไม่มีข้อมูล — คงค่าเดิม\n";
+        }
+    }
+    echo "   ✅ Embedded $embed_count / " . count($embed_map) . " variables\n";
 
-    // Update YC (year colors) + write index.html — only when OIS was parsed
-    // Incremental builds without OIS skip this entirely (YC already correct from last full build)
+    // Update YC (year colors) — only when OIS was parsed
     $all_years = array_keys($all_data);
     if (empty($all_years)) {
-        echo "   ⏭️  YC + index.html: คงค่าเดิม (ไม่มี OIS data — ไม่ต้องเขียน HTML)\n";
-        return true;
+        echo "   ⏭️  YC: คงค่าเดิม (ไม่มี OIS data)\n";
+        // Still write index.html if other data was embedded
+        if ($embed_count === 0) {
+            echo "   ⏭️  ไม่มีข้อมูลใหม่เลย — ไม่เขียน HTML\n";
+            return true;
+        }
+        goto WRITE_HTML;
     }
 
     sort($all_years, SORT_NUMERIC);
@@ -2043,6 +2068,7 @@ function build_dashboard($all_data, $rl_data, $eu_data, $mnf_data, $kpi_data, $p
 
     $content = replace_js_var($content, 'YC', $yc_lines);
 
+    WRITE_HTML:
     // Final safety checks before writing
     if ($content === false) {
         echo "   ❌ Content corrupted during replacement — NOT writing index.html\n";
