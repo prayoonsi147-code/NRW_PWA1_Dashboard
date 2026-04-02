@@ -1991,14 +1991,85 @@ function build_dashboard($all_data, $rl_data, $eu_data, $mnf_data, $kpi_data, $p
     echo "   📊 KPI: " . (!empty($kpi_data) ? "parsed ✅" : "ไม่มีข้อมูลใหม่") . "\n";
     echo "   📊 P3: " . (!empty($p3_data) ? "parsed ✅" : "ไม่มีข้อมูลใหม่") . "\n";
 
-    // ── Embed data into index.html for GitHub Pages / file:// fallback ──
-    // On localhost, API endpoints override these; on GitHub Pages, these are the only data source.
+    // ── Convert build format → API format then embed into index.html ──
+    // Build parsers use full key names; JS expects abbreviated keys (same as API output).
+    // D:   {label→l, unit→u, monthly→m, total→t, target_year→ty, target_month→tm} + strip 'rows' wrapper
+    // RL:  {rate→r, volume→v, production→p, supplied→s, sold→d, blowoff→b}
+    // EU:  no conversion needed
+    // MNF: {actual→a, acceptable→c, target→t, production→p}
+    // KPI: {target→t, levels→l, actual→a}
+    // P3:  no conversion needed
+
+    // Convert D: strip 'rows' wrapper + abbreviate keys
+    $d_api = [];
+    foreach ($all_data as $yr => $sheets) {
+        $d_api[$yr] = [];
+        foreach ($sheets as $sname => $sheet_info) {
+            $rows_raw = isset($sheet_info['rows']) ? $sheet_info['rows'] : $sheet_info;
+            $rows_conv = [];
+            foreach ($rows_raw as $row) {
+                $rows_conv[] = [
+                    'l'  => $row['label'] ?? '',
+                    'u'  => $row['unit'] ?? '',
+                    'm'  => $row['monthly'] ?? [],
+                    't'  => $row['total'] ?? null,
+                    'ty' => $row['target_year'] ?? null,
+                    'tm' => $row['target_month'] ?? null,
+                ];
+            }
+            $d_api[$yr][$sname] = $rows_conv;
+        }
+    }
+
+    // Convert RL: abbreviate metric keys
+    $rl_api = [];
+    $rl_keymap = ['rate'=>'r','volume'=>'v','production'=>'p','supplied'=>'s','sold'=>'d','blowoff'=>'b'];
+    foreach ($rl_data as $yr => $branches) {
+        $rl_api[$yr] = [];
+        foreach ($branches as $branch => $metrics) {
+            $conv = [];
+            foreach ($metrics as $k => $v) {
+                $conv[$rl_keymap[$k] ?? $k] = $v;
+            }
+            $rl_api[$yr][$branch] = $conv;
+        }
+    }
+
+    // Convert MNF: abbreviate metric keys
+    $mnf_api = [];
+    $mnf_keymap = ['actual'=>'a','acceptable'=>'c','target'=>'t','production'=>'p'];
+    foreach ($mnf_data as $yr => $branches) {
+        $mnf_api[$yr] = [];
+        foreach ($branches as $branch => $metrics) {
+            $conv = [];
+            foreach ($metrics as $k => $v) {
+                $conv[$mnf_keymap[$k] ?? $k] = $v;
+            }
+            $mnf_api[$yr][$branch] = $conv;
+        }
+    }
+
+    // Convert KPI: abbreviate keys
+    $kpi_api = [];
+    $kpi_keymap = ['target'=>'t','levels'=>'l','actual'=>'a'];
+    foreach ($kpi_data as $yr => $branches) {
+        $kpi_api[$yr] = [];
+        foreach ($branches as $branch => $metrics) {
+            $conv = [];
+            foreach ($metrics as $k => $v) {
+                $conv[$kpi_keymap[$k] ?? $k] = $v;
+            }
+            $kpi_api[$yr][$branch] = $conv;
+        }
+    }
+
+    // EU and P3: no conversion needed
     $embed_map = [
-        'D'   => $all_data,
-        'RL'  => $rl_data,
+        'D'   => $d_api,
+        'RL'  => $rl_api,
         'EU'  => $eu_data,
-        'MNF' => $mnf_data,
-        'KPI' => $kpi_data,
+        'MNF' => $mnf_api,
+        'KPI' => $kpi_api,
         'P3'  => $p3_data,
     ];
     $embed_count = 0;
@@ -2010,6 +2081,7 @@ function build_dashboard($all_data, $rl_data, $eu_data, $mnf_data, $kpi_data, $p
             if ($result !== false) {
                 $content = $result;
                 $embed_count++;
+                echo "   ✅ $varName embedded (" . number_format(strlen($json)) . " bytes)\n";
             }
         } else {
             echo "   ⏭️  $varName: ไม่มีข้อมูล — คงค่าเดิม\n";
