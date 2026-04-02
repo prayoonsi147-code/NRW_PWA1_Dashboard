@@ -17,7 +17,7 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 
 $SCRIPT_DIR = __DIR__;
-$DATA_DIR = $SCRIPT_DIR . DIRECTORY_SEPARATOR . 'uploaded_data' . DIRECTORY_SEPARATOR . 'pr';
+$DATA_DIR = $SCRIPT_DIR . DIRECTORY_SEPARATOR . 'ข้อมูลดิบ' . DIRECTORY_SEPARATOR . 'เรื่องร้องเรียน';
 $HTML_TEMPLATE = $SCRIPT_DIR . DIRECTORY_SEPARATOR . 'index.html';
 
 // ─── Helper Functions ────────────────────────────────────────────────────────
