@@ -32,7 +32,7 @@ function parse_thai_date_build($val) {
                 $dt = new DateTime("$ce_year-$mm-$dd");
                 return [$dt, $by];
             }
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             return [null, null];
         }
     }
@@ -272,7 +272,7 @@ foreach ($excel_files as $excel_name) {
         echo "  SQLite file: $db_name ($db_size MB)\n";
         echo "  Time: {$elapsed}s\n\n";
 
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         echo "  ERROR: " . $e->getMessage() . "\n\n";
         if (file_exists($db_path)) unlink($db_path);
     }

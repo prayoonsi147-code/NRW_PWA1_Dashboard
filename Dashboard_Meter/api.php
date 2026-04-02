@@ -16,6 +16,11 @@
  *   3. Create .htaccess with rewrite rules
  */
 
+// ─── Error Handling ────────────────────────────────────────────────────────
+ini_set('display_errors', '0');
+error_reporting(E_ALL);
+ini_set('log_errors', '1');
+
 // ─── Configuration ─────────────────────────────────────────────────────────
 
 define('BASE_DIR', __DIR__);
@@ -58,7 +63,7 @@ const CATEGORY_MAP = [
 
 // ─── Cache Setup ──────────────────────────────────────────────────────────
 define('CACHE_DIR', BASE_DIR . DIRECTORY_SEPARATOR . '.cache');
-define('CACHE_TTL', 60);
+define('CACHE_TTL', 86400); // 1 day — mtime check handles invalidation when Excel files change
 if (!is_dir(CACHE_DIR)) { mkdir(CACHE_DIR, 0755, true); }
 
 function get_folder_mtime($folder_path) {
@@ -89,6 +94,19 @@ function save_cache($cache_key, $data) {
     file_put_contents($cache_file, json_encode($data, JSON_UNESCAPED_UNICODE));
 }
 
+// ─── Auto-enable zip extension (required for .xlsx) ───────────────────────
+if (!extension_loaded('zip')) {
+    $ini = php_ini_loaded_file();
+    if ($ini && is_writable($ini)) {
+        $content = file_get_contents($ini);
+        if (preg_match('/^;extension=zip/m', $content)) {
+            $content = preg_replace('/^;extension=zip/m', 'extension=zip', $content);
+            file_put_contents($ini, $content);
+            error_log("Dashboard: auto-enabled extension=zip in php.ini — restart Apache to activate");
+        }
+    }
+}
+
 // ─── PhpSpreadsheet Loader ─────────────────────────────────────────────────
 
 $composerAutoload = dirname(BASE_DIR) . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php';
@@ -98,7 +116,7 @@ if (file_exists($composerAutoload)) {
     require_once $composerAutoload;
     try {
         $phpSpreadsheet = true;
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         error_log("Warning: PhpSpreadsheet not available: " . $e->getMessage());
     }
 } else {
@@ -159,7 +177,7 @@ function load_data() {
         }
 
         return $data;
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         error_log("Error loading data.json: " . $e->getMessage());
         return [
             'dead_meter' => [
@@ -265,7 +283,7 @@ function detect_meter_columns($worksheet) {
     for ($r = 1; $r <= $maxScan; $r++) {
         $found = [];
         for ($c = 1; $c <= $maxCol; $c++) {
-            $val = trim((string)($worksheet->getCellByColumnAndRow($c, $r)->getValue() ?? ''));
+            $val = trim((string)($worksheet->getCell([$c, $r])->getValue() ?? ''));
             if ($val === '') continue;
             $lower = mb_strtolower($val);
             foreach ($keywords as $key => $kws) {
@@ -289,22 +307,37 @@ function detect_meter_columns($worksheet) {
 // ── Validate file format before upload ──
 function validate_meter_file($tmp_path) {
     if (!class_exists('PhpOffice\\PhpSpreadsheet\\IOFactory')) {
-        return ['valid' => true, 'message' => ''];
+        return ['valid' => false, 'message' => 'PhpSpreadsheet ไม่พร้อมใช้งาน — ไม่สามารถตรวจสอบไฟล์ได้'];
+    }
+    if (!class_exists('ZipArchive')) {
+        return ['valid' => false, 'message' => 'PHP zip extension ไม่ได้เปิด — ไม่สามารถอ่านไฟล์ .xlsx ได้ (กรุณาเปิด extension=zip ใน php.ini แล้ว restart Apache)'];
     }
     try {
         $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($tmp_path);
-        $worksheet = $spreadsheet->getActiveSheet();
-        $det = detect_meter_columns($worksheet);
+        // สแกนทุกชีท (ไฟล์อาจมีหลายชีท ข้อมูลอาจไม่อยู่ชีทแรก)
+        $meter_skip = ['สารบัญ', 'สรุป', 'ปก', 'cover', 'summary', 'chart', 'graph', 'index'];
+        $det = null;
+        for ($si = 0; $si < $spreadsheet->getSheetCount(); $si++) {
+            $ws = $spreadsheet->getSheet($si);
+            $wsName = mb_strtolower($ws->getTitle());
+            $skip = false;
+            foreach ($meter_skip as $sk) {
+                if (mb_strpos($wsName, $sk) !== false) { $skip = true; break; }
+            }
+            if ($skip) continue;
+            $det = detect_meter_columns($ws);
+            if (!$det['fallback']) break;
+        }
         $spreadsheet->disconnectWorksheets();
 
-        if ($det['fallback']) {
+        if ($det === null || $det['fallback']) {
             return [
                 'valid' => false,
                 'message' => 'ไม่พบหัวคอลัมน์ที่คาดหวัง (CA/รหัสผู้ใช้น้ำ, สภาพมาตร, ขนาดมาตร) — รูปแบบไฟล์ไม่ตรงกับที่ระบบรองรับ'
             ];
         }
         return ['valid' => true, 'message' => ''];
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         return [
             'valid' => false,
             'message' => 'ไม่สามารถอ่านไฟล์ Excel ได้: ' . $e->getMessage()
@@ -320,9 +353,25 @@ function parse_dead_meter_file($file_path) {
     try {
         if (function_exists('PhpOffice\\PhpSpreadsheet\\IOFactory')) {
             $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($file_path);
-            $worksheet = $spreadsheet->getActiveSheet();
-
-            $det = detect_meter_columns($worksheet);
+            // สแกนทุกชีท หาชีทที่มี header ถูกต้อง
+            $meter_skip = ['สารบัญ', 'สรุป', 'ปก', 'cover', 'summary', 'chart', 'graph', 'index'];
+            $worksheet = null;
+            $det = null;
+            for ($si = 0; $si < $spreadsheet->getSheetCount(); $si++) {
+                $ws = $spreadsheet->getSheet($si);
+                $wsName = mb_strtolower($ws->getTitle());
+                $skip = false;
+                foreach ($meter_skip as $sk) {
+                    if (mb_strpos($wsName, $sk) !== false) { $skip = true; break; }
+                }
+                if ($skip) continue;
+                $det = detect_meter_columns($ws);
+                if (!$det['fallback']) { $worksheet = $ws; break; }
+            }
+            if ($worksheet === null) {
+                $worksheet = $spreadsheet->getActiveSheet();
+                $det = detect_meter_columns($worksheet);
+            }
             $hdr = $det['header_row'];
             $cCid       = $det['cols']['cid']       ?? 2;
             $cSize      = $det['cols']['size']       ?? 9;
@@ -341,24 +390,24 @@ function parse_dead_meter_file($file_path) {
             $max_row = $worksheet->getHighestRow();
 
             for ($r = $hdr + 1; $r <= $max_row; $r++) {
-                $cid = $worksheet->getCellByColumnAndRow($cCid, $r)->getValue();
+                $cid = $worksheet->getCell([$cCid, $r])->getValue();
                 if ($cid === null) continue;
 
                 $cid = trim((string)$cid);
                 if (isset($seen[$cid])) continue;
 
                 // Condition 1: สภาพมาตร = "มาตรไม่เดิน"
-                $condition = $worksheet->getCellByColumnAndRow($cCondition, $r)->getValue();
+                $condition = $worksheet->getCell([$cCondition, $r])->getValue();
                 if ($condition === null || trim((string)$condition) !== "มาตรไม่เดิน") continue;
 
                 // Condition 2: การเปลี่ยนมาตร ≠ "เปลี่ยนแล้ว"
-                $change = $worksheet->getCellByColumnAndRow($cChange, $r)->getValue();
+                $change = $worksheet->getCell([$cChange, $r])->getValue();
                 if ($change !== null && trim((string)$change) === "เปลี่ยนแล้ว") continue;
 
                 $seen[$cid] = true;
                 $total++;
 
-                $sv = $worksheet->getCellByColumnAndRow($cSize, $r)->getValue();
+                $sv = $worksheet->getCell([$cSize, $r])->getValue();
                 if ($sv !== null) {
                     $ns = normalize_size($sv);
                     if ($ns !== null && isset($sizes[$ns])) {
@@ -370,7 +419,7 @@ function parse_dead_meter_file($file_path) {
             // Extract billing month
             $billing_month = null;
             for ($r = $hdr + 1; $r < min($max_row + 1, 20); $r++) {
-                $v = $worksheet->getCellByColumnAndRow($cBilling, $r)->getValue();
+                $v = $worksheet->getCell([$cBilling, $r])->getValue();
                 if ($v) {
                     $vs = trim((string)$v);
                     if (strlen($vs) === 6 && ctype_digit($vs)) {
@@ -391,7 +440,7 @@ function parse_dead_meter_file($file_path) {
         } else {
             throw new Exception("PhpSpreadsheet not available");
         }
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         throw new Exception("parse ล้มเหลว: " . $e->getMessage());
     }
 }
@@ -466,7 +515,7 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'data') 
                     }
                 }
                 sort($files);
-            } catch (Exception $e) {
+            } catch (\Throwable $e) {
                 error_log("Error reading folder: " . $e->getMessage());
             }
         }
@@ -492,7 +541,7 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'data') 
     if (file_exists($notes_file)) {
         try {
             $notes = json_decode(file_get_contents($notes_file), true) ?: [];
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Error loading notes.json: " . $e->getMessage());
         }
     }
@@ -502,6 +551,339 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'data') 
         'inventory' => $inventory,
         'dead_meter' => $data['dead_meter'],
         'notes' => $notes
+    ]);
+}
+
+// Route: POST /api/pre-check/<category>
+// 2-step upload flow: pre-check files and prepare temp batch directory
+if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'pre-check') {
+    $category = $path_parts[1];
+
+    if (!isset(CATEGORY_MAP[$category])) {
+        json_response([
+            'ok' => false,
+            'error' => 'ไม่รู้จัก category: ' . $category
+        ], 400);
+    }
+
+    // Get date from form data
+    $data_date = isset($_POST['data_date']) ? trim($_POST['data_date']) : '';
+    if (!$data_date) {
+        json_response([
+            'ok' => false,
+            'error' => 'กรุณาระบุวันที่ดึงข้อมูล (data_date)'
+        ], 400);
+    }
+
+    [$date_key, $date_label] = parse_date_key($data_date);
+    if (!$date_key) {
+        json_response([
+            'ok' => false,
+            'error' => 'รูปแบบวันที่ไม่ถูกต้อง: ' . $data_date . ' (ใช้ YYYY-MM-DD เช่น 2569-01-16)'
+        ], 400);
+    }
+
+    // Get uploaded files
+    if (!isset($_FILES['files'])) {
+        json_response([
+            'ok' => false,
+            'error' => 'ไม่ได้เลือกไฟล์'
+        ], 400);
+    }
+
+    $files = $_FILES['files'];
+
+    // Normalize to array of files
+    if (!is_array($files['name'])) {
+        $files = [
+            'name' => [$files['name']],
+            'type' => [$files['type']],
+            'tmp_name' => [$files['tmp_name']],
+            'error' => [$files['error']],
+            'size' => [$files['size']]
+        ];
+    }
+
+    $folder_path = RAW_DATA_DIR . DIRECTORY_SEPARATOR . CATEGORY_MAP[$category];
+    if (!is_dir($folder_path)) {
+        mkdir($folder_path, 0755, true);
+    }
+
+    $PREFIX_MAP = ['abnormal' => 'METER'];
+
+    // Create batch ID and temp directory
+    $batch_id = bin2hex(random_bytes(8)); // e.g., "a1b2c3d4e5f6g7h8"
+    $tmp_batch_dir = BASE_DIR . DIRECTORY_SEPARATOR . '__tmp_upload' . DIRECTORY_SEPARATOR . $batch_id;
+    if (!is_dir($tmp_batch_dir)) {
+        mkdir($tmp_batch_dir, 0755, true);
+    }
+
+    $preview = [];
+    $errors = [];
+
+    for ($i = 0; $i < count($files['name']); $i++) {
+        if ($files['error'][$i] !== UPLOAD_ERR_OK) {
+            $errors[] = [
+                'filename' => $files['name'][$i],
+                'error' => 'Upload failed (error code: ' . $files['error'][$i] . ')'
+            ];
+            continue;
+        }
+
+        $filename = trim($files['name'][$i]);
+        if (!$filename) continue;
+
+        try {
+            // ── ตรวจสอบรูปแบบไฟล์ก่อน upload ──
+            if ($category === 'abnormal' && preg_match('/\.xlsx?$/i', $filename)) {
+                $validation = validate_meter_file($files['tmp_name'][$i]);
+                if (!$validation['valid']) {
+                    $errors[] = [
+                        'filename' => $filename,
+                        'error' => '⚠️ ' . $validation['message']
+                    ];
+                    continue;
+                }
+            }
+
+            $prefix = isset(PREFIX_MAP[$category]) ? PREFIX_MAP[$category] : strtoupper($category);
+            $pathinfo = pathinfo($filename);
+            $name_only = $pathinfo['filename'];
+            $ext = isset($pathinfo['extension']) ? '.' . $pathinfo['extension'] : '.xlsx';
+
+            // Extract branch code (4 digits like 1102)
+            $branch = null;
+            if (preg_match('/(\d{4})/', $name_only, $m)) {
+                $code = $m[1];
+                $branch = isset(BRANCH_CODE_MAP[$code]) ? BRANCH_CODE_MAP[$code] : null;
+            }
+
+            // ── For abnormal files: try to extract billing_month from Excel first ──
+            $effective_date_key = $date_key;
+            $parsed = null;
+            if ($category === 'abnormal' && $phpSpreadsheet) {
+                try {
+                    $parsed = parse_dead_meter_file($files['tmp_name'][$i]);
+                    if ($parsed && isset($parsed['billing_month']) && $parsed['billing_month']) {
+                        // billing_month is in format "YYYY-MM" e.g., "2569-03"
+                        $effective_date_key = str_replace('-', '', $parsed['billing_month']); // e.g., "256903"
+                    }
+                } catch (\Throwable $pe) {
+                    // If parse fails, just use the form date_key
+                }
+            }
+
+            // Create date suffix for filename
+            $date_suffix = $effective_date_key;
+
+            // Build the new filename
+            $new_name = null;
+            if ($branch) {
+                $code = null;
+                if (preg_match('/(\d{4})/', $name_only, $m)) {
+                    $code = $m[1];
+                }
+                if ($code) {
+                    $new_name = $prefix . '_' . $code . '_' . $date_suffix . $ext;
+                }
+            }
+            if (!$new_name) {
+                $clean = preg_replace('/[^\w\-.]/', '_', $name_only);
+                $clean = trim($clean, '_');
+                if (strlen($clean) > 30) {
+                    $clean = substr($clean, 0, 30);
+                }
+                $new_name = $prefix . '_' . $clean . '_' . $date_suffix . $ext;
+            }
+
+            $final_path = $folder_path . DIRECTORY_SEPARATOR . $new_name;
+
+            // Check for overwrite
+            $will_overwrite = file_exists($final_path);
+            $overwrite_file = null;
+            if ($will_overwrite) {
+                $overwrite_file = $new_name;
+            }
+
+            // Copy uploaded file to temp batch directory
+            $tmp_file_path = $tmp_batch_dir . DIRECTORY_SEPARATOR . $new_name;
+            if (!copy($files['tmp_name'][$i], $tmp_file_path)) {
+                throw new Exception('Failed to copy file to temp batch directory');
+            }
+            chmod($tmp_file_path, 0644);
+
+            // Add to preview
+            $preview[] = [
+                'original' => $filename,
+                'new_name' => $new_name,
+                'will_overwrite' => $will_overwrite,
+                'overwrite_file' => $overwrite_file,
+                'branch' => $branch
+            ];
+        } catch (\Throwable $e) {
+            $errors[] = [
+                'filename' => $filename,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
+    json_response([
+        'ok' => true,
+        'batch_id' => $batch_id,
+        'category' => $category,
+        'date_key' => $date_key,
+        'date_label' => $date_label,
+        'preview' => $preview,
+        'errors' => $errors
+    ]);
+}
+
+// Route: POST /api/upload-confirm/<batch_id>
+// 2-step upload flow: confirm and move files from temp to final directory
+if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'upload-confirm') {
+    $batch_id = $path_parts[1];
+    $category = isset($_POST['category']) ? trim($_POST['category']) : '';
+    $date_key = isset($_POST['date_key']) ? trim($_POST['date_key']) : '';
+
+    if (!$category || !isset(CATEGORY_MAP[$category])) {
+        json_response([
+            'ok' => false,
+            'error' => 'ไม่รู้จัก category: ' . $category
+        ], 400);
+    }
+
+    $tmp_batch_dir = BASE_DIR . DIRECTORY_SEPARATOR . '__tmp_upload' . DIRECTORY_SEPARATOR . $batch_id;
+    if (!is_dir($tmp_batch_dir)) {
+        json_response([
+            'ok' => false,
+            'error' => 'Batch directory not found'
+        ], 400);
+    }
+
+    $folder_path = RAW_DATA_DIR . DIRECTORY_SEPARATOR . CATEGORY_MAP[$category];
+    if (!is_dir($folder_path)) {
+        mkdir($folder_path, 0755, true);
+    }
+
+    $data = load_data();
+
+    // Ensure snapshot exists
+    if (!isset($data['dead_meter']['snapshots'][$date_key])) {
+        $data['dead_meter']['snapshots'][$date_key] = [
+            'date_label' => '',
+            'data' => [],
+            'total_meters' => [],
+            'files' => []
+        ];
+    }
+    $snapshot = &$data['dead_meter']['snapshots'][$date_key];
+
+    $results = [];
+    $errors = [];
+
+    // Get all files from temp batch directory
+    $batch_files = array_diff(scandir($tmp_batch_dir), ['.', '..']);
+
+    foreach ($batch_files as $new_name) {
+        try {
+            $tmp_file_path = $tmp_batch_dir . DIRECTORY_SEPARATOR . $new_name;
+            $final_path = $folder_path . DIRECTORY_SEPARATOR . $new_name;
+
+            // Check if file will overwrite
+            $will_overwrite = file_exists($final_path);
+
+            // If overwriting, delete old files with same stem but different extension
+            if ($will_overwrite) {
+                $stem = preg_replace('/\.[^.]+$/', '', $new_name);
+                foreach (scandir($folder_path) as $existing) {
+                    if ($existing[0] === '.') continue;
+                    $existing_stem = preg_replace('/\.[^.]+$/', '', $existing);
+                    if ($existing_stem === $stem) {
+                        $existing_path = $folder_path . DIRECTORY_SEPARATOR . $existing;
+                        if (is_file($existing_path)) {
+                            unlink($existing_path);
+                        }
+                    }
+                }
+            }
+
+            // Move file from temp to final directory
+            if (!rename($tmp_file_path, $final_path)) {
+                throw new Exception('Failed to move file to final directory');
+            }
+            chmod($final_path, 0644);
+
+            // Parse Excel and store data (for abnormal category)
+            if ($category === 'abnormal' && preg_match('/\.xlsx?$/i', $new_name) && $phpSpreadsheet) {
+                try {
+                    $parsed = parse_dead_meter_file($final_path);
+                    if ($parsed) {
+                        // Extract branch code from filename
+                        $m = null;
+                        if (preg_match('/METER_(\d{4})_/', $new_name, $m)) {
+                            $code = $m[1];
+                            $branch = isset(BRANCH_CODE_MAP[$code]) ? BRANCH_CODE_MAP[$code] : null;
+                            if ($branch) {
+                                $snapshot['data'][$branch] = $parsed;
+                                $snapshot['files'][$branch] = $new_name;
+                            }
+                        }
+                    }
+                } catch (\Throwable $pe) {
+                    // Log parse error but don't fail the upload
+                    error_log('Parse error for ' . $new_name . ': ' . $pe->getMessage());
+                }
+            }
+
+            $results[] = [
+                'filename' => $new_name,
+                'status' => $will_overwrite ? 'overwrite' : 'success',
+                'message' => $new_name
+            ];
+        } catch (\Throwable $e) {
+            $errors[] = [
+                'filename' => $new_name,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
+    // Update data
+    $data['dead_meter']['latest'] = $date_key;
+    save_data($data);
+
+    // Write upload log
+    if (!empty($results)) {
+        $log_file = __DIR__ . DIRECTORY_SEPARATOR . 'upload_log.json';
+        $log = file_exists($log_file) ? (json_decode(file_get_contents($log_file), true) ?: []) : [];
+        $log[] = [
+            'time' => date('Y-m-d H:i:s'),
+            'category' => $category,
+            'files' => array_map(function($r) { return $r['filename']; }, $results),
+            'count' => count($results)
+        ];
+        if (count($log) > 200) $log = array_slice($log, -200);
+        file_put_contents($log_file, json_encode($log, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    }
+
+    // Cleanup temp batch directory
+    if (is_dir($tmp_batch_dir)) {
+        foreach (scandir($tmp_batch_dir) as $f) {
+            if ($f[0] !== '.') {
+                $fpath = $tmp_batch_dir . DIRECTORY_SEPARATOR . $f;
+                if (is_file($fpath)) unlink($fpath);
+            }
+        }
+        rmdir($tmp_batch_dir);
+    }
+
+    json_response([
+        'ok' => true,
+        'category' => $category,
+        'results' => $results,
+        'errors' => $errors,
+        'dead_meter' => $data['dead_meter']
     ]);
 }
 
@@ -607,18 +989,45 @@ if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'upload
             $name_only = $pathinfo['filename'];
             $ext = isset($pathinfo['extension']) ? '.' . $pathinfo['extension'] : '.xlsx';
 
-            // Create date suffix for filename (e.g., "25690317")
-            $date_suffix = str_replace('-', '', $date_key);
-
             // Extract branch code (4 digits like 1102)
             $branch = null;
-            $new_name = null;
-
             if (preg_match('/(\d{4})/', $name_only, $m)) {
                 $code = $m[1];
-                $new_name = $prefix . '_' . $code . '_' . $date_suffix . $ext;
                 $branch = isset(BRANCH_CODE_MAP[$code]) ? BRANCH_CODE_MAP[$code] : null;
-            } else {
+            }
+
+            // ── For abnormal files: try to extract billing_month from Excel first ──
+            // This gives us accurate date info if the form date was wrong
+            $effective_date_key = $date_key;
+            $parsed = null;
+            if ($category === 'abnormal' && $phpSpreadsheet) {
+                try {
+                    $parsed = parse_dead_meter_file($files['tmp_name'][$i]);
+                    if ($parsed && isset($parsed['billing_month']) && $parsed['billing_month']) {
+                        // billing_month is in format "YYYY-MM" e.g., "2569-03"
+                        $effective_date_key = str_replace('-', '', $parsed['billing_month']); // e.g., "256903"
+                    }
+                } catch (\Throwable $pe) {
+                    // If parse fails, just use the form date_key
+                    // File will still be moved with form date
+                }
+            }
+
+            // Create date suffix for filename (e.g., "25690317" or "256903" from billing)
+            $date_suffix = $effective_date_key;
+
+            // Build the new filename
+            $new_name = null;
+            if ($branch) {
+                $code = null;
+                if (preg_match('/(\d{4})/', $name_only, $m)) {
+                    $code = $m[1];
+                }
+                if ($code) {
+                    $new_name = $prefix . '_' . $code . '_' . $date_suffix . $ext;
+                }
+            }
+            if (!$new_name) {
                 $clean = preg_replace('/[^\w\-.]/', '_', $name_only);
                 $clean = trim($clean, '_');
                 if (strlen($clean) > 30) {
@@ -638,19 +1047,22 @@ if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'upload
             }
             chmod($dest_path, 0644);
 
-            // Parse Excel file if abnormal category
-            $parsed = null;
-            if ($category === 'abnormal' && $branch && $phpSpreadsheet) {
+            // Parse Excel file again (if not already done above) and store parsed data
+            if ($category === 'abnormal' && $branch && $phpSpreadsheet && !$parsed) {
                 try {
                     $parsed = parse_dead_meter_file($dest_path);
                     $snapshot['data'][$branch] = $parsed;
                     $snapshot['files'][$branch] = $new_name;
-                } catch (Exception $pe) {
+                } catch (\Throwable $pe) {
                     $errors[] = [
                         'filename' => $new_name,
                         'error' => 'parse ล้มเหลว: ' . $pe->getMessage()
                     ];
                 }
+            } else if ($category === 'abnormal' && $branch && $parsed) {
+                // Use already-parsed data
+                $snapshot['data'][$branch] = $parsed;
+                $snapshot['files'][$branch] = $new_name;
             }
 
             $results[] = [
@@ -661,7 +1073,7 @@ if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'upload
                 'branch' => $branch,
                 'dead_count' => $parsed ? $parsed['total'] : null
             ];
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $errors[] = [
                 'filename' => $filename,
                 'error' => $e->getMessage()
@@ -672,6 +1084,20 @@ if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'upload
     // Update latest snapshot
     $data['dead_meter']['latest'] = $date_key;
     save_data($data);
+
+    // Write upload log
+    if (!empty($results)) {
+        $log_file = __DIR__ . DIRECTORY_SEPARATOR . 'upload_log.json';
+        $log = file_exists($log_file) ? (json_decode(file_get_contents($log_file), true) ?: []) : [];
+        $log[] = [
+            'time' => date('Y-m-d H:i:s'),
+            'category' => $category,
+            'files' => array_map(function($r) { return $r['filename']; }, $results),
+            'count' => count($results)
+        ];
+        if (count($log) > 200) $log = array_slice($log, -200);
+        file_put_contents($log_file, json_encode($log, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    }
 
     json_response([
         'ok' => true,
@@ -759,7 +1185,7 @@ if ($method === 'DELETE' && count($path_parts) === 4 && $path_parts[0] === 'data
                 'error' => 'ไม่พบไฟล์'
             ], 404);
         }
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         json_response([
             'ok' => false,
             'error' => $e->getMessage()
@@ -846,7 +1272,7 @@ if ($method === 'DELETE' && count($path_parts) === 3 && $path_parts[0] === 'data
                 'error' => 'ไม่พบไฟล์'
             ], 404);
         }
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         json_response([
             'ok' => false,
             'error' => $e->getMessage()
@@ -855,10 +1281,13 @@ if ($method === 'DELETE' && count($path_parts) === 3 && $path_parts[0] === 'data
 }
 
 // Route: POST /api/notes/<slug>
+// Accepts category slugs (e.g. 'abnormal') and derived keys (e.g. 'abnormal_source_url')
 if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'notes') {
     $slug = $path_parts[1];
 
-    if (!isset(CATEGORY_MAP[$slug])) {
+    // Validate: must be a known category OR a derived key like {category}_source_url
+    $base_slug = preg_replace('/_source_url$/', '', $slug);
+    if (!isset(CATEGORY_MAP[$base_slug])) {
         json_response([
             'ok' => false,
             'error' => 'invalid slug'
@@ -874,7 +1303,7 @@ if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'notes'
     if (file_exists($notes_file)) {
         try {
             $notes = json_decode(file_get_contents($notes_file), true) ?: [];
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Error loading notes: " . $e->getMessage());
         }
     }
@@ -1004,7 +1433,7 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'meter-d
             $dead_meter[$branch] = ['total' => $total, 'sizes' => $sizes];
             $spreadsheet->disconnectWorksheets();
             unset($spreadsheet);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Meter: Cannot parse $file: " . $e->getMessage());
             $sizes = [];
             foreach (METER_SIZES as $sz) { $sizes[$sz] = 0; }
@@ -1030,13 +1459,23 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'meter-d
             try {
                 $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($latest_ois);
 
+                // ╔══════════════════════════════════════════════════════════════╗
+                // ║ ⚠️  [OIS METER DATA] MAPPED SHEET ACCESS                 ║
+                // ║                                                              ║
+                // ║ อ่านจำนวนมิเตอร์จากไฟล์ OIS สาขาต่างๆ                     ║
+                // ║ ใช้ $OIS_SHEET_MAP เพื่อเข้าถึงชีทเฉพาะตามชื่อ            ║
+                // ║ ค้นหาคอลัมน์เดือนล่าสุด (ต.ค.-ก.ย.) จากแถว 6             ║
+                // ║                                                              ║
+                // ║ Sheets to PROCESS: Sheets in OIS_SHEET_MAP (branch sheets) ║
+                // ║ Sheets to AVOID: "กราฟ", "สรุป", "รวม", "Chart", "Summary" ║
+                // ╚══════════════════════════════════════════════════════════════╝
                 // Auto-detect latest month column from first branch sheet
                 // Python xlrd: 0-based → row 5=6th row, col 5=6th col (F)
                 // PhpSpreadsheet: 1-based → row 6, col 6 (F) to col 17 (Q)
                 $month_col = 6; // default ต.ค. (col F = 6 in 1-based)
                 $first_sheet_name = array_keys($OIS_SHEET_MAP)[0];
                 $first_sheet = null;
-                try { $first_sheet = $spreadsheet->getSheetByName($first_sheet_name); } catch (Exception $e) {}
+                try { $first_sheet = $spreadsheet->getSheetByName($first_sheet_name); } catch (\Throwable $e) {}
 
                 if ($first_sheet) {
                     // Row 6 = "ผู้ใช้น้ำต้นงวด" (1-based), check cols 6-17 for data
@@ -1048,19 +1487,29 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'meter-d
                     }
                 }
 
+                // ╔══════════════════════════════════════════════════════════════╗
+                // ║ ⚠️  [BRANCH ITERATION] MAPPED SHEET LOOP                   ║
+                // ║                                                              ║
+                // ║ อ่านจำนวนมิเตอร์จากแต่ละสาขา โดยใช้ $OIS_SHEET_MAP      ║
+                // ║ กำหนดการแมพชีทกับชื่อสาขา ไม่อ่านชีตสรุป/กราฟ           ║
+                // ║ ข้อมูลจำนวนมิเตอร์อยู่ที่แถว 6 คอลัมน์ $month_col        ║
+                // ║                                                              ║
+                // ║ Sheets to PROCESS: Branch sheets in OIS_SHEET_MAP          ║
+                // ║ Sheets to AVOID: "กราฟ", "สรุป", "รวม", "Chart", "Summary" ║
+                // ╚══════════════════════════════════════════════════════════════╝
                 foreach ($OIS_SHEET_MAP as $sheetName => $branchName) {
                     try {
                         $ws = $spreadsheet->getSheetByName($sheetName);
                         $val = $ws->getCell([$month_col, 6])->getValue();
                         $total_meters[$branchName] = ($val !== null && $val !== '') ? intval($val) : 0;
-                    } catch (Exception $e) {
+                    } catch (\Throwable $e) {
                         $total_meters[$branchName] = 0;
                     }
                 }
 
                 $spreadsheet->disconnectWorksheets();
                 unset($spreadsheet);
-            } catch (Exception $e) {
+            } catch (\Throwable $e) {
                 error_log("Meter: Cannot read OIS: " . $e->getMessage());
             }
         }
@@ -1074,6 +1523,20 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'meter-d
     ];
     save_cache('meter_data', $response);
     json_response($response);
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Route: POST /api/clear-cache — clear API cache for fresh data
+// ───────────────────────────────────────────────────────────────────────────
+if ($method === 'POST' && count($path_parts) === 1 && $path_parts[0] === 'clear-cache') {
+    $cache_dir = defined('CACHE_DIR') ? CACHE_DIR : (__DIR__ . DIRECTORY_SEPARATOR . '.cache');
+    $cleared = 0;
+    if (is_dir($cache_dir)) {
+        foreach (glob($cache_dir . '/meter_*.json') as $cf) {
+            if (@unlink($cf)) $cleared++;
+        }
+    }
+    json_response(['ok' => true, 'cleared' => $cleared]);
 }
 
 // 404 - Route not found

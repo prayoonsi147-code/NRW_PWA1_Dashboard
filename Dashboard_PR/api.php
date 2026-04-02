@@ -1,4 +1,8 @@
 <?php
+// Force opcache refresh
+if (function_exists('opcache_invalidate')) {
+    opcache_invalidate(__FILE__, true);
+}
 /**
  * Dashboard PR — XAMPP (Apache + PHP) Backend API
  * ========================================================================
@@ -26,6 +30,11 @@
  *   2. Place composer vendor/ at project root (../vendor/autoload.php)
  *   3. Create .htaccess with rewrite rules
  */
+
+// ─── Error Handling ────────────────────────────────────────────────────────
+ini_set('display_errors', '0');
+error_reporting(E_ALL);
+ini_set('log_errors', '1');
 
 // ─── Configuration ─────────────────────────────────────────────────────────
 
@@ -84,7 +93,7 @@ const BRANCH_NAME_MAP = [
 
 // ─── Cache Setup ──────────────────────────────────────────────────────────
 define('CACHE_DIR', BASE_DIR . DIRECTORY_SEPARATOR . '.cache');
-define('CACHE_TTL', 60);
+define('CACHE_TTL', 86400); // 1 day — mtime check handles invalidation when Excel files change
 if (!is_dir(CACHE_DIR)) { mkdir(CACHE_DIR, 0755, true); }
 
 function get_folder_mtime_cache($folder_path) {
@@ -115,6 +124,19 @@ function save_cache($cache_key, $data) {
     file_put_contents($cache_file, json_encode($data, JSON_UNESCAPED_UNICODE));
 }
 
+// ─── Auto-enable zip extension (required for .xlsx) ───────────────────────
+if (!extension_loaded('zip')) {
+    $ini = php_ini_loaded_file();
+    if ($ini && is_writable($ini)) {
+        $content = file_get_contents($ini);
+        if (preg_match('/^;extension=zip/m', $content)) {
+            $content = preg_replace('/^;extension=zip/m', 'extension=zip', $content);
+            file_put_contents($ini, $content);
+            error_log("Dashboard: auto-enabled extension=zip in php.ini — restart Apache to activate");
+        }
+    }
+}
+
 // PhpSpreadsheet Loader
 $composerAutoload = dirname(BASE_DIR) . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php';
 $phpSpreadsheet = null;
@@ -123,7 +145,7 @@ if (file_exists($composerAutoload)) {
     require_once $composerAutoload;
     try {
         $phpSpreadsheet = true;
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         error_log("Warning: PhpSpreadsheet not available: " . $e->getMessage());
     }
 } else {
@@ -184,7 +206,7 @@ function load_data() {
         if (!isset($data['notes'])) $data['notes'] = [];
 
         return $data;
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         error_log("Error loading data.json: " . $e->getMessage());
         return [
             'pr' => [],
@@ -220,7 +242,7 @@ function parse_num($val) {
     if ($s === '') return 0;
     try {
         return floatval($s);
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         return 0;
     }
 }
@@ -379,7 +401,24 @@ function read_excel_sheets($filepath) {
         $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($filepath);
         $sheets = [];
 
+        // ╔══════════════════════════════════════════════════════════════╗
+        // ║ ⚠️  SHEET FILTER — ข้ามชีทสรุป/กราฟ                          ║
+        // ║                                                              ║
+        // ║ ข้ามชีท "กราฟ", "สรุป", "รวม", "chart", "summary", "graph" ║
+        // ║ เพราะเป็นชีทสรุปและแสดงผลกราฟ ไม่ใช่ชีทข้อมูลจำนวนลูกค้า      ║
+        // ║ ผลลัพธ์ที่ใช้: ชีทข้อมูลจำนวนลูกค้า สาขา หมวดหมู่            ║
+        // ║                                                              ║
+        // ║ Sheets to AVOID: "กราฟ", "สรุป", "รวม", "chart", "summary" ║
+        // ║ Sheets to PROCESS: Primary data sheets with customer data    ║
+        // ╚══════════════════════════════════════════════════════════════╝
+        $SKIP_SHEETS = ['กราฟ', 'สรุป', 'รวม', 'chart', 'summary', 'graph'];
+
         foreach ($spreadsheet->getSheetNames() as $name) {
+            // Skip summary/chart sheets
+            if (in_array(mb_strtolower($name), array_map('mb_strtolower', $SKIP_SHEETS))) {
+                continue;
+            }
+
             $worksheet = $spreadsheet->getSheetByName($name);
             $rows = [];
 
@@ -388,7 +427,15 @@ function read_excel_sheets($filepath) {
                 $cellIterator->setIterateOnlyExistingCells(false);
                 $rowData = [];
                 foreach ($cellIterator as $cell) {
-                    $rowData[] = $cell->getValue();
+                    $val = $cell->getValue();
+                    // For formula cells, read the cached computed value from the file
+                    if (is_string($val) && isset($val[0]) && $val[0] === '=') {
+                        $old = $cell->getOldCalculatedValue();
+                        if ($old !== null) {
+                            $val = $old;
+                        }
+                    }
+                    $rowData[] = $val;
                 }
                 $rows[] = $rowData;
             }
@@ -400,7 +447,7 @@ function read_excel_sheets($filepath) {
         unset($spreadsheet);
 
         return $sheets;
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         throw new Exception("Failed to read Excel: " . $e->getMessage());
     }
 }
@@ -416,7 +463,27 @@ function parse_pr_file($filepath, $filename, $manual_mk = null) {
         throw new Exception("[{$filename}] ไฟล์ว่างเปล่า");
     }
 
-    $rows = $sheets[0]['rows'];
+    // สแกนทุกชีท หาชีทที่มีหมวด "ด้าน" (ไม่ hardcode ชีทแรก)
+    $rows = null;
+    foreach ($sheets as $sh) {
+        $r = $sh['rows'];
+        if (count($r) < 7) continue;
+        // ค้นหาแถวที่มี pattern "เลข. ด้าน..." ซึ่งเป็น header ของ PR
+        for ($ri = 0; $ri < min(15, count($r)); $ri++) {
+            if (!isset($r[$ri])) continue;
+            foreach ($r[$ri] as $cell) {
+                $cv = trim((string)($cell ?? ''));
+                if (preg_match('/^\d+\.\s*ด้าน/', $cv)) {
+                    $rows = $r;
+                    break 3;
+                }
+            }
+        }
+    }
+    if ($rows === null) {
+        // Fallback: ใช้ชีทแรก
+        $rows = $sheets[0]['rows'];
+    }
     if (count($rows) < 7) {
         throw new Exception("[{$filename}] ไฟล์มีข้อมูลไม่เพียงพอ (" . count($rows) . " แถว)");
     }
@@ -574,6 +641,8 @@ function parse_aon_sheet_with_col($rows, $aon_col, $month_key) {
         for ($c = 0; $c < count($rows[$ri]); $c++) {
             $h = mb_strtolower(trim((string)($rows[$ri][$c] ?? '')));
             if ($h === '') continue;
+            // Skip long strings — they are likely merged title rows, not column headers
+            if (mb_strlen($h) > 30) continue;
             foreach ($kw_name as $kw) {
                 if (mb_strpos($h, mb_strtolower($kw)) !== false) {
                     $name_col = $c;
@@ -608,6 +677,9 @@ function parse_aon_sheet_with_col($rows, $aon_col, $month_key) {
         $raw_name = trim((string)(isset($row[$name_col]) ? $row[$name_col] : ''));
         if (!$raw_name) continue;
 
+        // Skip purely numeric "names" — means name_col pointed to wrong column
+        if (is_numeric($raw_name)) continue;
+
         $branch_name = norm_branch($raw_name);
         if (!$branch_name || strpos($branch_name, 'รวม') === 0) continue;
 
@@ -616,7 +688,7 @@ function parse_aon_sheet_with_col($rows, $aon_col, $month_key) {
 
         try {
             $num_val = floatval($val);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             continue;
         }
 
@@ -671,7 +743,23 @@ function parse_aon_file($filepath, $filename, $mode = 'auto', $manual_mk = null)
         }
     } else {
         // Auto mode: scan all sheets
+        // ╔══════════════════════════════════════════════════════════════╗
+        // ║ ⚠️  AON SHEET FILTER — ข้ามชีทสรุป/กราฟ                      ║
+        // ║                                                              ║
+        // ║ ข้ามชีท "กราฟ", "สรุป", "รวม" เพราะไม่มีข้อมูลลูกค้า       ║
+        // ║ สแกนเฉพาะชีทข้อมูล Always-On (ค่าเป้าหมายและผลลัพธ์)        ║
+        // ║                                                              ║
+        // ║ Sheets to AVOID: "กราฟ", "สรุป", "รวม", "chart", "summary" ║
+        // ║ Sheets to PROCESS: Always-On data sheets with branch names   ║
+        // ╚══════════════════════════════════════════════════════════════╝
+        $SKIP_SHEETS = ['กราฟ', 'สรุป', 'รวม', 'chart', 'summary', 'graph'];
+
         foreach ($sheets as $sheet) {
+            // Skip summary/chart sheets
+            if (in_array(mb_strtolower($sheet['name']), array_map('mb_strtolower', $SKIP_SHEETS))) {
+                continue;
+            }
+
             $rows = $sheet['rows'];
             if (count($rows) < 6) continue;
 
@@ -778,41 +866,80 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'data') 
 
 // ── Validate file format before upload ──
 function validate_pr_file($tmp_path) {
+    if (!class_exists('PhpOffice\\PhpSpreadsheet\\IOFactory')) {
+        return ['valid' => false, 'message' => 'PhpSpreadsheet ไม่พร้อมใช้งาน — ไม่สามารถตรวจสอบไฟล์ได้'];
+    }
+    if (!class_exists('ZipArchive') && preg_match('/\.xlsx$/i', $tmp_path)) {
+        return ['valid' => false, 'message' => 'PHP zip extension ไม่ได้เปิด — ไม่สามารถอ่านไฟล์ .xlsx ได้'];
+    }
     try {
-        $rows = read_excel_first_sheet($tmp_path);
-        if (empty($rows) || count($rows) < 3) {
+        $sheets = read_excel_sheets($tmp_path);
+        if (empty($sheets) || empty($sheets[0]['rows']) || count($sheets[0]['rows']) < 3) {
             return ['valid' => false, 'message' => 'ไฟล์ว่างเปล่าหรือมีข้อมูลน้อยเกินไป'];
         }
+        $rows = $sheets[0]['rows'];
         // ค้นหา pattern ของ PR: ต้องมี "ด้าน" (เช่น "1. ด้านคุณภาพน้ำ") ในแถวใดแถวหนึ่ง
+        // + ต้องมีแถวที่มีชื่อสาขา (ค้นหาใน 30 แถวแรก)
         $found_category = false;
         $found_branch = false;
-        for ($ri = 0; $ri < min(15, count($rows)); $ri++) {
+        $scan_rows = min(30, count($rows));
+        for ($ri = 0; $ri < $scan_rows; $ri++) {
             if (!isset($rows[$ri])) continue;
             foreach ($rows[$ri] as $cell) {
                 $cv = trim((string)($cell ?? ''));
                 if (preg_match('/^\d+\.\s*ด้าน/', $cv)) $found_category = true;
-                if (mb_strpos(mb_strtolower($cv), 'สาขา') !== false) $found_branch = true;
+                if (mb_strpos($cv, 'สาขา') !== false) $found_branch = true;
+                // ตรวจหาชื่อสาขาโดยตรง
+                foreach (array_values(BRANCH_NAME_MAP) as $bn) {
+                    if (mb_strpos($cv, $bn) !== false) { $found_branch = true; break; }
+                }
             }
         }
         if (!$found_category) {
             return ['valid' => false, 'message' => 'ไม่พบหมวดหมู่ PR (เช่น "1. ด้านคุณภาพน้ำ") — รูปแบบไฟล์ไม่ตรงกับที่ระบบรองรับ'];
         }
+        if (!$found_branch) {
+            return ['valid' => false, 'message' => 'ไม่พบชื่อสาขาในไฟล์ — รูปแบบไฟล์ไม่ตรงกับที่ระบบรองรับ'];
+        }
         return ['valid' => true, 'message' => ''];
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         return ['valid' => false, 'message' => 'ไม่สามารถอ่านไฟล์ Excel ได้: ' . $e->getMessage()];
     }
 }
 
 function validate_aon_file($tmp_path) {
+    if (!class_exists('PhpOffice\\PhpSpreadsheet\\IOFactory')) {
+        return ['valid' => false, 'message' => 'PhpSpreadsheet ไม่พร้อมใช้งาน — ไม่สามารถตรวจสอบไฟล์ได้'];
+    }
+    if (!class_exists('ZipArchive') && preg_match('/\.xlsx$/i', $tmp_path)) {
+        return ['valid' => false, 'message' => 'PHP zip extension ไม่ได้เปิด — ไม่สามารถอ่านไฟล์ .xlsx ได้'];
+    }
     try {
         $sheets = read_excel_sheets($tmp_path);
         if (empty($sheets)) {
             return ['valid' => false, 'message' => 'ไม่สามารถอ่าน sheet ในไฟล์ได้'];
         }
         // ค้นหาว่ามี sheet ที่มีคอลัมน์ "หน่วยงาน" หรือ "สาขา" และ "%" หรือ "อันดับ"
+        // ╔══════════════════════════════════════════════════════════════╗
+        // ║ ⚠️  VALIDATION SHEET FILTER — ข้ามชีทสรุป/กราฟ               ║
+        // ║                                                              ║
+        // ║ ข้ามชีท "กราฟ", "สรุป", "รวม" ในการตรวจสอบไฟล์             ║
+        // ║ ตรวจสอบเฉพาะชีทข้อมูล Always-On ที่มี "หน่วยงาน" + "%"      ║
+        // ║                                                              ║
+        // ║ Sheets to AVOID: "กราฟ", "สรุป", "รวม", "chart", "summary" ║
+        // ║ Sheets to VALIDATE: Those with branch names and data cols    ║
+        // ╚══════════════════════════════════════════════════════════════╝
+        $SKIP_SHEETS = ['กราฟ', 'สรุป', 'รวม', 'chart', 'summary', 'graph'];
+
         $found_name = false;
         $found_data = false;
-        foreach ($sheets as $sname => $rows) {
+        foreach ($sheets as $sheet) {
+            // Skip summary/chart sheets during validation
+            if (in_array(mb_strtolower($sheet['name']), array_map('mb_strtolower', $SKIP_SHEETS))) {
+                continue;
+            }
+
+            $rows = $sheet['rows'];
             for ($ri = 0; $ri < min(10, count($rows)); $ri++) {
                 if (!isset($rows[$ri])) continue;
                 foreach ($rows[$ri] as $cell) {
@@ -826,10 +953,306 @@ function validate_aon_file($tmp_path) {
         if (!$found_name) {
             return ['valid' => false, 'message' => 'ไม่พบคอลัมน์ "หน่วยงาน/สาขา" ในไฟล์ — รูปแบบไฟล์ไม่ตรงกับที่ระบบรองรับ'];
         }
+        if (!$found_data) {
+            return ['valid' => false, 'message' => 'ไม่พบคอลัมน์ข้อมูล ("%/อันดับ/เป้า") ในไฟล์ — รูปแบบไฟล์ไม่ตรงกับที่ระบบรองรับ'];
+        }
         return ['valid' => true, 'message' => ''];
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         return ['valid' => false, 'message' => 'ไม่สามารถอ่านไฟล์ Excel ได้: ' . $e->getMessage()];
     }
+}
+
+// ─── Temp Upload Directory ────────────────────────────────────────────────────
+define('TMP_UPLOAD_DIR', RAW_DATA_DIR . DIRECTORY_SEPARATOR . '__tmp_upload');
+
+// Route: POST /api/pre-check/{category}
+if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'pre-check') {
+    $category = $path_parts[1];
+
+    // Validate category
+    if (!in_array($category, ['pr', 'aon'])) {
+        json_response(['ok' => false, 'error' => 'Invalid category'], 400);
+    }
+
+    if (!isset($_FILES['files'])) {
+        json_response(['ok' => false, 'error' => 'ไม่ได้เลือกไฟล์'], 400);
+    }
+
+    $files = $_FILES['files'];
+    $mode = isset($_POST['mode']) ? $_POST['mode'] : 'auto';
+    $manual_mk = isset($_POST['manualMK']) ? $_POST['manualMK'] : null;
+
+    // Normalize to array of files
+    if (!is_array($files['name'])) {
+        $files = [
+            'name' => [$files['name']],
+            'type' => [$files['type']],
+            'tmp_name' => [$files['tmp_name']],
+            'error' => [$files['error']],
+            'size' => [$files['size']]
+        ];
+    }
+
+    // Generate batch ID
+    $batch_id = uniqid('batch_', true);
+    $batch_dir = TMP_UPLOAD_DIR . DIRECTORY_SEPARATOR . $batch_id;
+    @mkdir(TMP_UPLOAD_DIR, 0755, true);
+    @mkdir($batch_dir, 0755, true);
+
+    $preview = [];
+    $errors = [];
+
+    for ($i = 0; $i < count($files['name']); $i++) {
+        if ($files['error'][$i] !== UPLOAD_ERR_OK) {
+            $errors[] = [
+                'filename' => $files['name'][$i],
+                'error' => 'Upload failed (error code: ' . $files['error'][$i] . ')'
+            ];
+            continue;
+        }
+
+        $filename = trim($files['name'][$i]);
+        if (!$filename) continue;
+
+        $temp_path = $batch_dir . DIRECTORY_SEPARATOR . $filename;
+
+        try {
+            if (!move_uploaded_file($files['tmp_name'][$i], $temp_path)) {
+                throw new Exception('Failed to move uploaded file');
+            }
+
+            // Validate file format
+            if ($category === 'pr') {
+                $validation = validate_pr_file($temp_path);
+                if (!$validation['valid']) {
+                    if (file_exists($temp_path)) unlink($temp_path);
+                    $errors[] = [
+                        'filename' => $filename,
+                        'error' => '⚠️ ' . $validation['message']
+                    ];
+                    continue;
+                }
+
+                // Parse to get mk
+                $result = parse_pr_file($temp_path, $filename, $mode === 'manual' ? $manual_mk : null);
+                $mk = $result['mk'];
+                $ext = pathinfo($filename, PATHINFO_EXTENSION) ?: 'xlsx';
+                $new_filename = "PR_{$mk}.{$ext}";
+            } else { // aon
+                $validation = validate_aon_file($temp_path);
+                if (!$validation['valid']) {
+                    if (file_exists($temp_path)) unlink($temp_path);
+                    $errors[] = [
+                        'filename' => $filename,
+                        'error' => '⚠️ ' . $validation['message']
+                    ];
+                    continue;
+                }
+
+                // Parse to get processed_months
+                $result = parse_aon_file($temp_path, $filename, $mode, $mode === 'manual' ? $manual_mk : null);
+                $months_str = !empty($result['processed_months']) ? implode('_', $result['processed_months']) : 'unknown';
+                $ext = pathinfo($filename, PATHINFO_EXTENSION) ?: 'xlsx';
+                $new_filename = "AON_{$months_str}.{$ext}";
+            }
+
+            // Check for duplicates
+            $target_dir = ($category === 'pr') ? PR_DIR : AON_DIR;
+            $dest_path = $target_dir . DIRECTORY_SEPARATOR . $new_filename;
+            $will_overwrite = file_exists($dest_path);
+            $overwrite_file = $will_overwrite ? $new_filename : null;
+
+            // Store preview info
+            $preview[] = [
+                'original' => $filename,
+                'new_name' => $new_filename,
+                'valid' => true,
+                'will_overwrite' => $will_overwrite,
+                'overwrite_file' => $overwrite_file
+            ];
+
+        } catch (\Throwable $e) {
+            if (file_exists($temp_path)) {
+                unlink($temp_path);
+            }
+            $errors[] = [
+                'filename' => $filename,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
+    json_response([
+        'ok' => true,
+        'batch_id' => $batch_id,
+        'category' => $category,
+        'preview' => $preview,
+        'errors' => $errors,
+        '_api_ver' => 'v2-fix'
+    ]);
+}
+
+// Route: POST /api/upload-confirm/{batch_id}
+if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'upload-confirm') {
+    $batch_id = $path_parts[1];
+    $category = isset($_POST['category']) ? $_POST['category'] : '';
+
+    // Validate category
+    if (!in_array($category, ['pr', 'aon'])) {
+        json_response(['ok' => false, 'error' => 'Invalid category'], 400);
+    }
+
+    $batch_dir = TMP_UPLOAD_DIR . DIRECTORY_SEPARATOR . $batch_id;
+    if (!is_dir($batch_dir)) {
+        json_response(['ok' => false, 'error' => 'Batch directory not found'], 400);
+    }
+
+    $target_dir = ($category === 'pr') ? PR_DIR : AON_DIR;
+    if (!is_dir($target_dir)) {
+        mkdir($target_dir, 0755, true);
+    }
+
+    $data = load_data();
+    $results = [];
+    $errors = [];
+
+    // Process files in batch directory
+    $files = @scandir($batch_dir);
+    if (!$files) {
+        json_response(['ok' => false, 'error' => 'Cannot read batch directory'], 400);
+    }
+
+    foreach ($files as $filename) {
+        if ($filename === '.' || $filename === '..') continue;
+
+        $temp_path = $batch_dir . DIRECTORY_SEPARATOR . $filename;
+        if (!is_file($temp_path)) continue;
+
+        try {
+            // Re-parse file to get the new name (same logic as pre-check)
+            if ($category === 'pr') {
+                $result = parse_pr_file($temp_path, $filename, null);
+                $mk = $result['mk'];
+                $ext = pathinfo($filename, PATHINFO_EXTENSION) ?: 'xlsx';
+                $new_filename = "PR_{$mk}.{$ext}";
+
+                // Move file
+                $dest_path = $target_dir . DIRECTORY_SEPARATOR . $new_filename;
+                if (!rename($temp_path, $dest_path)) {
+                    throw new Exception('Failed to move file to destination');
+                }
+                chmod($dest_path, 0644);
+
+                // Delete old files with same stem but different extension
+                $files_in_dir = @scandir($target_dir);
+                if ($files_in_dir) {
+                    foreach ($files_in_dir as $f) {
+                        if ($f === '.' || $f === '..') continue;
+                        if (preg_match('/^PR_' . preg_quote($mk, '/') . '\.[^.]+$/', $f) && $f !== $new_filename) {
+                            $old_file = $target_dir . DIRECTORY_SEPARATOR . $f;
+                            if (is_file($old_file)) @unlink($old_file);
+                        }
+                    }
+                }
+
+                // Update data store
+                if (!isset($data['pr'][$mk])) {
+                    $data['pr'][$mk] = [];
+                }
+                $data['pr'][$mk] = $result['data'];
+                $data['pr_files'][$mk] = $new_filename;
+
+                // Update cat_names
+                foreach ($result['cat_names'] as $cat) {
+                    if (!in_array($cat, $data['pr_cat_names'])) {
+                        $data['pr_cat_names'][] = $cat;
+                    }
+                }
+
+                $results[] = [
+                    'filename' => $new_filename,
+                    'message' => "✅ {$new_filename}"
+                ];
+            } else { // aon
+                $result = parse_aon_file($temp_path, $filename, 'auto', null);
+                $months_str = !empty($result['processed_months']) ? implode('_', $result['processed_months']) : 'unknown';
+                $ext = pathinfo($filename, PATHINFO_EXTENSION) ?: 'xlsx';
+                $new_filename = "AON_{$months_str}.{$ext}";
+
+                // Move file
+                $dest_path = $target_dir . DIRECTORY_SEPARATOR . $new_filename;
+                if (!rename($temp_path, $dest_path)) {
+                    throw new Exception('Failed to move file to destination');
+                }
+                chmod($dest_path, 0644);
+
+                // Delete old files with same stem but different extension
+                $files_in_dir = @scandir($target_dir);
+                if ($files_in_dir) {
+                    foreach ($files_in_dir as $f) {
+                        if ($f === '.' || $f === '..') continue;
+                        if (preg_match('/^AON_' . preg_quote($months_str, '/') . '\.[^.]+$/', $f) && $f !== $new_filename) {
+                            $old_file = $target_dir . DIRECTORY_SEPARATOR . $f;
+                            if (is_file($old_file)) @unlink($old_file);
+                        }
+                    }
+                }
+
+                // Update data store
+                foreach ($result['months'] as $mk => $branch_data) {
+                    $data['aon'][$mk] = $branch_data;
+                    $data['aon_files'][$mk] = $new_filename;
+                }
+
+                $results[] = [
+                    'filename' => $new_filename,
+                    'message' => "✅ {$new_filename}"
+                ];
+            }
+        } catch (\Throwable $e) {
+            if (file_exists($temp_path)) {
+                @unlink($temp_path);
+            }
+            $errors[] = [
+                'filename' => $filename,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
+    save_data($data);
+
+    // Write upload log
+    if (!empty($results)) {
+        $log_file = __DIR__ . DIRECTORY_SEPARATOR . 'upload_log.json';
+        $log = file_exists($log_file) ? (json_decode(file_get_contents($log_file), true) ?: []) : [];
+        $log[] = [
+            'time' => date('Y-m-d H:i:s'),
+            'category' => $category,
+            'files' => array_map(function($r) { return $r['filename'] ?? ''; }, $results),
+            'count' => count($results)
+        ];
+        if (count($log) > 200) $log = array_slice($log, -200);
+        file_put_contents($log_file, json_encode($log, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    }
+
+    // Cleanup batch directory
+    $files = @scandir($batch_dir);
+    if ($files) {
+        foreach ($files as $f) {
+            if ($f !== '.' && $f !== '..') {
+                $fp = $batch_dir . DIRECTORY_SEPARATOR . $f;
+                if (is_file($fp)) @unlink($fp);
+            }
+        }
+    }
+    @rmdir($batch_dir);
+
+    json_response([
+        'ok' => true,
+        'results' => $results,
+        'errors' => $errors
+    ]);
 }
 
 // Route: POST /api/upload/pr
@@ -925,7 +1348,7 @@ if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'upload
                 'cat_names' => $result['cat_names'],
             ];
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             if (file_exists($temp_path)) {
                 unlink($temp_path);
             }
@@ -937,6 +1360,20 @@ if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'upload
     }
 
     save_data($data);
+
+    // Write upload log
+    if (!empty($results)) {
+        $log_file = __DIR__ . DIRECTORY_SEPARATOR . 'upload_log.json';
+        $log = file_exists($log_file) ? (json_decode(file_get_contents($log_file), true) ?: []) : [];
+        $log[] = [
+            'time' => date('Y-m-d H:i:s'),
+            'category' => 'pr',
+            'files' => array_map(function($r) { return $r['filename'] ?? $r['mk'] ?? ''; }, $results),
+            'count' => count($results)
+        ];
+        if (count($log) > 200) $log = array_slice($log, -200);
+        file_put_contents($log_file, json_encode($log, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    }
 
     json_response([
         'ok' => true,
@@ -1031,7 +1468,7 @@ if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'upload
                 'filename' => $new_filename,
             ];
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             if (file_exists($temp_path)) {
                 unlink($temp_path);
             }
@@ -1043,6 +1480,20 @@ if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'upload
     }
 
     save_data($data);
+
+    // Write upload log
+    if (!empty($results)) {
+        $log_file = __DIR__ . DIRECTORY_SEPARATOR . 'upload_log.json';
+        $log = file_exists($log_file) ? (json_decode(file_get_contents($log_file), true) ?: []) : [];
+        $log[] = [
+            'time' => date('Y-m-d H:i:s'),
+            'category' => 'aon',
+            'files' => array_map(function($r) { return $r['filename'] ?? ''; }, $results),
+            'count' => count($results)
+        ];
+        if (count($log) > 200) $log = array_slice($log, -200);
+        file_put_contents($log_file, json_encode($log, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    }
 
     json_response([
         'ok' => true,
@@ -1137,10 +1588,13 @@ if ($method === 'POST' && count($path_parts) === 3 && $path_parts[0] === 'data' 
 }
 
 // Route: POST /api/notes/<slug>
+// Accepts category slugs (e.g. 'pr') and derived keys (e.g. 'pr_source_url')
 if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'notes') {
     $slug = $path_parts[1];
 
-    if (!in_array($slug, ['pr', 'aon'])) {
+    // Validate: must be a known category OR a derived key like {category}_source_url
+    $base_slug = preg_replace('/_source_url$/', '', $slug);
+    if (!in_array($base_slug, ['pr', 'aon'])) {
         json_response(['ok' => false, 'error' => 'invalid slug'], 400);
     }
 
@@ -1280,7 +1734,7 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'pr-data
                     }
                 }
             }
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("PR Dual Mode: Cannot parse $filename: " . $e->getMessage());
             continue;
         }
@@ -1358,7 +1812,7 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'aon-dat
                     }
                 }
             }
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("AON Dual Mode: Cannot parse $filename: " . $e->getMessage());
             continue;
         }
@@ -1367,6 +1821,91 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'aon-dat
     $response = ['ok' => true, 'has_data' => !empty($aon_merged), 'data' => $aon_merged];
     save_cache('aon_data', $response);
     json_response($response);
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Route: POST /api/rebuild — run build_dashboard.php to re-embed data into index.html
+// ───────────────────────────────────────────────────────────────────────────
+if ($method === 'POST' && count($path_parts) === 1 && $path_parts[0] === 'rebuild') {
+    $body = json_decode(file_get_contents('php://input'), true) ?: [];
+    $only = isset($body['only']) ? preg_replace('/[^a-z0-9]/', '', $body['only']) : '';
+    $files_arg = '';
+    if (!empty($body['files']) && is_array($body['files'])) {
+        $safe_files = [];
+        foreach ($body['files'] as $f) {
+            $f = basename($f);
+            if (preg_match('/^[a-zA-Z0-9_\-\.\x{0E00}-\x{0E7F}]+$/u', $f)) {
+                $safe_files[] = $f;
+            }
+        }
+        if (!empty($safe_files)) {
+            $files_arg = ' --files=' . implode(',', $safe_files);
+        }
+    }
+
+    // Clear API cache (selective: only for the category being rebuilt)
+    $cache_dir = __DIR__ . DIRECTORY_SEPARATOR . '.cache';
+    if (is_dir($cache_dir)) {
+        $cache_prefix = !empty($only) ? $only : '*';
+        foreach (glob($cache_dir . '/' . $cache_prefix . '_*.json') as $cf) { @unlink($cf); }
+    }
+
+    $script = __DIR__ . DIRECTORY_SEPARATOR . 'build_dashboard.php';
+    if (!file_exists($script)) {
+        json_response(['ok' => false, 'message' => 'build_dashboard.php not found'], 500);
+    }
+
+    // Find php.exe CLI path
+    $php = null;
+    $ini = php_ini_loaded_file();
+    if ($ini) {
+        $candidate = dirname($ini) . DIRECTORY_SEPARATOR . 'php.exe';
+        if (file_exists($candidate)) $php = $candidate;
+    }
+    if (!$php) {
+        foreach (['C:\\xampp\\php\\php.exe', 'D:\\xampp\\php\\php.exe', PHP_BINDIR . '\\php.exe'] as $p) {
+            if (file_exists($p)) { $php = $p; break; }
+        }
+    }
+    if (!$php) {
+        $where_out = [];
+        @exec('where php.exe 2>NUL', $where_out);
+        if (!empty($where_out) && file_exists(trim($where_out[0]))) {
+            $php = trim($where_out[0]);
+        }
+    }
+    if (!$php) {
+        json_response(['ok' => false, 'message' => 'php.exe not found'], 500);
+    }
+    // Ensure required extensions are loaded (zip is needed for .xlsx via PhpSpreadsheet)
+    $ext_flags = '';
+    if (!extension_loaded('zip')) {
+        $ext_dir = dirname($php) . DIRECTORY_SEPARATOR . 'ext';
+        if (is_dir($ext_dir)) {
+            $ext_flags = ' -d extension_dir="' . $ext_dir . '" -d extension=php_zip.dll';
+        }
+    }
+    $cmd = '"' . $php . '" -d memory_limit=512M' . $ext_flags . ' "' . $script . '"' . ($only ? ' --only=' . $only : '') . $files_arg . ' 2>&1';
+    $output = [];
+    $exitCode = -1;
+
+    set_time_limit(600);
+    ini_set('memory_limit', '512M');
+    exec($cmd, $output, $exitCode);
+
+    if ($exitCode === 0) {
+        json_response([
+            'ok' => true,
+            'message' => 'Dashboard rebuilt successfully',
+            'log' => implode("\n", $output)
+        ]);
+    } else {
+        json_response([
+            'ok' => false,
+            'message' => 'Build failed (exit code ' . $exitCode . ')',
+            'log' => implode("\n", $output)
+        ], 500);
+    }
 }
 
 // 404 - Route not found

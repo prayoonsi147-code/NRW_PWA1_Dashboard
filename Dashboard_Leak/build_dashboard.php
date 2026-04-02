@@ -16,6 +16,11 @@
  * Embeds data as JavaScript const variables in index.html
  */
 
+// ─── Prevent HTML error output from corrupting JSON when called via api.php ──
+ini_set('display_errors', '0');
+error_reporting(E_ALL);
+ini_set('log_errors', '1');
+
 // ============================================================================
 // Configuration
 // ============================================================================
@@ -109,15 +114,30 @@ function normalize_branch_name($raw_name) {
 function cellVal($sheet, $col, $row) {
     try {
         return $sheet->getCell([$col, $row])->getValue();
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         return null;
     }
 }
 
 function cellCalc($sheet, $col, $row) {
     try {
-        return $sheet->getCell([$col, $row])->getCalculatedValue();
-    } catch (Exception $e) {
+        $cell = $sheet->getCell([$col, $row]);
+        $v = $cell->getValue();
+        // ถ้า cell เป็นสูตร → ลองอ่านค่า cached (ที่ Excel บันทึกไว้ตอน Save) ก่อน
+        // getCalculatedValue() อาจคำนวณสูตรผิด (ได้ 0 หรือ error)
+        if (is_string($v) && isset($v[0]) && $v[0] === '=') {
+            try {
+                $cached = $cell->getOldCalculatedValue();
+                if ($cached !== null && $cached !== '') return $cached;
+            } catch (\Throwable $e) { /* fallback */ }
+            try {
+                return $cell->getCalculatedValue();
+            } catch (\Throwable $e2) {
+                return null;
+            }
+        }
+        return $cell->getCalculatedValue();
+    } catch (\Throwable $e) {
         return null;
     }
 }
@@ -130,6 +150,61 @@ function extract_year_from_filename($filename) {
     return null;
 }
 
+/*
+ * ============================================================================
+ * OIS Excel Data Structure Documentation
+ * ============================================================================
+ *
+ * ไฟล์: ข้อมูลดิบ/OIS/OIS_XXXX.xls (เช่น OIS_2569.xls)
+ * รูปแบบ: .xls (BIFF8/OLE2) — บางไฟล์อาจเป็น OOXML ที่ใช้นามสกุล .xls
+ *
+ * แต่ละไฟล์มี 25 Sheets:
+ *   Sheet 0: "เป้าหมาย" → ข้าม (skip)
+ *   Sheet 1: "ปปข.+ป. หน้า1 " → รวมเขต (summary, มีสูตร cross-sheet)
+ *   Sheet 2-24: สาขาต่างๆ (22 สาขา + sheet อื่น)
+ *
+ * โครงสร้างแต่ละ Sheet:
+ *   - Row 4 (ปกติ): Header row ที่มีชื่อเดือน 12 เดือน
+ *     ตรวจจับด้วย find_month_header_row() — นับ keyword เดือนไทย ≥ 6 ตัว
+ *   - Row 5+: Data rows
+ *
+ * โครงสร้างคอลัมน์ (1-indexed จาก PhpSpreadsheet):
+ *   ⚠️  สำคัญ: PhpSpreadsheet ใช้ 1-based index เสมอ
+ *   ⚠️  $sheet->getCell([$col, $row]) โดย $col=1 = คอลัมน์ A
+ *   ⚠️  ดังนั้น $row[1] = Col A, $row[2] = Col B, ...
+ *
+ *   Col 1  (A): รายการ (label) — ชื่อรายการ เช่น "1.1 ผู้ใช้น้ำต้นงวด"
+ *   Col 2  (B): หน่วย (unit) — เช่น "ราย", "ลบ.ม.", "บาท"
+ *   Col 3  (C): เป้าหมาย ปี (target_year)
+ *   Col 4  (D): เป้าหมาย ไตรมาส
+ *   Col 5  (E): เป้าหมาย เดือน (target_month)
+ *   Col 6  (F): ต.ค. (เดือนที่ 1 ของปีงบ)
+ *   Col 7  (G): พ.ย.
+ *   Col 8  (H): ธ.ค.
+ *   Col 9  (I): ม.ค.
+ *   Col 10 (J): ก.พ.
+ *   Col 11 (K): มี.ค.
+ *   Col 12 (L): เม.ย.
+ *   Col 13 (M): พ.ค.
+ *   Col 14 (N): มิ.ย.
+ *   Col 15 (O): ก.ค.
+ *   Col 16 (P): ส.ค.
+ *   Col 17 (Q): ก.ย. (เดือนที่ 12 ของปีงบ)
+ *   Col 18 (R): รวม (total)
+ *
+ * การอ่านสูตร (Formula Resolution):
+ *   - Sheet "ปปข.+ป." มีสูตร cross-sheet เช่น ='ปปข. น.2'!F6+'ป.ชลบุรี น.3'!F6+...
+ *   - ใช้ getOldCalculatedValue() อ่านค่าที่ Excel คำนวณไว้แล้ว (เร็ว, ~4ms)
+ *   - ห้ามใช้ getCalculatedValue() กับ OIS เพราะช้ามาก (ต้อง evaluate cross-sheet formulas)
+ *   - Fallback: ถ้า getOldCalculatedValue() ล้มเหลว → ลอง getCalculatedValue() → null
+ *
+ * Merged Cells:
+ *   - บางเซลล์ merge กัน → ต้องอ่านค่าจากเซลล์ต้นทาง (top-left ของ merge range)
+ *
+ * RichText Objects:
+ *   - บางเซลล์มี label เป็น PhpOffice\PhpSpreadsheet\RichText\RichText
+ *   - ต้องเรียก ->getPlainText() เพื่อแปลงเป็น string
+ */
 function find_month_header_row($sheet_data) {
     foreach ($sheet_data as $row_num => $row) {
         $text_cells = [];
@@ -187,13 +262,32 @@ function extract_sheet_data($sheet_data, $header_row, $month_cols, $total_col) {
     foreach ($sheet_data as $row_num => $row) {
         if ($row_num < $data_start) continue;
 
-        $label = isset($row[0]) ? $row[0] : '';
+        // OIS Excel structure (1-indexed columns from PhpSpreadsheet):
+        //   Col 1 (A) = รายการ (label)
+        //   Col 2 (B) = หน่วย (unit)
+        //   Col 3 (C) = เป้าหมาย ปี (target_year)
+        //   Col 4 (D) = เป้าหมาย ไตรมาส
+        //   Col 5 (E) = เป้าหมาย เดือน (target_month)
+        //   Col 6-17 (F-Q) = เดือน ต.ค. - ก.ย. (monthly data)
+        //   Col 18 (R) = รวม (total)
+        $label = isset($row[1]) ? $row[1] : '';
         if (is_numeric($label)) $label = (string)$label;
+        // Handle RichText objects
+        if (is_object($label)) {
+            if ($label instanceof \PhpOffice\PhpSpreadsheet\RichText\RichText) {
+                $label = $label->getPlainText();
+            } else {
+                $label = (string)$label;
+            }
+        }
         $label = trim((string)$label);
         if (!$label || mb_strpos($label, 'หมายเหตุ') !== false) continue;
 
-        $unit = isset($row[1]) ? $row[1] : '';
+        $unit = isset($row[2]) ? $row[2] : '';
         if (is_numeric($unit)) $unit = (string)$unit;
+        if (is_object($unit)) {
+            $unit = ($unit instanceof \PhpOffice\PhpSpreadsheet\RichText\RichText) ? $unit->getPlainText() : (string)$unit;
+        }
         $unit = trim((string)$unit);
 
         $monthly = [];
@@ -215,8 +309,8 @@ function extract_sheet_data($sheet_data, $header_row, $month_cols, $total_col) {
 
         $target_year = null;
         $target_month = null;
-        if (isset($row[2]) && is_numeric($row[2])) $target_year = $row[2];
-        if (isset($row[4]) && is_numeric($row[4])) $target_month = $row[4];
+        if (isset($row[3]) && is_numeric($row[3])) $target_year = $row[3];
+        if (isset($row[5]) && is_numeric($row[5])) $target_month = $row[5];
 
         $rows[] = [
             'label' => $label,
@@ -282,7 +376,7 @@ function load_phsspreadsheet() {
         try {
             require_once $composerAutoload;
             return class_exists('PhpOffice\\PhpSpreadsheet\\IOFactory');
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             echo "Warning: PhpSpreadsheet not available: " . $e->getMessage() . "\n";
             return false;
         }
@@ -294,10 +388,13 @@ function load_phsspreadsheet() {
 // OIS (D) Data Parser
 // ============================================================================
 
-function process_ois_files() {
+function process_ois_files($only_files = []) {
     echo "\n📂 Processing OIS files...\n";
+
     $ois_dir = RAW_DATA_DIR . DIRECTORY_SEPARATOR . 'OIS';
     $all_data = [];
+    $cache_dir = SCRIPT_DIR . DIRECTORY_SEPARATOR . '.cache';
+    if (!is_dir($cache_dir)) @mkdir($cache_dir, 0755, true);
 
     if (!is_dir($ois_dir)) {
         echo "   ⚠️  OIS directory not found\n";
@@ -319,20 +416,115 @@ function process_ois_files() {
         return $all_data;
     }
 
-    echo "   Found " . count($files) . " files:\n";
+    // Filter to only specific files if --files was specified
+    if (!empty($only_files)) {
+        $files = array_filter($files, function($f) use ($only_files) {
+            return in_array(basename($f), $only_files);
+        });
+        echo "   ⚡ Processing only " . count($files) . " changed file(s):\n";
+    } else {
+        echo "   Found " . count($files) . " files:\n";
+    }
     foreach ($files as $f) {
         echo "      • " . basename($f) . "\n";
     }
 
     foreach ($files as $filepath) {
+        $fname = basename($filepath);
+        if (strpos($fname, '~$') === 0) continue;
+
+        // ── File-level cache ──
+        $cache_file = $cache_dir . DIRECTORY_SEPARATOR . 'ois_' . md5($fname) . '.json';
+        $file_mtime = filemtime($filepath);
+        $use_cache = false;
+
+        if (!empty($only_files) && !in_array($fname, $only_files)) {
+            if (file_exists($cache_file)) {
+                $cached = json_decode(file_get_contents($cache_file), true);
+                if ($cached && isset($cached['mtime']) && $cached['mtime'] === $file_mtime) {
+                    $use_cache = true;
+                }
+            }
+        } elseif (empty($only_files) && file_exists($cache_file)) {
+            $cached = json_decode(file_get_contents($cache_file), true);
+            if ($cached && isset($cached['mtime']) && $cached['mtime'] === $file_mtime) {
+                $use_cache = true;
+            }
+        }
+
+        if ($use_cache) {
+            $year_str = $cached['year'];
+            $all_data[$year_str] = $cached['data'];
+            $sc = count($cached['data']);
+            echo "   ⚡ ปี $year_str: $sc sheets (cache)\n";
+            continue;
+        }
+
         try {
             $year_str = extract_year_from_filename($filepath);
-            if (!$year_str) continue;
 
             $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($filepath);
+
+            // Fallback: ดึงปีจากเนื้อหาใน Excel ถ้าชื่อไฟล์ไม่มีปี
+            if (!$year_str) {
+                for ($_si = 0; $_si < min(2, $spreadsheet->getSheetCount()); $_si++) {
+                    $_ws = $spreadsheet->getSheet($_si);
+                    for ($_r = 1; $_r <= min(3, $_ws->getHighestDataRow()); $_r++) {
+                        for ($_c = 1; $_c <= min(30, \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($_ws->getHighestDataColumn())); $_c++) {
+                            $_v = (string)($_ws->getCell([$_c, $_r])->getValue() ?? '');
+                            if (preg_match('/ปีงบประมาณ\s*(\d{4})/', $_v, $_m)) {
+                                $year_str = $_m[1];
+                            }
+                        }
+                    }
+                    if ($year_str) break;
+                }
+                if (!$year_str) {
+                    $_yc = [];
+                    foreach ($spreadsheet->getSheetNames() as $_sn) {
+                        if (preg_match('/(\d{2})\s*$/', trim($_sn), $_m)) {
+                            $_yy = $_m[1];
+                            $_yc[$_yy] = ($_yc[$_yy] ?? 0) + 1;
+                        }
+                    }
+                    if (!empty($_yc)) { arsort($_yc); $year_str = '25' . array_key_first($_yc); }
+                }
+                if (!$year_str) {
+                    echo "   ⚠️  " . $fname . ": ไม่พบปีงบประมาณ — ข้าม\n";
+                    $spreadsheet->disconnectWorksheets();
+                    continue;
+                }
+                echo "   📌 " . $fname . ": ดึงปี $year_str จากเนื้อหาในไฟล์\n";
+            }
+
             if (!isset($all_data[$year_str])) $all_data[$year_str] = [];
 
-            foreach ($spreadsheet->getSheetNames() as $sname) {
+            $sheetNames = $spreadsheet->getSheetNames();
+            echo "      Sheets in file: " . count($sheetNames) . " [" . implode(', ', array_slice($sheetNames, 0, 5)) . (count($sheetNames) > 5 ? '...' : '') . "]\n";
+            // ╔══════════════════════════════════════════════════════════════╗
+            // ║ ⚠️  OIS SHEET FILTER — ข้ามชีทสรุป/กราฟ                     ║
+            // ║                                                              ║
+            // ║ ไฟล์ OIS แต่ละ sheet = 1 สาขา มีรายการ KPI ตัวชี้วัด       ║
+            // ║ ชีทที่ชื่อ "กราฟ", "สรุป", "Chart", "Summary" เป็นชีทสรุป  ║
+            // ║ ไม่ใช่ข้อมูลรายสาขา → ข้ามเพื่อป้องกันข้อมูลเพี้ยน        ║
+            // ║                                                              ║
+            // ║ Sheets to AVOID: "กราฟ", "สรุป", "รวม", "Chart", "Summary" ║
+            // ║ Sheets to PROCESS: ชีทรายสาขาที่มี header เดือน             ║
+            // ╚══════════════════════════════════════════════════════════════╝
+            $SKIP_SHEETS_OIS = ['กราฟ', 'สรุป', 'รวม', 'chart', 'summary', 'graph'];
+            foreach ($sheetNames as $sname) {
+                // ข้ามชีทสรุป/กราฟ
+                $snameLower = mb_strtolower(trim($sname));
+                $skip = false;
+                foreach ($SKIP_SHEETS_OIS as $avoid) {
+                    if (mb_strpos($snameLower, $avoid) !== false) {
+                        echo "      ⏭️  Skip sheet '$sname' (ชีทสรุป/กราฟ — ไม่ใช่ข้อมูลรายสาขา)\n";
+                        $skip = true;
+                        break;
+                    }
+                }
+                if ($skip) continue;
+
                 $sheet = $spreadsheet->getSheetByName($sname);
                 $highRow = $sheet->getHighestDataRow();
                 $highCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($sheet->getHighestDataColumn());
@@ -344,13 +536,35 @@ function process_ois_files() {
                     $row = [];
                     for ($c = 1; $c <= $highCol; $c++) {
                         $cell = $sheet->getCell([$c, $r]);
-                        // For merged cells, get the value from the master cell
                         $v = $cell->getValue();
+                        // If cell contains a formula, use cached calculated value
+                        // (getOldCalculatedValue reads the pre-calculated value stored in the
+                        //  .xls file by Excel — much faster than getCalculatedValue which
+                        //  re-evaluates the formula using PhpSpreadsheet's engine)
+                        if (is_string($v) && isset($v[0]) && $v[0] === '=') {
+                            try {
+                                $v = $cell->getOldCalculatedValue();
+                            } catch (\Throwable $e) {
+                                // Fallback to live calculation if cached value unavailable
+                                try {
+                                    $v = $cell->getCalculatedValue();
+                                } catch (\Throwable $e2) {
+                                    $v = null;
+                                }
+                            }
+                        }
+                        // For merged cells, get the value from the master cell
                         if ($v === null && $sheet->getMergeCells()) {
                             foreach ($sheet->getMergeCells() as $range) {
                                 if ($cell->isInRange($range)) {
                                     $parts = explode(':', $range);
-                                    $v = $sheet->getCell($parts[0])->getValue();
+                                    $mc = $sheet->getCell($parts[0]);
+                                    $v = $mc->getValue();
+                                    if (is_string($v) && isset($v[0]) && $v[0] === '=') {
+                                        try { $v = $mc->getOldCalculatedValue(); } catch (\Throwable $e) {
+                                            try { $v = $mc->getCalculatedValue(); } catch (\Throwable $e2) { $v = null; }
+                                        }
+                                    }
                                     break;
                                 }
                             }
@@ -361,10 +575,15 @@ function process_ois_files() {
                 }
 
                 $header_row = find_month_header_row($sheet_data);
-                if ($header_row === null) continue;
+                if ($header_row === null) {
+                    continue;
+                }
 
                 $month_cols = find_month_columns($sheet_data, $header_row);
-                if (count(array_filter($month_cols)) === 0) continue;
+                $mcCount = count(array_filter($month_cols));
+                if ($mcCount === 0) {
+                    continue;
+                }
 
                 $total_col = find_total_column($sheet_data, $header_row);
                 $rows = extract_sheet_data($sheet_data, $header_row, $month_cols, $total_col);
@@ -393,9 +612,15 @@ function process_ois_files() {
                 }
             }
 
+            // ── Save cache ──
+            if (isset($all_data[$year_str]) && !empty($all_data[$year_str])) {
+                $cache_entry = ['mtime' => filemtime($filepath), 'year' => $year_str, 'data' => $all_data[$year_str]];
+                @file_put_contents($cache_file, json_encode($cache_entry, JSON_UNESCAPED_UNICODE));
+            }
+
             $spreadsheet->disconnectWorksheets();
             unset($spreadsheet);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             echo "   ❌ " . basename($filepath) . ": " . $e->getMessage() . "\n";
         }
     }
@@ -407,10 +632,12 @@ function process_ois_files() {
 // Real Leak (RL) Data Parser
 // ============================================================================
 
-function process_rl_files() {
+function process_rl_files($only_files = []) {
     echo "\n📂 Processing Real Leak files...\n";
     $rl_dir = RAW_DATA_DIR . DIRECTORY_SEPARATOR . 'Real Leak';
     $rl_data = [];
+    $cache_dir = SCRIPT_DIR . DIRECTORY_SEPARATOR . '.cache';
+    if (!is_dir($cache_dir)) @mkdir($cache_dir, 0755, true);
 
     if (!is_dir($rl_dir)) {
         echo "   ⚠️  Real Leak directory not found\n";
@@ -433,11 +660,79 @@ function process_rl_files() {
     }
 
     foreach ($files as $filepath) {
+        $fname = basename($filepath);
+
+        // ── File-level cache: ถ้าไฟล์ไม่ได้เปลี่ยน ใช้ cache ──
+        $cache_file = $cache_dir . DIRECTORY_SEPARATOR . 'rl_' . md5($fname) . '.json';
+        $file_mtime = filemtime($filepath);
+        $use_cache = false;
+
+        if (!empty($only_files) && !in_array($fname, $only_files)) {
+            // ไฟล์นี้ไม่ได้ upload ใหม่ — ใช้ cache ถ้ามี
+            if (file_exists($cache_file)) {
+                $cached = json_decode(file_get_contents($cache_file), true);
+                if ($cached && isset($cached['mtime']) && $cached['mtime'] === $file_mtime) {
+                    $use_cache = true;
+                }
+            }
+        } elseif (empty($only_files) && file_exists($cache_file)) {
+            // Full rebuild แต่ไฟล์ไม่เปลี่ยน
+            $cached = json_decode(file_get_contents($cache_file), true);
+            if ($cached && isset($cached['mtime']) && $cached['mtime'] === $file_mtime) {
+                $use_cache = true;
+            }
+        }
+
+        if ($use_cache) {
+            $year_str = $cached['year'];
+            $rl_data[$year_str] = $cached['data'];
+            $count = 0;
+            foreach ($cached['data'] as $b => $m) {
+                if (count(array_filter($m['rate'])) > 0) $count++;
+            }
+            echo "   ⚡ ปี $year_str: $count branches (cache)\n";
+            continue;
+        }
         try {
             $year_str = extract_year_from_filename($filepath);
-            if (!$year_str) continue;
 
             $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($filepath);
+
+            // Fallback: ดึงปีจากเนื้อหาใน Excel ถ้าชื่อไฟล์ไม่มีปี
+            if (!$year_str) {
+                // ลองหา "ปีงบประมาณ XXXX" ใน sheet แรก ๆ
+                for ($_si = 0; $_si < min(2, $spreadsheet->getSheetCount()); $_si++) {
+                    $_ws = $spreadsheet->getSheet($_si);
+                    for ($_r = 1; $_r <= min(3, $_ws->getHighestDataRow()); $_r++) {
+                        for ($_c = 1; $_c <= min(30, \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($_ws->getHighestDataColumn())); $_c++) {
+                            $_v = (string)($_ws->getCell([$_c, $_r])->getValue() ?? '');
+                            if (preg_match('/ปีงบประมาณ\s*(\d{4})/', $_v, $_m)) {
+                                // เอาปีล่าสุด (อาจมีหลาย ปีงบประมาณ ใน row เดียว)
+                                $year_str = $_m[1];
+                            }
+                        }
+                    }
+                    if ($year_str) break;
+                }
+                // ลองหาจากชื่อ sheet เดือนสุดท้าย เช่น "ก.พ. 69" → ปี 2569
+                if (!$year_str) {
+                    $_yc = [];
+                    foreach ($spreadsheet->getSheetNames() as $_sn) {
+                        if (preg_match('/(\d{2})\s*$/', trim($_sn), $_m)) {
+                            $_yy = $_m[1];
+                            $_yc[$_yy] = ($_yc[$_yy] ?? 0) + 1;
+                        }
+                    }
+                    if (!empty($_yc)) { arsort($_yc); $year_str = '25' . array_key_first($_yc); }
+                }
+                if (!$year_str) {
+                    echo "   ⚠️  " . $fname . ": ไม่พบปีงบประมาณทั้งในชื่อไฟล์และเนื้อหา — ข้าม\n";
+                    $spreadsheet->disconnectWorksheets();
+                    continue;
+                }
+                echo "   📌 " . $fname . ": ดึงปี $year_str จากเนื้อหาในไฟล์\n";
+            }
+
             $result = [];
             foreach (STANDARD_BRANCHES as $branch) {
                 $result[$branch] = [
@@ -451,6 +746,20 @@ function process_rl_files() {
             }
 
             foreach ($spreadsheet->getSheetNames() as $sname) {
+                // ╔══════════════════════════════════════════════════════════════╗
+                // ║ ⚠️  SHEET FILTER — ข้ามชีทสรุป/กราฟ (AVOID SUMMARY SHEETS) ║
+                // ║                                                              ║
+                // ║ ไฟล์ RL Excel มีชีทแรก "กราฟ" ที่เป็นสรุปรวม —              ║
+                // ║ ข้อมูลในนั้นเป็นสูตร cross-sheet ที่คอลัมน์ "ปริมาณ"        ║
+                // ║ จริง ๆ แล้วคือ "อัตรา(%)" ทำให้ volume ผิดพลาดร้ายแรง       ║
+                // ║                                                              ║
+                // ║ ต้องอ่านเฉพาะชีทรายเดือน (ต.ค., พ.ย., ธ.ค., ..., ก.ย.)     ║
+                // ║ ชีทที่ไม่มีชื่อเดือนจะถูกข้ามโดยอัตโนมัติ                    ║
+                // ║                                                              ║
+                // ║ Sheets to AVOID: "กราฟ", "สรุป", "รวม", "Chart", "Summary"  ║
+                // ║ Sheets to PROCESS: only those containing month abbreviations ║
+                // ║ e.g. "ต.ค.67", "พ.ย.67", "ธ.ค.67", "ม.ค.68", etc.         ║
+                // ╚══════════════════════════════════════════════════════════════╝
                 $mi = null;
                 foreach (RL_MONTH_ABBR as $abbr => $idx) {
                     if (mb_strpos($sname, $abbr) !== false) {
@@ -458,7 +767,10 @@ function process_rl_files() {
                         break;
                     }
                 }
-                if ($mi === null) continue;
+                if ($mi === null) {
+                    echo "      ⏭️  Skip sheet '$sname' (ไม่ใช่ชีทรายเดือน)\n";
+                    continue;
+                }
 
                 $sheet = $spreadsheet->getSheetByName($sname);
                 $highRow = $sheet->getHighestDataRow();
@@ -468,7 +780,33 @@ function process_rl_files() {
                 for ($r = 1; $r <= $highRow; $r++) {
                     $row = [];
                     for ($c = 1; $c <= $highCol; $c++) {
-                        $row[$c] = cellVal($sheet, $c, $r);
+                        $cell = $sheet->getCell([$c, $r]);
+                        $v = $cell->getValue();
+                        // Formula cells (เช่น col น้ำสูญเสีย = สูตร): ใช้ cached value ก่อน
+                        if (is_string($v) && isset($v[0]) && $v[0] === '=') {
+                            try {
+                                $v = $cell->getOldCalculatedValue();
+                            } catch (\Throwable $e) {
+                                try { $v = $cell->getCalculatedValue(); } catch (\Throwable $e2) { $v = null; }
+                            }
+                        }
+                        // Merged cells: อ่านค่าจาก master cell
+                        if ($v === null && $sheet->getMergeCells()) {
+                            foreach ($sheet->getMergeCells() as $range) {
+                                if ($cell->isInRange($range)) {
+                                    $parts = explode(':', $range);
+                                    $mc = $sheet->getCell($parts[0]);
+                                    $v = $mc->getValue();
+                                    if (is_string($v) && isset($v[0]) && $v[0] === '=') {
+                                        try { $v = $mc->getOldCalculatedValue(); } catch (\Throwable $e) {
+                                            try { $v = $mc->getCalculatedValue(); } catch (\Throwable $e2) { $v = null; }
+                                        }
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                        $row[$c] = $v;
                     }
                     $sheet_data[$r] = $row;
                 }
@@ -585,7 +923,16 @@ function process_rl_files() {
                 if (count(array_filter($m['rate'])) > 0) $count++;
             }
             echo "   ✅ ปี $year_str: $count branches with data\n";
-        } catch (Exception $e) {
+
+            // ── Save file-level cache ──
+            $cache_entry = [
+                'mtime' => filemtime($filepath),
+                'year' => $year_str,
+                'data' => $result
+            ];
+            @file_put_contents($cache_file, json_encode($cache_entry, JSON_UNESCAPED_UNICODE));
+
+        } catch (\Throwable $e) {
             echo "   ❌ " . basename($filepath) . ": " . $e->getMessage() . "\n";
         }
     }
@@ -615,10 +962,12 @@ function build_rl_embedded_data($rl_data) {
 // EU (หน่วยไฟ) Data Parser
 // ============================================================================
 
-function process_eu_files() {
+function process_eu_files($only_files = []) {
     echo "\n📂 Processing EU (หน่วยไฟ) files...\n";
     $eu_dir = RAW_DATA_DIR . DIRECTORY_SEPARATOR . 'หน่วยไฟ';
     $eu_data = [];
+    $cache_dir = SCRIPT_DIR . DIRECTORY_SEPARATOR . '.cache';
+    if (!is_dir($cache_dir)) @mkdir($cache_dir, 0755, true);
 
     if (!is_dir($eu_dir)) {
         echo "   ⚠️  EU directory not found\n";
@@ -635,17 +984,99 @@ function process_eu_files() {
         return $eu_data;
     }
 
-    echo "   Found " . count($files) . " files:\n";
+    // Filter to only specific files if --files was specified
+    if (!empty($only_files)) {
+        $files = array_filter($files, function($f) use ($only_files) {
+            return in_array(basename($f), $only_files);
+        });
+        echo "   ⚡ Processing only " . count($files) . " changed file(s):\n";
+    } else {
+        echo "   Found " . count($files) . " files:\n";
+    }
     foreach ($files as $f) {
         echo "      • " . basename($f) . "\n";
     }
 
     foreach ($files as $filepath) {
+        $fname = basename($filepath);
+        if (strpos($fname, '~$') === 0) continue;
+
+        // ── File-level cache ──
+        $cache_file = $cache_dir . DIRECTORY_SEPARATOR . 'eu_' . md5($fname) . '.json';
+        $file_mtime = filemtime($filepath);
+        $use_cache = false;
+
+        if (!empty($only_files) && !in_array($fname, $only_files)) {
+            if (file_exists($cache_file)) {
+                $cached = json_decode(file_get_contents($cache_file), true);
+                if ($cached && isset($cached['mtime']) && $cached['mtime'] === $file_mtime) {
+                    $use_cache = true;
+                }
+            }
+        } elseif (empty($only_files) && file_exists($cache_file)) {
+            $cached = json_decode(file_get_contents($cache_file), true);
+            if ($cached && isset($cached['mtime']) && $cached['mtime'] === $file_mtime) {
+                $use_cache = true;
+            }
+        }
+
+        if ($use_cache) {
+            $year_str = $cached['year'];
+            $eu_data[$year_str] = $cached['data'];
+            $count = count($cached['data']);
+            echo "   ⚡ ปี $year_str: $count branches (cache)\n";
+            continue;
+        }
+
         try {
-            if (!preg_match('/EU[-_](\d{4})\.xlsx?$/i', basename($filepath), $m)) continue;
-            $year_str = $m[1];
+            $year_str = null;
+            if (preg_match('/EU[-_](\d{4})\.xlsx?$/i', $fname, $m)) {
+                $year_str = $m[1];
+            }
 
             $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($filepath);
+
+            // Fallback: ดึงปีจากเนื้อหาใน Excel ถ้าชื่อไฟล์ไม่มีปี
+            if (!$year_str) {
+                for ($_si = 0; $_si < min(2, $spreadsheet->getSheetCount()); $_si++) {
+                    $_ws = $spreadsheet->getSheet($_si);
+                    for ($_r = 1; $_r <= min(3, $_ws->getHighestDataRow()); $_r++) {
+                        for ($_c = 1; $_c <= min(30, \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($_ws->getHighestDataColumn())); $_c++) {
+                            $_v = (string)($_ws->getCell([$_c, $_r])->getValue() ?? '');
+                            if (preg_match('/ปีงบประมาณ\s*(\d{4})/', $_v, $_m)) {
+                                $year_str = $_m[1];
+                            }
+                        }
+                    }
+                    if ($year_str) break;
+                }
+                if (!$year_str) {
+                    $_yc = [];
+                    foreach ($spreadsheet->getSheetNames() as $_sn) {
+                        if (preg_match('/(\d{2})\s*$/', trim($_sn), $_m)) {
+                            $_yy = $_m[1];
+                            $_yc[$_yy] = ($_yc[$_yy] ?? 0) + 1;
+                        }
+                    }
+                    if (!empty($_yc)) { arsort($_yc); $year_str = '25' . array_key_first($_yc); }
+                }
+                if (!$year_str) {
+                    echo "   ⚠️  " . $fname . ": ไม่พบปีงบประมาณ — ข้าม\n";
+                    $spreadsheet->disconnectWorksheets();
+                    continue;
+                }
+                echo "   📌 " . $fname . ": ดึงปี $year_str จากเนื้อหาในไฟล์\n";
+            }
+            // ╔══════════════════════════════════════════════════════════════╗
+            // ║ ⚠️  EU SHEET — อ่านเฉพาะ sheet แรก (ข้อมูลค่าไฟ)          ║
+            // ║                                                              ║
+            // ║ ไฟล์ EU Excel ปกติมี sheet เดียว = ตารางค่าหน่วยไฟรายสาขา  ║
+            // ║ ถ้ามี sheet อื่น (กราฟ, สรุป) จะไม่ถูกอ่าน                  ║
+            // ║ เพราะใช้ getSheet(0) เท่านั้น                                ║
+            // ║                                                              ║
+            // ║ Sheet to PROCESS: sheet แรก (index 0) เท่านั้น              ║
+            // ║ Sheets to AVOID: sheet อื่น ๆ ทั้งหมด (ถ้ามี)              ║
+            // ╚══════════════════════════════════════════════════════════════╝
             $sheet = $spreadsheet->getSheet(0);
             $highRow = $sheet->getHighestDataRow();
             $highCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($sheet->getHighestDataColumn());
@@ -655,6 +1086,7 @@ function process_eu_files() {
             $eu_data_start = 3;
             $eu_kw_branch = ['สาขา', 'หน่วยงาน', 'ภาพรวม', 'ชื่อสาขา'];
             $eu_kw_month = ['ต.ค.', 'ต.ค', 'พ.ย.', 'ตุลาคม', 'oct'];
+            $found_month = false;
 
             for ($sr = 1; $sr <= min($highRow, 10); $sr++) {
                 $found_branch = false;
@@ -668,16 +1100,34 @@ function process_eu_files() {
                             break;
                         }
                     }
-                    foreach ($eu_kw_month as $kw) {
-                        if (mb_strpos($hv, mb_strtolower($kw)) !== false) {
-                            $eu_month_start = $sc;
-                            break;
+                    // ── เจอเดือนแรก → หยุดเลย (ไม่ให้ชุดที่ 2 overwrite) ──
+                    if (!$found_month) {
+                        foreach ($eu_kw_month as $kw) {
+                            if (mb_strpos($hv, mb_strtolower($kw)) !== false) {
+                                $eu_month_start = $sc;
+                                $found_month = true;
+                                break;
+                            }
                         }
                     }
                 }
                 if ($found_branch) {
                     $eu_data_start = $sr + 1;
                     break;
+                }
+            }
+
+            // ถ้าไม่เจอ branch keyword แต่เจอเดือน → ใช้ row หลังเดือนเป็น data start
+            if (!$found_branch && $found_month) {
+                // หา row ที่มีชื่อเดือน แล้ว data เริ่มจาก row ถัดไป
+                for ($sr = 1; $sr <= min($highRow, 10); $sr++) {
+                    $hv = mb_strtolower(trim((string)(cellVal($sheet, $eu_month_start, $sr) ?? '')));
+                    foreach ($eu_kw_month as $kw) {
+                        if (mb_strpos($hv, mb_strtolower($kw)) !== false) {
+                            $eu_data_start = $sr + 1;
+                            break 2;
+                        }
+                    }
                 }
             }
 
@@ -711,11 +1161,15 @@ function process_eu_files() {
                 $eu_data[$year_str] = $result;
                 $count = count(array_filter($result, fn($v) => $v !== null));
                 echo "   ✅ ปี $year_str: $count branches\n";
+
+                // ── Save cache ──
+                $cache_entry = ['mtime' => filemtime($filepath), 'year' => $year_str, 'data' => $result];
+                @file_put_contents($cache_file, json_encode($cache_entry, JSON_UNESCAPED_UNICODE));
             }
 
             $spreadsheet->disconnectWorksheets();
             unset($spreadsheet);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             echo "   ❌ " . basename($filepath) . ": " . $e->getMessage() . "\n";
         }
     }
@@ -735,10 +1189,12 @@ function build_eu_embedded_data($eu_data) {
 // MNF Data Parser
 // ============================================================================
 
-function process_mnf_files() {
+function process_mnf_files($only_files = []) {
     echo "\n📂 Processing MNF files...\n";
     $mnf_dir = RAW_DATA_DIR . DIRECTORY_SEPARATOR . 'MNF';
     $mnf_data = [];
+    $cache_dir = SCRIPT_DIR . DIRECTORY_SEPARATOR . '.cache';
+    if (!is_dir($cache_dir)) @mkdir($cache_dir, 0755, true);
 
     if (!is_dir($mnf_dir)) {
         echo "   ⚠️  MNF directory not found\n";
@@ -755,21 +1211,105 @@ function process_mnf_files() {
         return $mnf_data;
     }
 
-    echo "   Found " . count($files) . " files:\n";
+    // Filter to only specific files if --files was specified
+    if (!empty($only_files)) {
+        $files = array_filter($files, function($f) use ($only_files) {
+            return in_array(basename($f), $only_files);
+        });
+        echo "   ⚡ Processing only " . count($files) . " changed file(s):\n";
+    } else {
+        echo "   Found " . count($files) . " files:\n";
+    }
     foreach ($files as $f) {
         echo "      • " . basename($f) . "\n";
     }
 
     foreach ($files as $filepath) {
+        $fname = basename($filepath);
+        if (strpos($fname, '~$') === 0) continue;
+
+        // ── File-level cache ──
+        $cache_file = $cache_dir . DIRECTORY_SEPARATOR . 'mnf_' . md5($fname) . '.json';
+        $file_mtime = filemtime($filepath);
+        $use_cache = false;
+
+        if (!empty($only_files) && !in_array($fname, $only_files)) {
+            if (file_exists($cache_file)) {
+                $cached = json_decode(file_get_contents($cache_file), true);
+                if ($cached && isset($cached['mtime']) && $cached['mtime'] === $file_mtime) {
+                    $use_cache = true;
+                }
+            }
+        } elseif (empty($only_files) && file_exists($cache_file)) {
+            $cached = json_decode(file_get_contents($cache_file), true);
+            if ($cached && isset($cached['mtime']) && $cached['mtime'] === $file_mtime) {
+                $use_cache = true;
+            }
+        }
+
+        if ($use_cache) {
+            $year_str = $cached['year'];
+            $mnf_data[$year_str] = $cached['data'];
+            $count = count($cached['data']);
+            echo "   ⚡ ปี $year_str: $count branches (cache)\n";
+            continue;
+        }
+
         try {
-            if (!preg_match('/MNF[-_](\d{4})/', basename($filepath), $m)) continue;
-            $year_str = $m[1];
+            $year_str = null;
+            if (preg_match('/MNF[-_](\d{4})/', $fname, $m)) {
+                $year_str = $m[1];
+            }
 
             $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($filepath);
+
+            // Fallback: ดึงปีจากเนื้อหาใน Excel ถ้าชื่อไฟล์ไม่มีปี
+            if (!$year_str) {
+                for ($_si = 0; $_si < min(2, $spreadsheet->getSheetCount()); $_si++) {
+                    $_ws = $spreadsheet->getSheet($_si);
+                    for ($_r = 1; $_r <= min(3, $_ws->getHighestDataRow()); $_r++) {
+                        for ($_c = 1; $_c <= min(30, \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($_ws->getHighestDataColumn())); $_c++) {
+                            $_v = (string)($_ws->getCell([$_c, $_r])->getValue() ?? '');
+                            if (preg_match('/ปีงบประมาณ\s*(\d{4})/', $_v, $_m)) {
+                                $year_str = $_m[1];
+                            }
+                        }
+                    }
+                    if ($year_str) break;
+                }
+                if (!$year_str) {
+                    $_yc = [];
+                    foreach ($spreadsheet->getSheetNames() as $_sn) {
+                        if (preg_match('/(\d{2})\s*$/', trim($_sn), $_m)) {
+                            $_yy = $_m[1];
+                            $_yc[$_yy] = ($_yc[$_yy] ?? 0) + 1;
+                        }
+                    }
+                    if (!empty($_yc)) { arsort($_yc); $year_str = '25' . array_key_first($_yc); }
+                }
+                if (!$year_str) {
+                    echo "   ⚠️  " . $fname . ": ไม่พบปีงบประมาณ — ข้าม\n";
+                    $spreadsheet->disconnectWorksheets();
+                    continue;
+                }
+                echo "   📌 " . $fname . ": ดึงปี $year_str จากเนื้อหาในไฟล์\n";
+            }
             $result = [];
 
+            // ╔══════════════════════════════════════════════════════════════╗
+            // ║ ⚠️  MNF SHEET FILTER — อ่านเฉพาะชีทที่อยู่ใน MNF_SHEET_MAP ║
+            // ║                                                              ║
+            // ║ ไฟล์ MNF มีชีทสรุป "รวมกราฟสาขา" ที่เป็นกราฟรวม →         ║
+            // ║ ข้อมูลไม่ใช่ raw data ต้องข้าม                               ║
+            // ║                                                              ║
+            // ║ Sheets to AVOID: "รวมกราฟสาขา", "กราฟ", "สรุป", "Chart"    ║
+            // ║ Sheets to PROCESS: "ภาพรวมเขต" + ชีทสาขาใน MNF_SHEET_MAP   ║
+            // ╚══════════════════════════════════════════════════════════════╝
             foreach ($spreadsheet->getSheetNames() as $sn) {
-                if ($sn === 'รวมกราฟสาขา') continue;
+                if ($sn === 'รวมกราฟสาขา') {
+                    echo "      ⏭️  Skip sheet '$sn' (ชีทกราฟสรุป)\n";
+                    continue;
+                }
 
                 if ($sn === 'ภาพรวมเขต') {
                     $branch_key = '__regional__';
@@ -825,11 +1365,15 @@ function process_mnf_files() {
             if (!empty($result)) {
                 $mnf_data[$year_str] = $result;
                 echo "   ✅ ปี $year_str: " . count($result) . " branches\n";
+
+                // ── Save cache ──
+                $cache_entry = ['mtime' => filemtime($filepath), 'year' => $year_str, 'data' => $result];
+                @file_put_contents($cache_file, json_encode($cache_entry, JSON_UNESCAPED_UNICODE));
             }
 
             $spreadsheet->disconnectWorksheets();
             unset($spreadsheet);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             echo "   ❌ " . basename($filepath) . ": " . $e->getMessage() . "\n";
         }
     }
@@ -857,11 +1401,13 @@ function build_mnf_embedded_data($mnf_data) {
 // KPI Data Parser
 // ============================================================================
 
-function process_kpi_files() {
+function process_kpi_files($only_files = []) {
     echo "\n📂 Processing KPI files...\n";
     $kpi_dir = RAW_DATA_DIR . DIRECTORY_SEPARATOR . 'เกณฑ์วัดน้ำสูญเสีย';
     $kpi_dir2 = RAW_DATA_DIR . DIRECTORY_SEPARATOR . 'เกณฑ์ชี้วัด';
     $kpi_data = [];
+    $cache_dir = SCRIPT_DIR . DIRECTORY_SEPARATOR . '.cache';
+    if (!is_dir($cache_dir)) @mkdir($cache_dir, 0755, true);
 
     $dirs_to_check = [];
     if (is_dir($kpi_dir)) $dirs_to_check[] = $kpi_dir;
@@ -880,19 +1426,99 @@ function process_kpi_files() {
 
         if (empty($files)) continue;
 
-        echo "   Found " . count($files) . " files in " . basename($kd) . ":\n";
+        // Filter to only specific files if --files was specified
+        if (!empty($only_files)) {
+            $files = array_filter($files, function($f) use ($only_files) {
+                return in_array(basename($f), $only_files);
+            });
+            echo "   ⚡ Processing only " . count($files) . " changed file(s) in " . basename($kd) . ":\n";
+        } else {
+            echo "   Found " . count($files) . " files in " . basename($kd) . ":\n";
+        }
         foreach ($files as $f) {
             echo "      • " . basename($f) . "\n";
         }
 
         foreach ($files as $filepath) {
-            if (strpos(basename($filepath), '~$') === 0) continue;
+            $fname = basename($filepath);
+            if (strpos($fname, '~$') === 0) continue;
+
+            // ── File-level cache ──
+            $cache_file = $cache_dir . DIRECTORY_SEPARATOR . 'kpi_' . md5($fname) . '.json';
+            $file_mtime = filemtime($filepath);
+            $use_cache = false;
+
+            if (!empty($only_files) && !in_array($fname, $only_files)) {
+                if (file_exists($cache_file)) {
+                    $cached = json_decode(file_get_contents($cache_file), true);
+                    if ($cached && isset($cached['mtime']) && $cached['mtime'] === $file_mtime) {
+                        $use_cache = true;
+                    }
+                }
+            } elseif (empty($only_files) && file_exists($cache_file)) {
+                $cached = json_decode(file_get_contents($cache_file), true);
+                if ($cached && isset($cached['mtime']) && $cached['mtime'] === $file_mtime) {
+                    $use_cache = true;
+                }
+            }
+
+            if ($use_cache) {
+                $year_str = $cached['year'];
+                $kpi_data[$year_str] = $cached['data'];
+                $count = count($cached['data']);
+                echo "   ⚡ ปี $year_str: $count branches (cache)\n";
+                continue;
+            }
 
             try {
-                if (!preg_match('/(\d{4})/', basename($filepath), $m)) continue;
-                $year_str = $m[1];
+                $year_str = null;
+                if (preg_match('/(\d{4})/', $fname, $m)) {
+                    $year_str = $m[1];
+                }
 
                 $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($filepath);
+
+                // Fallback: ดึงปีจากเนื้อหาใน Excel ถ้าชื่อไฟล์ไม่มีปี
+                if (!$year_str) {
+                    for ($_si = 0; $_si < min(2, $spreadsheet->getSheetCount()); $_si++) {
+                        $_ws = $spreadsheet->getSheet($_si);
+                        for ($_r = 1; $_r <= min(3, $_ws->getHighestDataRow()); $_r++) {
+                            for ($_c = 1; $_c <= min(30, \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($_ws->getHighestDataColumn())); $_c++) {
+                                $_v = (string)($_ws->getCell([$_c, $_r])->getValue() ?? '');
+                                if (preg_match('/ปีงบประมาณ\s*(\d{4})/', $_v, $_m)) {
+                                    $year_str = $_m[1];
+                                }
+                            }
+                        }
+                        if ($year_str) break;
+                    }
+                    if (!$year_str) {
+                        $_yc = [];
+                        foreach ($spreadsheet->getSheetNames() as $_sn) {
+                            if (preg_match('/(\d{2})\s*$/', trim($_sn), $_m)) {
+                                $_yy = $_m[1];
+                                $_yc[$_yy] = ($_yc[$_yy] ?? 0) + 1;
+                            }
+                        }
+                        if (!empty($_yc)) { arsort($_yc); $year_str = '25' . array_key_first($_yc); }
+                    }
+                    if (!$year_str) {
+                        echo "   ⚠️  " . $fname . ": ไม่พบปีงบประมาณ — ข้าม\n";
+                        $spreadsheet->disconnectWorksheets();
+                        continue;
+                    }
+                    echo "   📌 " . $fname . ": ดึงปี $year_str จากเนื้อหาในไฟล์\n";
+                }
+
+                // ╔══════════════════════════════════════════════════════════════╗
+                // ║ ⚠️  KPI2 SHEET — อ่านเฉพาะ sheet แรก                        ║
+                // ║                                                              ║
+                // ║ ไฟล์ KPI2 ปกติมี sheet เดียว = ตารางอัตราน้ำสูญเสีย         ║
+                // ║ ถ้ามี sheet กราฟ/สรุปเพิ่มจะไม่ถูกอ่าน                       ║
+                // ║                                                              ║
+                // ║ Sheet to PROCESS: sheet แรก (index 0) เท่านั้น              ║
+                // ║ Sheets to AVOID: sheet อื่น ๆ ทั้งหมด (ถ้ามี)              ║
+                // ╚══════════════════════════════════════════════════════════════╝
                 $sheet = $spreadsheet->getSheet(0);
                 $highRow = $sheet->getHighestDataRow();
                 $highCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($sheet->getHighestDataColumn());
@@ -945,11 +1571,15 @@ function process_kpi_files() {
                 if (!empty($result)) {
                     $kpi_data[$year_str] = $result;
                     echo "   ✅ ปี $year_str: " . count($result) . " branches\n";
+
+                    // ── Save cache ──
+                    $cache_entry = ['mtime' => filemtime($filepath), 'year' => $year_str, 'data' => $result];
+                    @file_put_contents($cache_file, json_encode($cache_entry, JSON_UNESCAPED_UNICODE));
                 }
 
                 $spreadsheet->disconnectWorksheets();
                 unset($spreadsheet);
-            } catch (Exception $e) {
+            } catch (\Throwable $e) {
                 echo "   ❌ " . basename($filepath) . ": " . $e->getMessage() . "\n";
             }
         }
@@ -1004,10 +1634,12 @@ function build_kpi_embedded_data($kpi_data) {
 // P3 Data Parser
 // ============================================================================
 
-function process_p3_files() {
+function process_p3_files($only_files = []) {
     echo "\n📂 Processing P3 files...\n";
     $p3_dir = RAW_DATA_DIR . DIRECTORY_SEPARATOR . 'P3';
     $result = [];
+    $cache_dir = SCRIPT_DIR . DIRECTORY_SEPARATOR . '.cache';
+    if (!is_dir($cache_dir)) @mkdir($cache_dir, 0755, true);
 
     if (!is_dir($p3_dir)) {
         echo "   ⚠️  P3 directory not found\n";
@@ -1024,6 +1656,15 @@ function process_p3_files() {
         return is_numeric($v) ? round((float)$v, 4) : null;
     }
 
+    // ╔══════════════════════════════════════════════════════════════╗
+    // ║ ⚠️  P3 SHEET — อ่านเฉพาะ sheet แรก (ข้อมูลจุดรั่ว P3)     ║
+    // ║                                                              ║
+    // ║ ไฟล์ P3 มี sheet เดียว = ตารางข้อมูลจุดรั่ว                 ║
+    // ║ ถ้ามี sheet กราฟ/สรุปเพิ่มจะไม่ถูกอ่าน                       ║
+    // ║                                                              ║
+    // ║ Sheet to PROCESS: sheet แรก (index 0) เท่านั้น              ║
+    // ║ Sheets to AVOID: sheet อื่น ๆ ทั้งหมด (ถ้ามี)              ║
+    // ╚══════════════════════════════════════════════════════════════╝
     function parse_p3_xlsx($fpath) {
         $points = [];
         try {
@@ -1066,13 +1707,13 @@ function process_p3_files() {
             }
 
             $spreadsheet->disconnectWorksheets();
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             // Silent skip
         }
         return $points;
     }
 
-    function process_p3_folder($path, $year_key) {
+    function process_p3_folder($path, $year_key, $cache_dir, $only_files) {
         global $result;
         $files = array_merge(
             glob($path . DIRECTORY_SEPARATOR . 'P3_*.xlsx'),
@@ -1094,14 +1735,44 @@ function process_p3_files() {
             $yy = intval($match[3]);
             $yk = $year_key ?? (string)(2500 + $yy);
 
+            // ── File-level cache ──
+            $cache_file = $cache_dir . DIRECTORY_SEPARATOR . 'p3_' . md5($fname) . '.json';
+            $file_mtime = filemtime($fpath);
+            $use_cache = false;
+
+            if (!empty($only_files) && !in_array($fname, $only_files)) {
+                if (file_exists($cache_file)) {
+                    $cached = json_decode(file_get_contents($cache_file), true);
+                    if ($cached && isset($cached['mtime']) && $cached['mtime'] === $file_mtime) {
+                        $use_cache = true;
+                    }
+                }
+            } elseif (empty($only_files) && file_exists($cache_file)) {
+                $cached = json_decode(file_get_contents($cache_file), true);
+                if ($cached && isset($cached['mtime']) && $cached['mtime'] === $file_mtime) {
+                    $use_cache = true;
+                }
+            }
+
+            if ($use_cache) {
+                if (!isset($result[$yk])) $result[$yk] = [];
+                if (!isset($result[$yk][$month_key])) $result[$yk][$month_key] = [];
+                $result[$yk][$month_key][$branch] = $cached['data'];
+                continue;
+            }
+
             try {
                 $points = parse_p3_xlsx($fpath);
                 if (!empty($points)) {
                     if (!isset($result[$yk])) $result[$yk] = [];
                     if (!isset($result[$yk][$month_key])) $result[$yk][$month_key] = [];
                     $result[$yk][$month_key][$branch] = $points;
+
+                    // ── Save cache ──
+                    $cache_entry = ['mtime' => $file_mtime, 'data' => $points];
+                    @file_put_contents($cache_file, json_encode($cache_entry, JSON_UNESCAPED_UNICODE));
                 }
-            } catch (Exception $e) {
+            } catch (\Throwable $e) {
                 // Silent skip
             }
         }
@@ -1112,11 +1783,11 @@ function process_p3_files() {
         if ($year_folder[0] === '.') continue;
         $year_path = $p3_dir . DIRECTORY_SEPARATOR . $year_folder;
         if (!is_dir($year_path)) continue;
-        process_p3_folder($year_path, $year_folder);
+        process_p3_folder($year_path, $year_folder, $cache_dir, $only_files);
     }
 
     // Scan flat structure
-    process_p3_folder($p3_dir, null);
+    process_p3_folder($p3_dir, null, $cache_dir, $only_files);
 
     if (!empty($result)) {
         $total = 0;
@@ -1257,6 +1928,39 @@ function replace_js_var($content, $varName, $replacement) {
     return $content;
 }
 
+/**
+ * Extract existing embedded JSON from var X={...}; in index.html content.
+ * Returns decoded array/object, or null if not found.
+ */
+function extract_existing_var($content, $varName) {
+    $prefixes = ["var $varName=", "var $varName =", "let $varName=", "let $varName ="];
+    foreach ($prefixes as $prefix) {
+        $pos = strpos($content, $prefix);
+        if ($pos === false) continue;
+        $json_start = $pos + strlen($prefix);
+        // Find matching closing brace
+        $depth = 0;
+        $in_string = false;
+        $escape = false;
+        for ($i = $json_start; $i < strlen($content) && $i < $json_start + 5000000; $i++) {
+            $ch = $content[$i];
+            if ($escape) { $escape = false; continue; }
+            if ($ch === '\\' && $in_string) { $escape = true; continue; }
+            if ($ch === '"') { $in_string = !$in_string; continue; }
+            if ($in_string) continue;
+            if ($ch === '{' || $ch === '[') $depth++;
+            if ($ch === '}' || $ch === ']') {
+                $depth--;
+                if ($depth === 0) {
+                    $json = substr($content, $json_start, $i - $json_start + 1);
+                    return json_decode($json, true);
+                }
+            }
+        }
+    }
+    return null;
+}
+
 function build_dashboard($all_data, $rl_data, $eu_data, $mnf_data, $kpi_data, $p3_data) {
     echo "\n🏗️  Building index.html...\n";
 
@@ -1267,73 +1971,48 @@ function build_dashboard($all_data, $rl_data, $eu_data, $mnf_data, $kpi_data, $p
 
     $content = file_get_contents(INDEX_HTML);
 
-    // Only replace data in HTML if we actually parsed new data
-    // This preserves existing embedded data when source files can't be parsed
-    $replacements = [];
-    // Check if OIS data actually has sheets (not just empty year arrays)
+    // For incremental builds: merge new data with existing embedded data
+    // ╔══════════════════════════════════════════════════════════════════════╗
+    // ║  API-Only Mode: ไม่ embed data ลง index.html แล้ว                    ║
+    // ║  ข้อมูลทั้งหมดโหลดจาก api.php endpoints (OIS, RL, EU, MNF, KPI, P3) ║
+    // ║  index.html มีแค่ var D={}; var RL={}; ... เป็น placeholder          ║
+    // ║  build_dashboard.php ยังคง parse Excel + เขียน cache ให้ api.php      ║
+    // ╚══════════════════════════════════════════════════════════════════════╝
+    // Check if OIS data has sheets (for cache/API use, not for embedding)
     $ois_has_data = false;
     foreach ($all_data as $yr => $sheets) {
         if (!empty($sheets)) { $ois_has_data = true; break; }
     }
-    if ($ois_has_data) {
-        $replacements['D'] = build_embedded_data($all_data);
-        echo "   📊 D (OIS): จะอัปเดต\n";
-    } else {
-        echo "   ⏭️  D (OIS): ไม่มีข้อมูลใหม่ — คงค่าเดิม\n";
-    }
-    if (!empty($rl_data)) {
-        $replacements['RL'] = build_rl_embedded_data($rl_data);
-        echo "   📊 RL: จะอัปเดต\n";
-    } else {
-        echo "   ⏭️  RL: ไม่มีข้อมูลใหม่ — คงค่าเดิม\n";
-    }
-    if (!empty($eu_data)) {
-        $replacements['EU'] = build_eu_embedded_data($eu_data);
-        echo "   📊 EU: จะอัปเดต\n";
-    } else {
-        echo "   ⏭️  EU: ไม่มีข้อมูลใหม่ — คงค่าเดิม\n";
-    }
-    if (!empty($mnf_data)) {
-        $replacements['MNF'] = build_mnf_embedded_data($mnf_data);
-        echo "   📊 MNF: จะอัปเดต\n";
-    } else {
-        echo "   ⏭️  MNF: ไม่มีข้อมูลใหม่ — คงค่าเดิม\n";
-    }
-    if (!empty($kpi_data)) {
-        $replacements['KPI'] = build_kpi_embedded_data($kpi_data);
-        echo "   📊 KPI: จะอัปเดต\n";
-    } else {
-        echo "   ⏭️  KPI: ไม่มีข้อมูลใหม่ — คงค่าเดิม\n";
-    }
-    if (!empty($p3_data)) {
-        $replacements['P3'] = build_p3_embedded_data($p3_data);
-        echo "   📊 P3: จะอัปเดต\n";
-    } else {
-        echo "   ⏭️  P3: ไม่มีข้อมูลใหม่ — คงค่าเดิม\n";
-    }
 
-    // Use strpos/substr instead of preg_replace to avoid PCRE backtrack limit on large files
-    foreach ($replacements as $varName => $json) {
-        $content = replace_js_var($content, $varName, "const $varName=$json;");
-        if ($content === false) {
-            echo "   ❌ Failed to replace var $varName in index.html\n";
-            return false;
-        }
-    }
+    echo "   ℹ️  [API-Only Mode] ไม่ embed data ลง HTML — ข้อมูลโหลดจาก api.php\n";
+    echo "   📊 D (OIS): " . ($ois_has_data ? "parsed ✅" : "ไม่มีข้อมูลใหม่") . "\n";
+    echo "   📊 RL: " . (!empty($rl_data) ? "parsed ✅" : "ไม่มีข้อมูลใหม่") . "\n";
+    echo "   📊 EU: " . (!empty($eu_data) ? "parsed ✅" : "ไม่มีข้อมูลใหม่") . "\n";
+    echo "   📊 MNF: " . (!empty($mnf_data) ? "parsed ✅" : "ไม่มีข้อมูลใหม่") . "\n";
+    echo "   📊 KPI: " . (!empty($kpi_data) ? "parsed ✅" : "ไม่มีข้อมูลใหม่") . "\n";
+    echo "   📊 P3: " . (!empty($p3_data) ? "parsed ✅" : "ไม่มีข้อมูลใหม่") . "\n";
 
-    // Update YC (year colors) with all years
+    // Skip HTML embedding — data variables in index.html remain as empty objects
+    // The API-only IIFE in index.html fetches from api.php endpoints on page load
+    // Cache files (.cache/) are still written by the parsers above for api.php to serve
+
+    // Update YC (year colors) + write index.html — only when OIS was parsed
+    // Incremental builds without OIS skip this entirely (YC already correct from last full build)
     $all_years = array_keys($all_data);
+    if (empty($all_years)) {
+        echo "   ⏭️  YC + index.html: คงค่าเดิม (ไม่มี OIS data — ไม่ต้องเขียน HTML)\n";
+        return true;
+    }
+
     sort($all_years, SORT_NUMERIC);
     $unique_years = [];
     foreach ($all_years as $y) {
         $unique_years[$y] = true;
         $unique_years[$y - 1] = true;
     }
-    if (!empty($all_years)) {
-        $last_year = (int)end($all_years);
-        for ($i = 1; $i < 4; $i++) {
-            $unique_years[$last_year + $i] = true;
-        }
+    $last_year = (int)end($all_years);
+    for ($i = 1; $i < 4; $i++) {
+        $unique_years[$last_year + $i] = true;
     }
 
     $sorted_years = array_keys($unique_years);
@@ -1398,9 +2077,38 @@ function build_dashboard($all_data, $rl_data, $eu_data, $mnf_data, $kpi_data, $p
 // Main Execution
 // ============================================================================
 
+/*
+ * Parse CLI arguments for incremental build:
+ *   --only=ois     → process only OIS category (skip RL, EU, MNF, KPI, P3)
+ *   --files=a.xls,b.xls → process only these specific files within the category
+ * When --only is set, other categories are skipped entirely,
+ * and their existing embedded data in index.html is preserved.
+ */
+function parse_cli_args() {
+    global $argv;
+    $args = ['only' => '', 'files' => []];
+    if (!isset($argv)) return $args;
+    foreach ($argv as $a) {
+        if (strpos($a, '--only=') === 0) {
+            $args['only'] = substr($a, 7);
+        }
+        if (strpos($a, '--files=') === 0) {
+            $args['files'] = array_filter(explode(',', substr($a, 8)));
+        }
+    }
+    return $args;
+}
+
 function main() {
+    $args = parse_cli_args();
+    $only = $args['only'];       // e.g. 'ois', 'rl', 'eu', 'mnf', 'kpi2', 'p3', or '' (all)
+    $only_files = $args['files']; // e.g. ['OIS_2569.xls'] or []
+
     echo str_repeat("=", 60) . "\n";
     echo "  🏗️  Dashboard Builder - PHP CLI Edition\n";
+    if ($only) {
+        echo "  ⚡ Incremental build: only=$only" . ($only_files ? " files=" . implode(',', $only_files) : '') . "\n";
+    }
     echo str_repeat("=", 60) . "\n";
 
     // Check for PhpSpreadsheet
@@ -1410,47 +2118,68 @@ function main() {
         return;
     }
 
-    // Process each category
-    $all_data = process_ois_files();
+    // Process each category — skip categories not in --only
+    $all_data = [];
+    $rl_data = [];
+    $eu_data = [];
+    $mnf_data = [];
+    $kpi_data = [];
+    $p3_data = [];
 
-    if (!empty($all_data)) {
-        echo "\n🔧 Normalizing labels...\n";
-        normalize_labels($all_data);
-
-        echo "🔧 Fixing trailing zeros...\n";
-        fix_trailing_zeros($all_data);
+    if (!$only || $only === 'ois') {
+        $all_data = process_ois_files($only === 'ois' ? $only_files : []);
+        if (!empty($all_data)) {
+            echo "\n🔧 Normalizing labels...\n";
+            normalize_labels($all_data);
+            echo "🔧 Fixing trailing zeros...\n";
+            fix_trailing_zeros($all_data);
+        }
+    } else {
+        echo "\n⏭️  OIS: ข้าม (ไม่ได้เปลี่ยน)\n";
     }
 
-    $rl_data = process_rl_files();
-    $eu_data = process_eu_files();
-    $mnf_data = process_mnf_files();
-    $kpi_data = process_kpi_files();
-    $p3_data = process_p3_files();
+    if (!$only || $only === 'rl') {
+        $rl_data = process_rl_files($only === 'rl' ? $only_files : []);
+    } else {
+        echo "⏭️  Real Leak: ข้าม (ไม่ได้เปลี่ยน)\n";
+    }
 
-    // Build dashboard
+    if (!$only || $only === 'eu') {
+        $eu_data = process_eu_files($only === 'eu' ? $only_files : []);
+    } else {
+        echo "⏭️  EU: ข้าม (ไม่ได้เปลี่ยน)\n";
+    }
+
+    if (!$only || $only === 'mnf') {
+        $mnf_data = process_mnf_files($only === 'mnf' ? $only_files : []);
+    } else {
+        echo "⏭️  MNF: ข้าม (ไม่ได้เปลี่ยน)\n";
+    }
+
+    if (!$only || $only === 'kpi2') {
+        $kpi_data = process_kpi_files($only === 'kpi2' ? $only_files : []);
+    } else {
+        echo "⏭️  KPI: ข้าม (ไม่ได้เปลี่ยน)\n";
+    }
+
+    if (!$only || $only === 'p3') {
+        $p3_data = process_p3_files($only === 'p3' ? $only_files : []);
+    } else {
+        echo "⏭️  P3: ข้าม (ไม่ได้เปลี่ยน)\n";
+    }
+
+    // Build dashboard — unchanged categories keep existing embedded data
     build_dashboard($all_data, $rl_data, $eu_data, $mnf_data, $kpi_data, $p3_data);
 
     // Summary
     echo "\n" . str_repeat("=", 60) . "\n";
     echo "  ✅ Complete!\n";
-    if (!empty($all_data)) {
-        echo "  📅 OIS years: " . implode(", ", array_keys($all_data)) . "\n";
-    }
-    if (!empty($rl_data)) {
-        echo "  📅 Real Leak years: " . implode(", ", array_keys($rl_data)) . "\n";
-    }
-    if (!empty($eu_data)) {
-        echo "  📅 EU years: " . implode(", ", array_keys($eu_data)) . "\n";
-    }
-    if (!empty($mnf_data)) {
-        echo "  📅 MNF years: " . implode(", ", array_keys($mnf_data)) . "\n";
-    }
-    if (!empty($kpi_data)) {
-        echo "  📅 KPI years: " . implode(", ", array_keys($kpi_data)) . "\n";
-    }
-    if (!empty($p3_data)) {
-        echo "  📅 P3 years: " . implode(", ", array_keys($p3_data)) . "\n";
-    }
+    if (!empty($all_data)) echo "  📅 OIS years: " . implode(", ", array_keys($all_data)) . "\n";
+    if (!empty($rl_data)) echo "  📅 Real Leak years: " . implode(", ", array_keys($rl_data)) . "\n";
+    if (!empty($eu_data)) echo "  📅 EU years: " . implode(", ", array_keys($eu_data)) . "\n";
+    if (!empty($mnf_data)) echo "  📅 MNF years: " . implode(", ", array_keys($mnf_data)) . "\n";
+    if (!empty($kpi_data)) echo "  📅 KPI years: " . implode(", ", array_keys($kpi_data)) . "\n";
+    if (!empty($p3_data)) echo "  📅 P3 years: " . implode(", ", array_keys($p3_data)) . "\n";
     echo "  📄 Open index.html in browser to view results\n";
     echo str_repeat("=", 60) . "\n";
 }

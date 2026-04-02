@@ -4,11 +4,17 @@
  * Reads PR data from Excel files and embeds into index.html
  */
 
+// ─── Error Handling ────────────────────────────────────────────────────────
+ini_set('display_errors', '0');
+error_reporting(E_ALL);
+ini_set('log_errors', '1');
+
 // ─── Setup ─────────────────────────────────────────────────────────────────────
 
 require __DIR__ . '/../vendor/autoload.php';
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 
 $SCRIPT_DIR = __DIR__;
 $DATA_DIR = $SCRIPT_DIR . DIRECTORY_SEPARATOR . 'uploaded_data' . DIRECTORY_SEPARATOR . 'pr';
@@ -32,7 +38,7 @@ function clean_num($val) {
     }
     try {
         return floatval($s);
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         return 0;
     }
 }
@@ -75,22 +81,110 @@ function read_all_data() {
 
     foreach ($files as $fname) {
         // Extract YY-MM from filename
-        if (!preg_match('/(\d{2})-(\d{2})/', $fname, $m)) {
-            continue;
+        $month_key = null;
+        if (preg_match('/(\d{2})-(\d{2})/', $fname, $m)) {
+            $year_be = intval($m[1]);
+            $month = intval($m[2]);
+            if ($month >= 1 && $month <= 12) {
+                $month_key = sprintf("%02d-%02d", $year_be, $month);
+            }
         }
-        $year_be = intval($m[1]);
-        $month = intval($m[2]);
-        $month_key = sprintf("%02d-%02d", $year_be, $month);
 
         $fpath = $DATA_DIR . DIRECTORY_SEPARATOR . $fname;
 
         try {
             $spreadsheet = IOFactory::load($fpath);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             echo "  [WARNING] ข้ามไฟล์เสีย: $fname (" . $e->getMessage() . ")\n";
             continue;
         }
 
+        // If no month_key from filename, try to extract from Excel content
+        if (!$month_key) {
+            // ╔══════════════════════════════════════════════════════════════╗
+            // ║ ⚠️  ACTIVE SHEET ONLY — ทำงานกับชีทแรกเท่านั้น               ║
+            // ║                                                              ║
+            // ║ getActiveSheet() อ่านชีทแรก/ชีทแอกทีฟเท่านั้น               ║
+            // ║ ไม่ท่องชีทอื่น ข้อมูล PR อยู่ในชีทแรก "เรื่องร้องเรียน"    ║
+            // ║                                                              ║
+            // ║ Sheet: Always first sheet (active/default)                  ║
+            // ║ Data source: Month extraction from PR data cells            ║
+            // ╚══════════════════════════════════════════════════════════════╝
+            $worksheet = $spreadsheet->getActiveSheet();
+            // Check first 10 rows for month information
+            for ($row_idx = 1; $row_idx <= 10; $row_idx++) {
+                if ($month_key) break;
+                for ($col_idx = 1; $col_idx <= 15; $col_idx++) {
+                    $cell_val = $worksheet->getCellByColumnAndRow($col_idx, $row_idx)->getValue();
+                    if (!$cell_val) continue;
+
+                    $cell_str = trim((string)$cell_val);
+                    // Try to detect month from Thai month names/abbreviations
+                    $thai_months_abbr = [
+                        'ม.ค.' => 1, 'ก.พ.' => 2, 'มี.ค.' => 3, 'เม.ย.' => 4, 'พ.ค.' => 5, 'มิ.ย.' => 6,
+                        'ก.ค.' => 7, 'ส.ค.' => 8, 'ก.ย.' => 9, 'ต.ค.' => 10, 'พ.ย.' => 11, 'ธ.ค.' => 12,
+                    ];
+                    $thai_months_full = [
+                        'มกราคม' => 1, 'กุมภาพันธ์' => 2, 'มีนาคม' => 3, 'เมษายน' => 4,
+                        'พฤษภาคม' => 5, 'มิถุนายน' => 6, 'กรกฎาคม' => 7, 'สิงหาคม' => 8,
+                        'กันยายน' => 9, 'ตุลาคม' => 10, 'พฤศจิกายน' => 11, 'ธันวาคม' => 12,
+                    ];
+
+                    $month_num = null;
+                    foreach ($thai_months_full as $name => $num) {
+                        if (mb_strpos($cell_str, $name) !== false) {
+                            $month_num = $num;
+                            break;
+                        }
+                    }
+                    if (!$month_num) {
+                        foreach ($thai_months_abbr as $abbr => $num) {
+                            if (strpos($cell_str, $abbr) !== false) {
+                                $month_num = $num;
+                                break;
+                            }
+                        }
+                    }
+
+                    if ($month_num) {
+                        // Try to find year (2 or 4 digits)
+                        if (preg_match('/(\d{4})/', $cell_str, $year_match)) {
+                            $year_val = intval($year_match[1]);
+                            // Convert Buddhist Era (BE) to 2-digit format
+                            if ($year_val >= 2500) {
+                                $year_be = $year_val - 2500;
+                            } else {
+                                $year_be = $year_val;
+                            }
+                            $month_key = sprintf("%02d-%02d", $year_be, $month_num);
+                            break 2;
+                        } elseif (preg_match('/(\d{2})/', $cell_str, $year_match)) {
+                            $year_be = intval($year_match[1]);
+                            $month_key = sprintf("%02d-%02d", $year_be, $month_num);
+                            break 2;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Skip file if still no month_key
+        if (!$month_key) {
+            echo "  [WARNING] ข้ามไฟล์: $fname (ไม่สามารถตรวจจับเดือนได้)\n";
+            $spreadsheet->disconnectWorksheets();
+            unset($spreadsheet);
+            continue;
+        }
+
+        // ╔══════════════════════════════════════════════════════════════╗
+        // ║ ⚠️  ACTIVE SHEET ONLY — อ่านจากชีทแรก (PR Data)             ║
+        // ║                                                              ║
+        // ║ getActiveSheet() เข้าถึงชีทแรก "เรื่องร้องเรียน" เท่านั้น   ║
+        // ║ ไม่ต้องสแกนชีทอื่น ข้อมูลลูกค้าและหมวดหมู่อยู่ในชีตนี้      ║
+        // ║                                                              ║
+        // ║ Sheet: First/active sheet (PR category data)                ║
+        // ║ Rows processed: 7-29 (branches + regional total)            ║
+        // ╚══════════════════════════════════════════════════════════════╝
         $worksheet = $spreadsheet->getActiveSheet();
         $month_data = [];
 
@@ -109,9 +203,9 @@ function read_all_data() {
             $col_start = 5;
             foreach ($cat_names as $i => $cat_name) {
                 $col = $col_start + $i * 3;
-                $col_letter = chr(64 + $col); // Convert to column letter
-                $col_letter2 = chr(64 + $col + 1);
-                $col_letter3 = chr(64 + $col + 2);
+                $col_letter = Coordinate::stringFromColumnIndex($col);
+                $col_letter2 = Coordinate::stringFromColumnIndex($col + 1);
+                $col_letter3 = Coordinate::stringFromColumnIndex($col + 2);
 
                 $categories[$cat_name] = [
                     'รวม' => clean_num($worksheet->getCell($col_letter . $row_idx)->getValue()),
@@ -146,9 +240,9 @@ function read_all_data() {
         $col_start = 5;
         foreach ($cat_names as $i => $cat_name) {
             $col = $col_start + $i * 3;
-            $col_letter = chr(64 + $col);
-            $col_letter2 = chr(64 + $col + 1);
-            $col_letter3 = chr(64 + $col + 2);
+            $col_letter = Coordinate::stringFromColumnIndex($col);
+            $col_letter2 = Coordinate::stringFromColumnIndex($col + 1);
+            $col_letter3 = Coordinate::stringFromColumnIndex($col + 2);
 
             $categories[$cat_name] = [
                 'รวม' => clean_num($worksheet->getCell($col_letter . $row_idx)->getValue()),
@@ -209,13 +303,41 @@ function read_all_data() {
 }
 
 /**
+ * Parse CLI arguments for incremental build:
+ *   --only=pr      → process only PR category (skip AON)
+ *   --only=aon     → process only AON category (skip PR)
+ *   --files=a.xlsx → process only these specific files
+ */
+function parse_cli_args() {
+    global $argv;
+    $args = ['only' => '', 'files' => []];
+    if (!isset($argv)) return $args;
+    foreach ($argv as $a) {
+        if (strpos($a, '--only=') === 0) {
+            $args['only'] = substr($a, 7);
+        }
+        if (strpos($a, '--files=') === 0) {
+            $args['files'] = array_filter(explode(',', substr($a, 8)));
+        }
+    }
+    return $args;
+}
+
+/**
  * Build dashboard: read data and embed into HTML
  */
 function build() {
     global $HTML_TEMPLATE;
 
+    $args = parse_cli_args();
+    $only = $args['only'];       // e.g. 'pr', 'aon', or '' (all)
+    $only_files = $args['files'];
+
     echo str_repeat("=", 50) . "\n";
     echo "  Build Dashboard งานลูกค้าสัมพันธ์ กปภ.เขต 1\n";
+    if ($only) {
+        echo "  ⚡ Incremental build: only=$only" . ($only_files ? " files=" . implode(',', $only_files) : '') . "\n";
+    }
     echo str_repeat("=", 50) . "\n";
 
     echo "\n[1/3] อ่านข้อมูล Excel...\n";
@@ -265,7 +387,7 @@ function build() {
 
 try {
     build();
-} catch (Exception $e) {
+} catch (\Throwable $e) {
     echo "[ERROR] " . $e->getMessage() . "\n";
     echo $e->getTraceAsString() . "\n";
     exit(1);

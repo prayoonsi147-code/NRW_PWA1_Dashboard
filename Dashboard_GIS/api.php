@@ -17,12 +17,17 @@
  *   3. Create .htaccess with rewrite rules
  */
 
+// ─── Error Handling ────────────────────────────────────────────────────────
+ini_set('display_errors', '0');
+error_reporting(E_ALL);
+ini_set('log_errors', '1');
+
 // ─── Configuration ─────────────────────────────────────────────────────────
 
 define('BASE_DIR', __DIR__);
 define('RAW_DATA_DIR', BASE_DIR . DIRECTORY_SEPARATOR . 'ข้อมูลดิบ');
 define('CACHE_DIR', BASE_DIR . DIRECTORY_SEPARATOR . '.cache');
-define('CACHE_TTL', 60); // seconds
+define('CACHE_TTL', 86400); // 1 day — mtime check handles invalidation when Excel files change
 
 // Category mapping: URL slug → Thai folder name
 const CATEGORY_MAP = [
@@ -45,6 +50,19 @@ const BRANCH_LIST = [
     "สระแก้ว","วัฒนานคร","อรัญประเทศ","ปราจีนบุรี","กบินทร์บุรี"
 ];
 
+// ─── Auto-enable zip extension (required for .xlsx) ───────────────────────
+if (!extension_loaded('zip')) {
+    $ini = php_ini_loaded_file();
+    if ($ini && is_writable($ini)) {
+        $content = file_get_contents($ini);
+        if (preg_match('/^;extension=zip/m', $content)) {
+            $content = preg_replace('/^;extension=zip/m', 'extension=zip', $content);
+            file_put_contents($ini, $content);
+            error_log("Dashboard: auto-enabled extension=zip in php.ini — restart Apache to activate");
+        }
+    }
+}
+
 // ─── PhpSpreadsheet Loader ─────────────────────────────────────────────────
 
 $composerAutoload = dirname(BASE_DIR) . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php';
@@ -54,7 +72,7 @@ if (file_exists($composerAutoload)) {
     require_once $composerAutoload;
     try {
         $phpSpreadsheet = true;
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         error_log("Warning: PhpSpreadsheet not available: " . $e->getMessage());
     }
 } else {
@@ -116,7 +134,7 @@ function parse_thai_date($val) {
                 $dt = new DateTime("$ce_year-$mm-$dd");
                 return [$dt, $by];
             }
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             return [null, null];
         }
     }
@@ -141,7 +159,7 @@ function read_excel_cached($fpath) {
             if (isset($cached['rows'])) {
                 return $cached['rows'];
             }
-        } catch (Exception $e) {}
+        } catch (\Throwable $e) {}
     }
 
     // Check PHP-style cache (.cache/ folder with md5 name)
@@ -153,7 +171,7 @@ function read_excel_cached($fpath) {
                 isset($cached['time']) && (time() - $cached['time']) < CACHE_TTL) {
                 return $cached['rows'];
             }
-        } catch (Exception $e) {}
+        } catch (\Throwable $e) {}
     }
 
     // Fallback: read Excel with PhpSpreadsheet
@@ -182,7 +200,7 @@ function read_excel_cached($fpath) {
         file_put_contents($py_cache, json_encode($cache_data, JSON_UNESCAPED_UNICODE));
 
         return $rows;
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         error_log("Error reading Excel: " . $e->getMessage());
         return null;
     }
@@ -350,7 +368,7 @@ function build_pending_sqlite($all_data_rows, $folder_path, $excel_filename) {
         $db->close();
         return $db_path;
 
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         error_log("SQLite build error: " . $e->getMessage());
         return false;
     }
@@ -406,7 +424,7 @@ function open_pending_db($pending_dir, $fy_files_info, $fy) {
         try {
             $db = new SQLite3($info['sqlite'], SQLITE3_OPEN_READONLY);
             return $db;
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("SQLite open error: " . $e->getMessage());
         }
     }
@@ -430,7 +448,7 @@ function open_pending_db($pending_dir, $fy_files_info, $fy) {
     if ($db_path) {
         try {
             return new SQLite3($db_path, SQLITE3_OPEN_READONLY);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("SQLite open after build error: " . $e->getMessage());
         }
     }
@@ -505,7 +523,7 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'data') 
                     }
                 }
                 sort($files);
-            } catch (Exception $e) {
+            } catch (\Throwable $e) {
                 error_log("Error reading folder: " . $e->getMessage());
             }
         }
@@ -530,7 +548,7 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'data') 
     if (file_exists($notes_file)) {
         try {
             $notes = json_decode(file_get_contents($notes_file), true) ?: [];
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Error loading notes.json: " . $e->getMessage());
         }
     }
@@ -542,42 +560,106 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'data') 
     ]);
 }
 
+// ── Smart Header Detection for Repair ──
+// ค้นหาคอลัมน์จาก keyword แทนตำแหน่งตายตัว
+// ★ ต้องอยู่ top-level เพราะใช้ทั้งใน validate_gis_file (pre-check) และ repair-data endpoint
+function detect_repair_columns($worksheet) {
+    $keywords = [
+        'branch'   => ['ชื่อสาขา', 'สาขา', 'หน่วยงาน', 'branch'],
+        'closed'   => ['ปิดงาน', 'ปิด', 'closed'],
+        'complete' => ['สำเร็จ', 'เสร็จสิ้น', 'เสร็จ', 'complete'],
+        'score'    => ['คะแนน', 'score', 'ผลคะแนน'],
+    ];
+    $maxScan = min(10, $worksheet->getHighestRow());
+    $maxCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($worksheet->getHighestColumn());
+    $maxCol = min($maxCol, 20);
+
+    for ($r = 1; $r <= $maxScan; $r++) {
+        $found = [];
+        for ($c = 1; $c <= $maxCol; $c++) {
+            $val = trim((string)($worksheet->getCell([$c, $r])->getValue() ?? ''));
+            if ($val === '') continue;
+            $lower = mb_strtolower($val);
+            foreach ($keywords as $key => $kws) {
+                if (isset($found[$key])) continue;
+                foreach ($kws as $kw) {
+                    if (mb_strpos($lower, mb_strtolower($kw)) !== false) {
+                        $found[$key] = $c;
+                        break 2;
+                    }
+                }
+            }
+        }
+        if (isset($found['branch']) && count($found) >= 2) {
+            return ['header_row' => $r, 'cols' => $found, 'fallback' => false];
+        }
+    }
+    // fallback: ตำแหน่งเดิม
+    return ['header_row' => 1, 'cols' => ['branch' => 1, 'closed' => 2, 'complete' => 3, 'score' => 4], 'fallback' => true];
+}
+
 // ── Validate file format before upload ──
 function validate_gis_file($tmp_path, $category) {
     if (!class_exists('PhpOffice\\PhpSpreadsheet\\IOFactory')) {
-        return ['valid' => true, 'message' => '']; // ไม่มี library ให้ข้ามการตรวจสอบ
+        return ['valid' => false, 'message' => 'PhpSpreadsheet ไม่พร้อมใช้งาน — ไม่สามารถตรวจสอบไฟล์ได้'];
     }
-    if (!preg_match('/\.xlsx?$/i', $tmp_path) && !preg_match('/\.xlsx?$/i', basename($tmp_path))) {
-        // ไม่ใช่ Excel — ข้ามการตรวจสอบ
-        return ['valid' => true, 'message' => ''];
+    if (!class_exists('ZipArchive')) {
+        return ['valid' => false, 'message' => 'PHP zip extension ไม่ได้เปิด — ไม่สามารถอ่านไฟล์ .xlsx ได้ (กรุณาเปิด extension=zip ใน php.ini แล้ว restart Apache)'];
     }
-
     try {
         $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($tmp_path);
-        $worksheet = $spreadsheet->getSheet(0);
+        // ╔══════════════════════════════════════════════════════════════╗
+        // ║ [FILE VALIDATION] SCAN ALL SHEETS                           ║
+        // ║                                                              ║
+        // ║ ตรวจสอบไฟล์อัปโหลด — สแกนทุกชีท (ไม่ใช่แค่ชีทแรก)          ║
+        // ║ เพราะไฟล์อาจมีหลายชีท ข้อมูลอาจไม่อยู่ชีทแรก               ║
+        // ║ ข้ามชีทที่ชื่อ สารบัญ/สรุป/ปก/cover/summary/chart/graph    ║
+        // ╚══════════════════════════════════════════════════════════════╝
+        $gis_skip_sheets = ['สารบัญ', 'สรุป', 'ปก', 'cover', 'summary', 'chart', 'graph', 'index'];
 
         if ($category === 'repair') {
-            $det = detect_repair_columns($worksheet);
+            $det = null;
+            for ($si = 0; $si < $spreadsheet->getSheetCount(); $si++) {
+                $ws = $spreadsheet->getSheet($si);
+                $wsName = mb_strtolower($ws->getTitle());
+                $skip = false;
+                foreach ($gis_skip_sheets as $sk) {
+                    if (mb_strpos($wsName, $sk) !== false) { $skip = true; break; }
+                }
+                if ($skip) continue;
+                $det = detect_repair_columns($ws);
+                if (!$det['fallback']) break;
+            }
             $spreadsheet->disconnectWorksheets();
-            if ($det['fallback']) {
+            if ($det === null || $det['fallback']) {
                 return [
                     'valid' => false,
                     'message' => 'ไม่พบหัวคอลัมน์ที่คาดหวัง (สาขา, ปิดงาน, สำเร็จ, คะแนน) — รูปแบบไฟล์ไม่ตรงกับที่ระบบรองรับ'
                 ];
             }
         } elseif ($category === 'pressure') {
-            // ตรวจสอบว่ามี "ปีงบประมาณ" หรือชื่อสาขาในไฟล์
+            // ตรวจสอบว่ามี "ปีงบประมาณ" หรือชื่อสาขาในไฟล์ (สแกนทุกชีท)
             $found_fy = false;
             $found_branch = false;
-            $maxR = min(10, $worksheet->getHighestRow());
-            $maxC = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($worksheet->getHighestColumn());
-            $maxC = min($maxC, 10);
-            for ($r = 1; $r <= $maxR; $r++) {
-                for ($c = 1; $c <= $maxC; $c++) {
-                    $v = trim((string)($worksheet->getCellByColumnAndRow($c, $r)->getValue() ?? ''));
-                    if (preg_match('/ปีงบประมาณ/', $v)) $found_fy = true;
-                    if (preg_match('/สาขา|แรงดัน|pressure/i', $v)) $found_branch = true;
+            for ($si = 0; $si < $spreadsheet->getSheetCount(); $si++) {
+                $ws = $spreadsheet->getSheet($si);
+                $wsName = mb_strtolower($ws->getTitle());
+                $skip = false;
+                foreach ($gis_skip_sheets as $sk) {
+                    if (mb_strpos($wsName, $sk) !== false) { $skip = true; break; }
                 }
+                if ($skip) continue;
+                $maxR = min(10, $ws->getHighestRow());
+                $maxC = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($ws->getHighestColumn());
+                $maxC = min($maxC, 10);
+                for ($r = 1; $r <= $maxR; $r++) {
+                    for ($c = 1; $c <= $maxC; $c++) {
+                        $v = trim((string)($ws->getCell([$c, $r])->getValue() ?? ''));
+                        if (preg_match('/ปีงบประมาณ/', $v)) $found_fy = true;
+                        if (preg_match('/สาขา|แรงดัน|pressure/i', $v)) $found_branch = true;
+                    }
+                }
+                if ($found_fy || $found_branch) break;
             }
             $spreadsheet->disconnectWorksheets();
             if (!$found_fy && !$found_branch) {
@@ -587,10 +669,20 @@ function validate_gis_file($tmp_path, $category) {
                 ];
             }
         } elseif ($category === 'pending') {
-            // Pending: ตรวจสอบว่ามีข้อมูลอย่างน้อย 1 แถว
-            $highRow = $worksheet->getHighestRow();
+            // Pending: ตรวจสอบว่ามีข้อมูลอย่างน้อย 1 แถว (สแกนทุกชีท)
+            $hasData = false;
+            for ($si = 0; $si < $spreadsheet->getSheetCount(); $si++) {
+                $ws = $spreadsheet->getSheet($si);
+                $wsName = mb_strtolower($ws->getTitle());
+                $skip = false;
+                foreach ($gis_skip_sheets as $sk) {
+                    if (mb_strpos($wsName, $sk) !== false) { $skip = true; break; }
+                }
+                if ($skip) continue;
+                if ($ws->getHighestRow() >= 2) { $hasData = true; break; }
+            }
             $spreadsheet->disconnectWorksheets();
-            if ($highRow < 2) {
+            if (!$hasData) {
                 return [
                     'valid' => false,
                     'message' => 'ไฟล์ไม่มีข้อมูล (มีเฉพาะ header หรือว่างเปล่า)'
@@ -601,12 +693,619 @@ function validate_gis_file($tmp_path, $category) {
         }
 
         return ['valid' => true, 'message' => ''];
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         return [
             'valid' => false,
             'message' => 'ไม่สามารถอ่านไฟล์ Excel ได้: ' . $e->getMessage()
         ];
     }
+}
+
+// ── Helper: Generate new filename based on category ──
+function generate_new_filename($category, $original_filename, $excel_tmp_path = null) {
+    $pathinfo = pathinfo($original_filename);
+    $name_only = $pathinfo['filename'];
+    $ext = isset($pathinfo['extension']) ? '.' . $pathinfo['extension'] : '.xlsx';
+
+    $PREFIX_MAP = ['repair' => 'GIS', 'pressure' => 'PRESSURE', 'pending' => 'PENDING'];
+    $prefix = isset($PREFIX_MAP[$category]) ? $PREFIX_MAP[$category] : strtoupper($category);
+
+    if ($category === 'repair') {
+        // repair: GIS_YYMMDD.xlsx
+        if (preg_match('/(\d{6})/', $name_only, $m)) {
+            return $prefix . '_' . $m[1] . $ext;
+        } else {
+            $today = date('ymd');
+            return $prefix . '_' . $today . $ext;
+        }
+    } elseif ($category === 'pressure') {
+        // pressure: PRESSURE_สาขา_ปีงบYY.xlsx
+        // Extract branch name from filename — กรองคำที่ไม่ใช่ชื่อสาขาออก
+        preg_match_all('/[\x{0e00}-\x{0e7f}]+/u', $name_only, $matches);
+        $non_branch_words = ['ปีงบ', 'ปีงบประมาณ', 'แรงดัน', 'แรงดันน้ำ'];
+        $branch_candidates = array_filter($matches[0] ?? [], function($w) use ($non_branch_words) {
+            foreach ($non_branch_words as $nbw) {
+                if (mb_strpos($w, $nbw) !== false) return false;
+            }
+            return true;
+        });
+        $branch_name = !empty($branch_candidates) ? reset($branch_candidates) : 'unknown';
+
+        // Read fiscal year: try filename first, then Excel content
+        $fiscal_year = '';
+
+        // Try to extract from filename (pattern: _ปีงบYY)
+        if (preg_match('/_ปีงบ(\d{2})/', $name_only, $m)) {
+            $fiscal_year = '25' . $m[1];
+        }
+
+        // If not found in filename, read from Excel content
+        if (!$fiscal_year && $excel_tmp_path && file_exists($excel_tmp_path)) {
+            try {
+                if (class_exists('PhpOffice\\PhpSpreadsheet\\IOFactory')) {
+                    $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($excel_tmp_path);
+                    $worksheet = $spreadsheet->getActiveSheet();
+
+                    // Look for "ปีงบประมาณ XXXX" in first few rows
+                    for ($r = 1; $r <= min(6, $worksheet->getHighestRow()); $r++) {
+                        for ($c = 1; $c <= min(6, $worksheet->getHighestColumn()); $c++) {
+                            $cell_val = (string)($worksheet->getCell([$c, $r])->getValue() ?: '');
+                            if (preg_match('/ปีงบประมาณ\s*(\d{4})/', $cell_val, $m)) {
+                                $fiscal_year = $m[1];
+                                break 2;
+                            }
+                        }
+                    }
+
+                    // If still not found, try from sheet names — majority vote
+                    if (!$fiscal_year) {
+                        $yc = [];
+                        foreach ($spreadsheet->getSheetNames() as $sname) {
+                            if (preg_match('/(\d{2})\s*$/', trim($sname), $sm)) {
+                                $yy = $sm[1];
+                                $yc[$yy] = ($yc[$yy] ?? 0) + 1;
+                            }
+                        }
+                        if (!empty($yc)) {
+                            arsort($yc);
+                            $fiscal_year = '25' . array_key_first($yc);
+                        }
+                    }
+
+                    $spreadsheet->disconnectWorksheets();
+                }
+            } catch (\Throwable $e) {
+                // Continue without fiscal year
+            }
+        }
+
+        $fy_suffix = $fiscal_year ? '_ปีงบ' . substr($fiscal_year, -2) : '';
+        return $prefix . '_' . $branch_name . $fy_suffix . $ext;
+    } elseif ($category === 'pending') {
+        // For pre-check, we can't know the final merged filename without reading all files
+        // Return a placeholder that indicates files will be merged
+        return null;  // Will be determined during merge
+    } else {
+        // Fallback
+        if (preg_match('/(\d{6})/', $name_only, $m)) {
+            return $prefix . '_' . $m[1] . $ext;
+        } else {
+            $clean = preg_replace('/[^\w\-.]/', '_', $name_only);
+            $clean = trim($clean, '_');
+            if (strlen($clean) > 30) $clean = substr($clean, 0, 30);
+            return $prefix . '_' . $clean . $ext;
+        }
+    }
+}
+
+// ── Helper: Cleanup temp directory ──
+function cleanup_temp_dir($batch_id) {
+    $temp_dir = RAW_DATA_DIR . DIRECTORY_SEPARATOR . '__tmp_upload' . DIRECTORY_SEPARATOR . $batch_id;
+    if (is_dir($temp_dir)) {
+        $files = array_diff(scandir($temp_dir), ['.', '..']);
+        foreach ($files as $f) {
+            $path = $temp_dir . DIRECTORY_SEPARATOR . $f;
+            if (is_file($path)) unlink($path);
+        }
+        rmdir($temp_dir);
+    }
+}
+
+// Route: POST /api/pre-check/{category}
+if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'pre-check') {
+    $category = $path_parts[1];
+
+    if (!isset(CATEGORY_MAP[$category])) {
+        json_response([
+            'ok' => false,
+            'error' => 'ไม่รู้จัก category: ' . $category
+        ], 400);
+    }
+
+    if (!isset($_FILES['files'])) {
+        json_response([
+            'ok' => false,
+            'error' => 'ไม่ได้เลือกไฟล์'
+        ], 400);
+    }
+
+    $files = $_FILES['files'];
+
+    // Normalize to array of files
+    if (!is_array($files['name'])) {
+        $files = [
+            'name' => [$files['name']],
+            'type' => [$files['type']],
+            'tmp_name' => [$files['tmp_name']],
+            'error' => [$files['error']],
+            'size' => [$files['size']]
+        ];
+    }
+
+    // Generate batch ID
+    $batch_id = uniqid('batch_', true);
+    $temp_base = RAW_DATA_DIR . DIRECTORY_SEPARATOR . '__tmp_upload';
+    $temp_dir = $temp_base . DIRECTORY_SEPARATOR . $batch_id;
+
+    if (!is_dir($temp_dir)) {
+        mkdir($temp_dir, 0755, true);
+    }
+
+    $folder_path = RAW_DATA_DIR . DIRECTORY_SEPARATOR . CATEGORY_MAP[$category];
+    if (!is_dir($folder_path)) {
+        mkdir($folder_path, 0755, true);
+    }
+
+    $preview = [];
+    $errors = [];
+    $pending_files_for_merge = [];  // For pending category
+
+    for ($i = 0; $i < count($files['name']); $i++) {
+        if ($files['error'][$i] !== UPLOAD_ERR_OK) {
+            $errors[] = [
+                'filename' => $files['name'][$i],
+                'error' => 'Upload failed (error code: ' . $files['error'][$i] . ')'
+            ];
+            continue;
+        }
+
+        $filename = trim($files['name'][$i]);
+        if (!$filename) continue;
+
+        try {
+            // Validate file format
+            if (preg_match('/\.xlsx?$/i', $filename)) {
+                $validation = validate_gis_file($files['tmp_name'][$i], $category);
+                if (!$validation['valid']) {
+                    $errors[] = [
+                        'filename' => $filename,
+                        'error' => $validation['message']
+                    ];
+                    continue;
+                }
+            }
+
+            // Save to temp directory
+            $temp_path = $temp_dir . DIRECTORY_SEPARATOR . $filename;
+            if (!move_uploaded_file($files['tmp_name'][$i], $temp_path)) {
+                $errors[] = [
+                    'filename' => $filename,
+                    'error' => 'Failed to save file to temp directory'
+                ];
+                continue;
+            }
+            chmod($temp_path, 0644);
+
+            if ($category === 'pending') {
+                // For pending, collect for merge preview
+                $pending_files_for_merge[] = [
+                    'filename' => $filename,
+                    'temp_path' => $temp_path
+                ];
+            } else {
+                // For repair/pressure, determine new filename
+                $new_name = generate_new_filename($category, $filename, $temp_path);
+                if (!$new_name) {
+                    $errors[] = [
+                        'filename' => $filename,
+                        'error' => 'Failed to generate filename'
+                    ];
+                    continue;
+                }
+
+                $dest_path = $folder_path . DIRECTORY_SEPARATOR . $new_name;
+                $will_overwrite = file_exists($dest_path);
+                $overwrite_file = $will_overwrite ? basename($dest_path) : null;
+
+                $preview[] = [
+                    'original' => $filename,
+                    'new_name' => $new_name,
+                    'valid' => true,
+                    'will_overwrite' => $will_overwrite,
+                    'overwrite_file' => $overwrite_file
+                ];
+            }
+        } catch (\Throwable $e) {
+            $errors[] = [
+                'filename' => $filename,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
+    // Handle pending category merge preview
+    if ($category === 'pending' && !empty($pending_files_for_merge)) {
+        try {
+            $HEADER_ROWS = 8;
+            $DATE_COL = 3;
+
+            $all_data_rows = [];
+            $header_rows = null;
+            $min_date = null;
+            $max_date = null;
+
+            global $phpSpreadsheet;
+            if ($phpSpreadsheet && class_exists('PhpOffice\\PhpSpreadsheet\\IOFactory')) {
+                foreach ($pending_files_for_merge as $item) {
+                    try {
+                        $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($item['temp_path']);
+                        $worksheet = $spreadsheet->getActiveSheet();
+
+                        // Capture header from first file
+                        if ($header_rows === null) {
+                            $header_rows = [];
+                            for ($r = 1; $r <= min($HEADER_ROWS, $worksheet->getHighestRow()); $r++) {
+                                $row_data = [];
+                                for ($c = 1; $c <= $worksheet->getHighestColumn(); $c++) {
+                                    $row_data[] = $worksheet->getCell([$c, $r])->getValue();
+                                }
+                                $header_rows[] = $row_data;
+                            }
+                        }
+
+                        // Capture data rows
+                        for ($r = $HEADER_ROWS + 1; $r <= $worksheet->getHighestRow(); $r++) {
+                            $row_data = [];
+                            for ($c = 1; $c <= $worksheet->getHighestColumn(); $c++) {
+                                $row_data[] = $worksheet->getCell([$c, $r])->getValue();
+                            }
+                            // Skip empty rows
+                            if (!empty($row_data[2])) {
+                                $all_data_rows[] = $row_data;
+                            }
+                        }
+
+                        $spreadsheet->disconnectWorksheets();
+                    } catch (\Throwable $e) {
+                        // Continue processing other files
+                    }
+                }
+
+                // Determine date range for merged filename
+                usort($all_data_rows, function($a, $b) use ($DATE_COL) {
+                    $dt_a = parse_thai_date($a[$DATE_COL] ?? '');
+                    $dt_b = parse_thai_date($b[$DATE_COL] ?? '');
+                    if ($dt_a[0] === null) return 1;
+                    if ($dt_b[0] === null) return -1;
+                    return $dt_a[0] <=> $dt_b[0];
+                });
+
+                foreach ($all_data_rows as $row) {
+                    [$dt, $by] = parse_thai_date($row[$DATE_COL] ?? '');
+                    if ($dt && $by) {
+                        $yy = $by % 100;
+                        $mm = $dt->format('m');
+
+                        if ($min_date === null || [$yy, $mm] < $min_date) {
+                            $min_date = [$yy, $mm];
+                        }
+                        if ($max_date === null || [$yy, $mm] > $max_date) {
+                            $max_date = [$yy, $mm];
+                        }
+                    }
+                }
+
+                // Determine final merged filename
+                $merged_filename = null;
+                if ($min_date && $max_date) {
+                    $merged_filename = sprintf('ค้างซ่อม_%02d-%02d_to_%02d-%02d.xlsx',
+                        $min_date[1], $min_date[0], $max_date[1], $max_date[0]);
+                } else {
+                    $today = new DateTime();
+                    $merged_filename = sprintf('ค้างซ่อม_%02d-%02d.xlsx',
+                        $today->format('m'), $today->format('y'));
+                }
+
+                $dest_path = $folder_path . DIRECTORY_SEPARATOR . $merged_filename;
+                $will_overwrite = file_exists($dest_path);
+                $overwrite_file = $will_overwrite ? basename($dest_path) : null;
+
+                // Create single preview entry for merged result
+                $preview[] = [
+                    'original' => implode(' + ', array_map(function($f) { return $f['filename']; }, $pending_files_for_merge)),
+                    'new_name' => $merged_filename,
+                    'valid' => true,
+                    'will_overwrite' => $will_overwrite,
+                    'overwrite_file' => $overwrite_file,
+                    'is_merge' => true,
+                    'merge_count' => count($pending_files_for_merge),
+                    'row_count' => count($all_data_rows)
+                ];
+            }
+        } catch (\Throwable $e) {
+            // If merge preview fails, show individual files with note
+            foreach ($pending_files_for_merge as $item) {
+                $preview[] = [
+                    'original' => $item['filename'],
+                    'new_name' => '(จะถูกรวมเป็นไฟล์เดียว)',
+                    'valid' => true,
+                    'will_overwrite' => false,
+                    'overwrite_file' => null,
+                    'is_merge_placeholder' => true
+                ];
+            }
+        }
+    }
+
+    json_response([
+        'ok' => true,
+        'batch_id' => $batch_id,
+        'category' => $category,
+        'preview' => $preview,
+        'errors' => $errors
+    ]);
+}
+
+// Route: POST /api/upload-confirm/{batch_id}
+if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'upload-confirm') {
+    $batch_id = $path_parts[1];
+    $category = isset($_POST['category']) ? trim($_POST['category']) : '';
+
+    if (!$category || !isset(CATEGORY_MAP[$category])) {
+        json_response([
+            'ok' => false,
+            'error' => 'ไม่ระบุหรือไม่รู้จัก category'
+        ], 400);
+    }
+
+    $temp_base = RAW_DATA_DIR . DIRECTORY_SEPARATOR . '__tmp_upload';
+    $temp_dir = $temp_base . DIRECTORY_SEPARATOR . $batch_id;
+
+    if (!is_dir($temp_dir)) {
+        json_response([
+            'ok' => false,
+            'error' => 'ไม่พบ batch ที่ระบุ'
+        ], 400);
+    }
+
+    $folder_path = RAW_DATA_DIR . DIRECTORY_SEPARATOR . CATEGORY_MAP[$category];
+    if (!is_dir($folder_path)) {
+        mkdir($folder_path, 0755, true);
+    }
+
+    $results = [];
+    $errors = [];
+
+    try {
+        if ($category === 'pending') {
+            // Pending: merge all files from temp
+            $files_in_temp = array_diff(scandir($temp_dir), ['.', '..']);
+
+            if (empty($files_in_temp)) {
+                $errors[] = ['filename' => 'pending', 'error' => 'ไม่พบไฟล์ในข้อมูลชั่วคราว'];
+            } else {
+                $HEADER_ROWS = 8;
+                $DATE_COL = 3;
+
+                $all_data_rows = [];
+                $header_rows = null;
+
+                global $phpSpreadsheet;
+                if ($phpSpreadsheet && class_exists('PhpOffice\\PhpSpreadsheet\\IOFactory')) {
+                    foreach ($files_in_temp as $fname) {
+                        $fpath = $temp_dir . DIRECTORY_SEPARATOR . $fname;
+                        if (!is_file($fpath)) continue;
+
+                        try {
+                            $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($fpath);
+                            $worksheet = $spreadsheet->getActiveSheet();
+
+                            // Capture header from first file
+                            if ($header_rows === null) {
+                                $header_rows = [];
+                                for ($r = 1; $r <= min($HEADER_ROWS, $worksheet->getHighestRow()); $r++) {
+                                    $row_data = [];
+                                    for ($c = 1; $c <= $worksheet->getHighestColumn(); $c++) {
+                                        $row_data[] = $worksheet->getCell([$c, $r])->getValue();
+                                    }
+                                    $header_rows[] = $row_data;
+                                }
+                            }
+
+                            // Capture data rows
+                            for ($r = $HEADER_ROWS + 1; $r <= $worksheet->getHighestRow(); $r++) {
+                                $row_data = [];
+                                for ($c = 1; $c <= $worksheet->getHighestColumn(); $c++) {
+                                    $row_data[] = $worksheet->getCell([$c, $r])->getValue();
+                                }
+                                // Skip empty rows
+                                if (!empty($row_data[2])) {
+                                    $all_data_rows[] = $row_data;
+                                }
+                            }
+
+                            $spreadsheet->disconnectWorksheets();
+                        } catch (\Throwable $e) {
+                            // Continue processing other files
+                        }
+                    }
+
+                    if (empty($all_data_rows)) {
+                        $errors[] = ['filename' => 'pending', 'error' => 'ไม่พบข้อมูลในไฟล์ที่อัปโหลด'];
+                    } else {
+                        // Sort by date
+                        usort($all_data_rows, function($a, $b) use ($DATE_COL) {
+                            $dt_a = parse_thai_date($a[$DATE_COL] ?? '');
+                            $dt_b = parse_thai_date($b[$DATE_COL] ?? '');
+                            if ($dt_a[0] === null) return 1;
+                            if ($dt_b[0] === null) return -1;
+                            return $dt_a[0] <=> $dt_b[0];
+                        });
+
+                        // Determine month range for filename
+                        $min_date = null;
+                        $max_date = null;
+
+                        foreach ($all_data_rows as $row) {
+                            [$dt, $by] = parse_thai_date($row[$DATE_COL] ?? '');
+                            if ($dt && $by) {
+                                $yy = $by % 100;
+                                $mm = $dt->format('m');
+
+                                if ($min_date === null || [$yy, $mm] < $min_date) {
+                                    $min_date = [$yy, $mm];
+                                }
+                                if ($max_date === null || [$yy, $mm] > $max_date) {
+                                    $max_date = [$yy, $mm];
+                                }
+                            }
+                        }
+
+                        // Create filename
+                        if ($min_date && $max_date) {
+                            $new_name = sprintf('ค้างซ่อม_%02d-%02d_to_%02d-%02d.xlsx',
+                                $min_date[1], $min_date[0], $max_date[1], $max_date[0]);
+                        } else {
+                            $today = new DateTime();
+                            $new_name = sprintf('ค้างซ่อม_%02d-%02d.xlsx',
+                                $today->format('m'), $today->format('y'));
+                        }
+
+                        // Write merged Excel file
+                        $wb_out = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+                        $ws_out = $wb_out->getActiveSheet();
+                        $ws_out->setTitle('ค้างซ่อม');
+
+                        // Write header
+                        if ($header_rows) {
+                            foreach ($header_rows as $r_idx => $row) {
+                                foreach ($row as $c_idx => $val) {
+                                    $ws_out->setCellValueByColumnAndRow($c_idx + 1, $r_idx + 1, $val);
+                                }
+                            }
+                        }
+
+                        // Write data
+                        foreach ($all_data_rows as $r_idx => $row) {
+                            foreach ($row as $c_idx => $val) {
+                                $ws_out->setCellValueByColumnAndRow($c_idx + 1, $HEADER_ROWS + $r_idx + 1, $val);
+                            }
+                        }
+
+                        $dest_path = $folder_path . DIRECTORY_SEPARATOR . $new_name;
+                        $overwritten = file_exists($dest_path);
+
+                        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($wb_out);
+                        $writer->save($dest_path);
+                        $wb_out->disconnectWorksheets();
+
+                        // Clear cache for new file
+                        $cache_file = CACHE_DIR . DIRECTORY_SEPARATOR . md5($dest_path) . '.json';
+                        if (file_exists($cache_file)) unlink($cache_file);
+                        // Clear Python-style cache too
+                        $py_cache = $dest_path . '.cache.json';
+                        if (file_exists($py_cache)) unlink($py_cache);
+
+                        // Build SQLite database for fast querying
+                        $sqlite_result = build_pending_sqlite($all_data_rows, $folder_path, $new_name);
+                        $sqlite_msg = $sqlite_result ? ' + SQLite OK' : ' (SQLite failed)';
+
+                        $orig_names = implode(', ', $files_in_temp);
+                        $results[] = [
+                            'filename' => $new_name,
+                            'original' => $orig_names,
+                            'status' => $overwritten ? 'overwrite' : 'success',
+                            'message' => sprintf('รวม %d ไฟล์ (%d แถว) → %s%s',
+                                count($files_in_temp), count($all_data_rows), $new_name, $sqlite_msg)
+                        ];
+                    }
+                }
+            }
+        } else {
+            // repair/pressure: move files from temp to final directory
+            $files_in_temp = array_diff(scandir($temp_dir), ['.', '..']);
+
+            foreach ($files_in_temp as $fname) {
+                $temp_path = $temp_dir . DIRECTORY_SEPARATOR . $fname;
+                if (!is_file($temp_path)) continue;
+
+                try {
+                    $new_name = generate_new_filename($category, $fname, $temp_path);
+                    if (!$new_name) {
+                        $errors[] = [
+                            'filename' => $fname,
+                            'error' => 'Failed to generate filename'
+                        ];
+                        continue;
+                    }
+
+                    $dest_path = $folder_path . DIRECTORY_SEPARATOR . $new_name;
+                    $overwritten = file_exists($dest_path);
+
+                    // Move from temp to final directory
+                    if (!rename($temp_path, $dest_path)) {
+                        throw new Exception('Failed to move file to final directory');
+                    }
+                    chmod($dest_path, 0644);
+
+                    // Clear caches
+                    $cache_file = CACHE_DIR . DIRECTORY_SEPARATOR . md5($dest_path) . '.json';
+                    if (file_exists($cache_file)) unlink($cache_file);
+                    $py_cache = $dest_path . '.cache.json';
+                    if (file_exists($py_cache)) unlink($py_cache);
+
+                    $results[] = [
+                        'filename' => $new_name,
+                        'original' => $fname,
+                        'status' => $overwritten ? 'overwrite' : 'success',
+                        'message' => $fname . ' → ' . $new_name
+                    ];
+                } catch (\Throwable $e) {
+                    $errors[] = [
+                        'filename' => $fname,
+                        'error' => $e->getMessage()
+                    ];
+                }
+            }
+        }
+    } catch (\Throwable $e) {
+        $errors[] = ['filename' => 'general', 'error' => $e->getMessage()];
+    } finally {
+        // Cleanup temp directory
+        cleanup_temp_dir($batch_id);
+    }
+
+    // Write upload log if there are successful uploads
+    if (!empty($results)) {
+        $log_file = __DIR__ . DIRECTORY_SEPARATOR . 'upload_log.json';
+        $log = file_exists($log_file) ? (json_decode(file_get_contents($log_file), true) ?: []) : [];
+        $log[] = [
+            'time' => date('Y-m-d H:i:s'),
+            'category' => $category,
+            'files' => array_map(function($r) { return $r['filename']; }, $results),
+            'count' => count($results)
+        ];
+        // Keep last 200 entries
+        if (count($log) > 200) $log = array_slice($log, -200);
+        file_put_contents($log_file, json_encode($log, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    }
+
+    json_response([
+        'ok' => true,
+        'category' => $category,
+        'results' => $results,
+        'errors' => $errors
+    ]);
 }
 
 // Route: POST /api/upload/<category>
@@ -695,7 +1394,7 @@ if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'upload
                 }
             }
 
-            $prefix = isset(PREFIX_MAP[$category]) ? PREFIX_MAP[$category] : strtoupper($category);
+            $prefix = isset($PREFIX_MAP[$category]) ? $PREFIX_MAP[$category] : strtoupper($category);
             $pathinfo = pathinfo($filename);
             $name_only = $pathinfo['filename'];
             $ext = isset($pathinfo['extension']) ? '.' . $pathinfo['extension'] : '.xlsx';
@@ -711,31 +1410,73 @@ if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'upload
                 }
             } elseif ($category === 'pressure') {
                 // pressure: PRESSURE_สาขา_ปีงบYY.xlsx
-                // Extract branch name from filename
-                preg_match_all('/[\u0e00-\u0e7f]+/u', $name_only, $matches);
-                $branch_name = !empty($matches[0]) ? $matches[0][count($matches[0]) - 1] : 'unknown';
+                // Extract branch name from filename — กรองคำที่ไม่ใช่ชื่อสาขาออก
+                preg_match_all('/[\x{0e00}-\x{0e7f}]+/u', $name_only, $matches);
+                $non_branch_words = ['ปีงบ', 'ปีงบประมาณ', 'แรงดัน', 'แรงดันน้ำ'];
+                $branch_candidates = array_filter($matches[0] ?? [], function($w) use ($non_branch_words) {
+                    foreach ($non_branch_words as $nbw) {
+                        if (mb_strpos($w, $nbw) !== false) return false;
+                    }
+                    return true;
+                });
+                $branch_name = !empty($branch_candidates) ? reset($branch_candidates) : 'unknown';
 
-                // Read fiscal year from file
+                // Read fiscal year: try filename first, then Excel content
                 $fiscal_year = '';
-                try {
-                    $raw_bytes = file_get_contents($files['tmp_name'][$i]);
-                    if (class_exists('PhpOffice\\PhpSpreadsheet\\IOFactory')) {
-                        $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($files['tmp_name'][$i]);
-                        $worksheet = $spreadsheet->getActiveSheet();
 
-                        for ($r = 1; $r <= min(6, $worksheet->getHighestRow()); $r++) {
-                            for ($c = 1; $c <= min(6, $worksheet->getHighestColumn()); $c++) {
-                                $cell_val = (string)($worksheet->getCellByColumnAndRow($c, $r)->getValue() ?: '');
-                                if (preg_match('/ปีงบประมาณ\s*(\d{4})/', $cell_val, $m)) {
-                                    $fiscal_year = $m[1];
-                                    break 2;
+                // Try to extract from filename (pattern: _ปีงบYY)
+                if (preg_match('/_ปีงบ(\d{2})/', $name_only, $m)) {
+                    $fiscal_year = '25' . $m[1];
+                }
+
+                // If not found in filename, read from Excel content
+                if (!$fiscal_year) {
+                    try {
+                        if (class_exists('PhpOffice\\PhpSpreadsheet\\IOFactory')) {
+                            $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($files['tmp_name'][$i]);
+                            $worksheet = $spreadsheet->getActiveSheet();
+
+                            // Look for "ปีงบประมาณ XXXX" in first few rows
+                            for ($r = 1; $r <= min(6, $worksheet->getHighestRow()); $r++) {
+                                for ($c = 1; $c <= min(6, $worksheet->getHighestColumn()); $c++) {
+                                    $cell_val = (string)($worksheet->getCell([$c, $r])->getValue() ?: '');
+                                    if (preg_match('/ปีงบประมาณ\s*(\d{4})/', $cell_val, $m)) {
+                                        $fiscal_year = $m[1];
+                                        break 2;
+                                    }
                                 }
                             }
+
+                            // ╔══════════════════════════════════════════════════════════════╗
+                            // ║ ⚠️  [FISCAL YEAR FALLBACK] SHEET NAME SCAN                 ║
+                            // ║                                                              ║
+                            // ║ ตรวจสอบชื่อชีท หากยังไม่พบปีงบประมาณ                       ║
+                            // ║ ค้นหา 2 หลักปีจากชื่อ เช่น "ก.พ. 69" → "2569"             ║
+                            // ║ ข้ามชีทสรุป/กราฟ — เฉพาะชีทข้อมูลที่มีปีในชื่อ             ║
+                            // ║                                                              ║
+                            // ║ Sheets to AVOID: "กราฟ", "สรุป", "รวม", "Chart", "Summary" ║
+                            // ║ Sheets to PROCESS: Sheets with year suffix (2 digits)       ║
+                            // ╚══════════════════════════════════════════════════════════════╝
+                            // If still not found, try from sheet names — majority vote
+                            if (!$fiscal_year) {
+                                $yc = [];
+                                foreach ($spreadsheet->getSheetNames() as $sname) {
+                                    if (preg_match('/(\d{2})\s*$/', trim($sname), $sm)) {
+                                        $yy = $sm[1];
+                                        $yc[$yy] = ($yc[$yy] ?? 0) + 1;
+                                    }
+                                }
+                                if (!empty($yc)) {
+                                    arsort($yc);
+                                    $fiscal_year = '25' . array_key_first($yc);
+                                }
+                            }
+
+                            $spreadsheet->disconnectWorksheets();
                         }
-                        $spreadsheet->disconnectWorksheets();
+                    } catch (\Throwable $e) {
+                        // Continue without fiscal year
                     }
-                } catch (Exception $e) {
-                    // Continue without fiscal year
                 }
 
                 $fy_suffix = $fiscal_year ? '_ปีงบ' . substr($fiscal_year, -2) : '';
@@ -775,7 +1516,7 @@ if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'upload
                 'status' => $overwritten ? 'overwrite' : 'success',
                 'message' => $filename . ' → ' . $new_name
             ];
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $errors[] = [
                 'filename' => $filename,
                 'error' => $e->getMessage()
@@ -804,7 +1545,7 @@ if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'upload
                         for ($r = 1; $r <= min($HEADER_ROWS, $worksheet->getHighestRow()); $r++) {
                             $row_data = [];
                             for ($c = 1; $c <= $worksheet->getHighestColumn(); $c++) {
-                                $row_data[] = $worksheet->getCellByColumnAndRow($c, $r)->getValue();
+                                $row_data[] = $worksheet->getCell([$c, $r])->getValue();
                             }
                             $header_rows[] = $row_data;
                         }
@@ -814,7 +1555,7 @@ if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'upload
                     for ($r = $HEADER_ROWS + 1; $r <= $worksheet->getHighestRow(); $r++) {
                         $row_data = [];
                         for ($c = 1; $c <= $worksheet->getHighestColumn(); $c++) {
-                            $row_data[] = $worksheet->getCellByColumnAndRow($c, $r)->getValue();
+                            $row_data[] = $worksheet->getCell([$c, $r])->getValue();
                         }
                         // Skip empty rows
                         if (!empty($row_data[2])) {
@@ -915,9 +1656,24 @@ if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'upload
                     ];
                 }
             }
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $errors[] = ['filename' => 'pending-merge', 'error' => $e->getMessage()];
         }
+    }
+
+    // Write upload log — who uploaded what and when
+    if (!empty($results)) {
+        $log_file = __DIR__ . DIRECTORY_SEPARATOR . 'upload_log.json';
+        $log = file_exists($log_file) ? (json_decode(file_get_contents($log_file), true) ?: []) : [];
+        $log[] = [
+            'time' => date('Y-m-d H:i:s'),
+            'category' => $category,
+            'files' => array_map(function($r) { return $r['filename']; }, $results),
+            'count' => count($results)
+        ];
+        // Keep last 200 entries
+        if (count($log) > 200) $log = array_slice($log, -200);
+        file_put_contents($log_file, json_encode($log, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
     }
 
     json_response([
@@ -1318,16 +2074,19 @@ if ($method === 'DELETE' && count($path_parts) === 3 && $path_parts[0] === 'data
         } else {
             json_response(['ok' => false, 'error' => 'ไม่พบไฟล์'], 404);
         }
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         json_response(['ok' => false, 'error' => $e->getMessage()], 500);
     }
 }
 
 // Route: POST /api/notes/<slug>
+// Accepts category slugs (e.g. 'repair') and derived keys (e.g. 'repair_source_url')
 if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'notes') {
     $slug = $path_parts[1];
 
-    if (!isset(CATEGORY_MAP[$slug])) {
+    // Validate: must be a known category OR a derived key like {category}_source_url
+    $base_slug = preg_replace('/_source_url$/', '', $slug);
+    if (!isset(CATEGORY_MAP[$base_slug])) {
         json_response(['ok' => false, 'error' => 'invalid slug'], 400);
     }
 
@@ -1340,7 +2099,7 @@ if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'notes'
     if (file_exists($notes_file)) {
         try {
             $notes = json_decode(file_get_contents($notes_file), true) ?: [];
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Error loading notes: " . $e->getMessage());
         }
     }
@@ -1477,53 +2236,38 @@ if ($method === 'GET' && count($path_parts) >= 1 && $path_parts[0] === 'repair-d
         }
     }
 
-    // ── Smart Header Detection for Repair ──
-    // ค้นหาคอลัมน์จาก keyword แทนตำแหน่งตายตัว
-    function detect_repair_columns($worksheet) {
-        $keywords = [
-            'branch'   => ['ชื่อสาขา', 'สาขา', 'หน่วยงาน', 'branch'],
-            'closed'   => ['ปิดงาน', 'ปิด', 'closed'],
-            'complete' => ['สำเร็จ', 'เสร็จสิ้น', 'เสร็จ', 'complete'],
-            'score'    => ['คะแนน', 'score', 'ผลคะแนน'],
-        ];
-        $maxScan = min(10, $worksheet->getHighestRow());
-        $maxCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($worksheet->getHighestColumn());
-        $maxCol = min($maxCol, 20);
-
-        for ($r = 1; $r <= $maxScan; $r++) {
-            $found = [];
-            for ($c = 1; $c <= $maxCol; $c++) {
-                $val = trim((string)($worksheet->getCellByColumnAndRow($c, $r)->getValue() ?? ''));
-                if ($val === '') continue;
-                $lower = mb_strtolower($val);
-                foreach ($keywords as $key => $kws) {
-                    if (isset($found[$key])) continue;
-                    foreach ($kws as $kw) {
-                        if (mb_strpos($lower, mb_strtolower($kw)) !== false) {
-                            $found[$key] = $c;
-                            break 2;
-                        }
-                    }
-                }
-            }
-            if (isset($found['branch']) && count($found) >= 2) {
-                return ['header_row' => $r, 'cols' => $found, 'fallback' => false];
-            }
-        }
-        // fallback: ตำแหน่งเดิม
-        return ['header_row' => 1, 'cols' => ['branch' => 1, 'closed' => 2, 'complete' => 3, 'score' => 4], 'fallback' => true];
-    }
-
     // Parse each file
     foreach ($month_files as $month_key => $info) {
         $fpath = $info[1];
         try {
             $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($fpath);
-            $worksheet = $spreadsheet->getSheet(0);
+            // ╔══════════════════════════════════════════════════════════════╗
+            // ║ [DATA PARSING] SCAN ALL SHEETS                              ║
+            // ║                                                              ║
+            // ║ อ่านข้อมูลซ่อมท่อ — สแกนทุกชีท หาชีทที่มี header ถูกต้อง   ║
+            // ║ ข้ามชีทสรุป/กราฟ                                            ║
+            // ╚══════════════════════════════════════════════════════════════╝
+            $gis_skip = ['สารบัญ', 'สรุป', 'ปก', 'cover', 'summary', 'chart', 'graph', 'index'];
+            $worksheet = null;
+            $det = null;
+            for ($si = 0; $si < $spreadsheet->getSheetCount(); $si++) {
+                $ws = $spreadsheet->getSheet($si);
+                $wsName = mb_strtolower($ws->getTitle());
+                $skip = false;
+                foreach ($gis_skip as $sk) {
+                    if (mb_strpos($wsName, $sk) !== false) { $skip = true; break; }
+                }
+                if ($skip) continue;
+                $det = detect_repair_columns($ws);
+                if (!$det['fallback']) { $worksheet = $ws; break; }
+            }
+            if ($worksheet === null) {
+                // Fallback: use first sheet
+                $worksheet = $spreadsheet->getSheet(0);
+                $det = detect_repair_columns($worksheet);
+            }
             $max_row = $worksheet->getHighestRow();
             $month_data = [];
-
-            $det = detect_repair_columns($worksheet);
             $hdr = $det['header_row'];
             $cBranch   = $det['cols']['branch']   ?? 1;
             $cClosed   = $det['cols']['closed']    ?? 2;
@@ -1531,14 +2275,14 @@ if ($method === 'GET' && count($path_parts) >= 1 && $path_parts[0] === 'repair-d
             $cScore    = $det['cols']['score']     ?? 4;
 
             for ($r = $hdr + 1; $r <= $max_row; $r++) {
-                $branch = $worksheet->getCellByColumnAndRow($cBranch, $r)->getValue();
+                $branch = $worksheet->getCell([$cBranch, $r])->getValue();
                 if ($branch === null || !is_string($branch)) continue;
                 $branch = trim($branch);
                 if ($branch === '' || mb_strpos($branch, 'ชื่อสาขา') !== false) continue;
 
-                $closed_v = $worksheet->getCellByColumnAndRow($cClosed, $r)->getValue();
-                $complete_v = $worksheet->getCellByColumnAndRow($cComplete, $r)->getValue();
-                $score_v = isset($det['cols']['score']) ? $worksheet->getCellByColumnAndRow($cScore, $r)->getValue() : 0;
+                $closed_v = $worksheet->getCell([$cClosed, $r])->getValue();
+                $complete_v = $worksheet->getCell([$cComplete, $r])->getValue();
+                $score_v = isset($det['cols']['score']) ? $worksheet->getCell([$cScore, $r])->getValue() : 0;
 
                 $closed = is_numeric($closed_v) ? (int)$closed_v : 0;
                 $complete = is_numeric($complete_v) ? (int)$complete_v : 0;
@@ -1558,7 +2302,7 @@ if ($method === 'GET' && count($path_parts) >= 1 && $path_parts[0] === 'repair-d
             $all_data[$month_key] = $month_data;
             $spreadsheet->disconnectWorksheets();
             unset($spreadsheet);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Error parsing repair file $fpath: " . $e->getMessage());
         }
     }
@@ -1581,6 +2325,91 @@ if ($method === 'GET' && count($path_parts) >= 1 && $path_parts[0] === 'repair-d
     file_put_contents($cache_file, json_encode($result, JSON_UNESCAPED_UNICODE));
 
     json_response($result);
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Route: POST /api/rebuild — run build_dashboard.php to re-embed data into index.html
+// ───────────────────────────────────────────────────────────────────────────
+if ($method === 'POST' && count($path_parts) === 1 && $path_parts[0] === 'rebuild') {
+    $body = json_decode(file_get_contents('php://input'), true) ?: [];
+    $only = isset($body['only']) ? preg_replace('/[^a-z0-9]/', '', $body['only']) : '';
+    $files_arg = '';
+    if (!empty($body['files']) && is_array($body['files'])) {
+        $safe_files = [];
+        foreach ($body['files'] as $f) {
+            $f = basename($f);
+            if (preg_match('/^[a-zA-Z0-9_\-\.\x{0E00}-\x{0E7F}]+$/u', $f)) {
+                $safe_files[] = $f;
+            }
+        }
+        if (!empty($safe_files)) {
+            $files_arg = ' --files=' . implode(',', $safe_files);
+        }
+    }
+
+    // Clear API cache first so build reads fresh data (selective: only for the category being rebuilt)
+    $cache_dir = __DIR__ . DIRECTORY_SEPARATOR . '.cache';
+    if (is_dir($cache_dir)) {
+        $cache_pattern = !empty($only) ? $only . '_*.json' : '*_*.json';
+        foreach (glob($cache_dir . '/' . $cache_pattern) as $cf) { @unlink($cf); }
+    }
+
+    $script = __DIR__ . DIRECTORY_SEPARATOR . 'build_dashboard.php';
+    if (!file_exists($script)) {
+        json_response(['ok' => false, 'message' => 'build_dashboard.php not found'], 500);
+    }
+
+    // Find php.exe CLI path
+    $php = null;
+    $ini = php_ini_loaded_file();
+    if ($ini) {
+        $candidate = dirname($ini) . DIRECTORY_SEPARATOR . 'php.exe';
+        if (file_exists($candidate)) $php = $candidate;
+    }
+    if (!$php) {
+        foreach (['C:\\xampp\\php\\php.exe', 'D:\\xampp\\php\\php.exe', PHP_BINDIR . '\\php.exe'] as $p) {
+            if (file_exists($p)) { $php = $p; break; }
+        }
+    }
+    if (!$php) {
+        $where_out = [];
+        @exec('where php.exe 2>NUL', $where_out);
+        if (!empty($where_out) && file_exists(trim($where_out[0]))) {
+            $php = trim($where_out[0]);
+        }
+    }
+    if (!$php) {
+        json_response(['ok' => false, 'message' => 'php.exe not found'], 500);
+    }
+    // Ensure required extensions are loaded (zip is needed for .xlsx via PhpSpreadsheet)
+    $ext_flags = '';
+    if (!extension_loaded('zip')) {
+        $ext_dir = dirname($php) . DIRECTORY_SEPARATOR . 'ext';
+        if (is_dir($ext_dir)) {
+            $ext_flags = ' -d extension_dir="' . $ext_dir . '" -d extension=php_zip.dll';
+        }
+    }
+    $cmd = '"' . $php . '" -d memory_limit=512M' . $ext_flags . ' "' . $script . '"' . ($only ? ' --only=' . $only : '') . $files_arg . ' 2>&1';
+    $output = [];
+    $exitCode = -1;
+
+    set_time_limit(600);
+    ini_set('memory_limit', '512M');
+    exec($cmd, $output, $exitCode);
+
+    if ($exitCode === 0) {
+        json_response([
+            'ok' => true,
+            'message' => 'Dashboard rebuilt successfully',
+            'log' => implode("\n", $output)
+        ]);
+    } else {
+        json_response([
+            'ok' => false,
+            'message' => 'Build failed (exit code ' . $exitCode . ')',
+            'log' => implode("\n", $output)
+        ], 500);
+    }
 }
 
 // 404 - Route not found

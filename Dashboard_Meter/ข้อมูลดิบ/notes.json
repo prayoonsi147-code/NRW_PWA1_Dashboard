@@ -1,3 +1,4 @@
 {
-    "abnormal": "ข้อมูลมาจากระบบ CIS Support ซึ่งต้องเข้าจาก  Network ภายใน กปภ. หรือ ผ่าน VPN ตาม Link\n\n"
+    "abnormal": "ข้อมูลมาจากระบบ CIS Support ซึ่งต้องเข้าจาก  Network ภายใน กปภ. หรือ ผ่าน VPN ตาม Link\n\n",
+    "abnormal_source_url": "https:\/\/example.com\/test-meter-abnormal"
 }

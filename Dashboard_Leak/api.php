@@ -20,12 +20,17 @@
  *   - kpi2:  เกณฑ์วัดน้ำสูญเสีย
  */
 
+// ─── Prevent PHP HTML errors from corrupting JSON responses ────────────────
+ini_set('display_errors', '0');
+error_reporting(E_ALL);
+ini_set('log_errors', '1');     // ยังเก็บ log ไว้ดูได้ แต่ไม่ส่ง HTML ออกมา
+
 // ─── Configuration ─────────────────────────────────────────────────────────
 
 define('BASE_DIR', __DIR__);
 define('RAW_DATA_DIR', BASE_DIR . DIRECTORY_SEPARATOR . 'ข้อมูลดิบ');
 define('CACHE_DIR', BASE_DIR . DIRECTORY_SEPARATOR . '.cache');
-define('CACHE_TTL', 60); // seconds
+define('CACHE_TTL', 86400); // 1 day — mtime check handles invalidation when Excel files change
 
 // Category mapping: URL slug → Thai folder name
 const CATEGORY_MAP = [
@@ -62,6 +67,19 @@ foreach (CATEGORY_MAP as $thai_name) {
     }
 }
 
+// ─── Auto-enable zip extension (required for .xlsx) ───────────────────────
+if (!extension_loaded('zip')) {
+    $ini = php_ini_loaded_file();
+    if ($ini && is_writable($ini)) {
+        $content = file_get_contents($ini);
+        if (preg_match('/^;extension=zip/m', $content)) {
+            $content = preg_replace('/^;extension=zip/m', 'extension=zip', $content);
+            file_put_contents($ini, $content);
+            error_log("Dashboard: auto-enabled extension=zip in php.ini — restart Apache to activate");
+        }
+    }
+}
+
 // ─── PhpSpreadsheet Loader ─────────────────────────────────────────────────
 
 $composerAutoload = dirname(BASE_DIR) . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php';
@@ -71,7 +89,7 @@ if (file_exists($composerAutoload)) {
     require_once $composerAutoload;
     try {
         $phpSpreadsheet = class_exists('PhpOffice\\PhpSpreadsheet\\IOFactory');
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         error_log("Warning: PhpSpreadsheet not available: " . $e->getMessage());
     }
 } else {
@@ -130,7 +148,24 @@ function cellVal($sheet, $col, $row) {
 }
 
 function cellCalc($sheet, $col, $row) {
-    return $sheet->getCell([$col, $row])->getCalculatedValue();
+    try {
+        $cell = $sheet->getCell([$col, $row]);
+        $v = $cell->getValue();
+        if (is_string($v) && isset($v[0]) && $v[0] === '=') {
+            try {
+                $cached = $cell->getOldCalculatedValue();
+                if ($cached !== null && $cached !== '') return $cached;
+            } catch (\Throwable $e) {}
+            try {
+                return $cell->getCalculatedValue();
+            } catch (\Throwable $e2) {
+                return null;
+            }
+        }
+        return $cell->getCalculatedValue();
+    } catch (\Throwable $e) {
+        return null;
+    }
 }
 
 // ─── Cache Helpers ────────────────────────────────────────────────────────
@@ -293,91 +328,579 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'data') 
 }
 
 // ───────────────────────────────────────────────────────────────────────────
+// ── Helper: อ่านค่า cell อย่างปลอดภัย (สำหรับ validation) ──
+function _vCell($sheet, $c, $r) {
+    try { return $sheet->getCell([$c, $r])->getValue(); }
+    catch (\Throwable $e) { return null; }
+}
+
+// ── Helper: scan text ใน N แถวแรก ──
+function _vScanText($sheet, $maxRow, $maxCol) {
+    $texts = [];
+    for ($r = 1; $r <= $maxRow; $r++) {
+        for ($c = 1; $c <= $maxCol; $c++) {
+            $v = _vCell($sheet, $c, $r);
+            if ($v !== null && $v !== '') $texts[] = ['r' => $r, 'c' => $c, 'v' => (string)$v];
+        }
+    }
+    return $texts;
+}
+
 // ── Validate file format before upload ──
 function validate_leak_file($tmp_path, $category) {
     if (!class_exists('PhpOffice\\PhpSpreadsheet\\IOFactory')) {
-        return ['valid' => true, 'message' => '']; // ไม่มี library ให้ข้ามการตรวจสอบ
+        return ['valid' => false, 'message' => 'PhpSpreadsheet ไม่พร้อมใช้งาน — ไม่สามารถตรวจสอบไฟล์ได้'];
     }
-    if (!preg_match('/\.xlsx?$/i', basename($tmp_path))) {
-        return ['valid' => true, 'message' => '']; // ไม่ใช่ Excel
+    if (!class_exists('ZipArchive')) {
+        return ['valid' => false, 'message' => 'PHP zip extension ไม่ได้เปิด — ไม่สามารถอ่านไฟล์ .xlsx ได้ (กรุณาเปิด extension=zip ใน php.ini แล้ว restart Apache)'];
     }
 
-    // ตรวจเฉพาะหมวดที่มีการ parse
-    $parseable = ['eu', 'kpi2', 'ois', 'rl', 'mnf'];
+    $parseable = ['eu', 'kpi2', 'ois', 'rl', 'mnf', 'p3', 'activities'];
     if (!in_array($category, $parseable)) {
         return ['valid' => true, 'message' => ''];
     }
 
     try {
         $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($tmp_path);
-        $sheet = $spreadsheet->getSheet(0);
-        $highRow = $sheet->getHighestDataRow();
-        $highCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($sheet->getHighestDataColumn());
+        $sheetCount = $spreadsheet->getSheetCount();
+        $sheetNames = $spreadsheet->getSheetNames();
+        $sheet0 = $spreadsheet->getSheet(0);
+        $highRow = $sheet0->getHighestDataRow();
+        $highCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($sheet0->getHighestDataColumn());
 
         if ($highRow < 2) {
             $spreadsheet->disconnectWorksheets();
             return ['valid' => false, 'message' => 'ไฟล์ว่างเปล่าหรือมีเฉพาะ header'];
         }
 
+        $result = ['valid' => true, 'message' => ''];
+
+        // ════ ดึงปีงบประมาณจาก Excel content (เพื่อไม่ต้องโหลดไฟล์ซ้ำตอน rename) ════
+        $detected_year = null;
+        // 1) หา "ปีงบประมาณ XXXX" ใน sheet แรก (แถว 1-3)
+        for ($rr = 1; $rr <= min(3, $highRow); $rr++) {
+            for ($cc = 1; $cc <= min(30, $highCol); $cc++) {
+                $cv = (string)($sheet0->getCell([$cc, $rr])->getValue() ?? '');
+                if (preg_match('/ปีงบประมาณ\s*(\d{4})/', $cv, $_m)) {
+                    $detected_year = $_m[1];
+                }
+            }
+        }
+        // 2) ลองจากชื่อ sheet — นับปีที่พบมากสุด (majority)
+        //    เช่น ธ.ค.68, ม.ค.69, ก.พ.69, ... ก.ย.69 → 69 ชนะ → 2569
+        if (!$detected_year) {
+            $year_counts = [];
+            foreach ($sheetNames as $sn) {
+                if (preg_match('/(\d{2})\s*$/', trim($sn), $sm)) {
+                    $yy = $sm[1];
+                    $year_counts[$yy] = ($year_counts[$yy] ?? 0) + 1;
+                }
+            }
+            if (!empty($year_counts)) {
+                arsort($year_counts);
+                $detected_year = '25' . array_key_first($year_counts);
+            }
+        }
+        $result['detected_year'] = $detected_year;
+
+        // ================================================================
+        // OIS: ต้องมี sheet ที่มีชื่อเดือน ≥6 เดือน ในแถว header
+        //   โครงสร้าง: แถว header มี ต.ค., พ.ย., ..., ก.ย. (≥6 เดือน)
+        //   คอลัมน์: รายการ | หน่วย | เป้าหมาย... | เดือน 1-12 | รวม
+        // ================================================================
+        if ($category === 'ois') {
+            $months_kw = ['ต.ค.','พ.ย.','ธ.ค.','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.'];
+            $months_long = ['ตุลาคม','พฤศจิกายน','ธันวาคม','มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน'];
+            $found_month_header = false;
+            $found_label_col = false;
+
+            // ตรวจทุก sheet (OIS มีหลาย sheet = หลายสาขา)
+            for ($si = 0; $si < $sheetCount && $si < 5; $si++) {
+                $ws = $spreadsheet->getSheet($si);
+                $hr = $ws->getHighestDataRow();
+                $hc = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($ws->getHighestDataColumn());
+                if ($hc < 5) $hc = 20;
+                $texts = _vScanText($ws, min($hr, 10), min($hc, 25));
+
+                // หาแถวที่มีชื่อเดือน ≥6 ตัว
+                for ($r = 1; $r <= min($hr, 10); $r++) {
+                    $row_text = '';
+                    foreach ($texts as $t) {
+                        if ($t['r'] === $r) $row_text .= ' ' . $t['v'];
+                    }
+                    $mc = 0;
+                    foreach ($months_kw as $kw) { if (mb_strpos($row_text, $kw) !== false) $mc++; }
+                    foreach ($months_long as $kw) { if (mb_strpos($row_text, $kw) !== false) $mc++; }
+                    if ($mc >= 6) { $found_month_header = true; break; }
+                }
+
+                // หาคอลัมน์ "รายการ" หรือ "หน่วย"
+                foreach ($texts as $t) {
+                    $lv = mb_strtolower($t['v']);
+                    if (mb_strpos($lv, 'รายการ') !== false || mb_strpos($lv, 'หน่วย') !== false) {
+                        $found_label_col = true;
+                    }
+                }
+                if ($found_month_header) break;
+            }
+
+            $spreadsheet->disconnectWorksheets();
+            if (!$found_month_header) {
+                return ['valid' => false, 'message' => 'ไม่พบแถว header ที่มีชื่อเดือน (ต.ค.-ก.ย.) อย่างน้อย 6 เดือน — ไม่ใช่รูปแบบไฟล์ OIS'];
+            }
+            if (!$found_label_col) {
+                return ['valid' => false, 'message' => 'ไม่พบคอลัมน์ "รายการ" หรือ "หน่วย" — ไม่ใช่รูปแบบไฟล์ OIS'];
+            }
+            return $result;
+        }
+
+        // ================================================================
+        // RL: ต้องมี sheet ชื่อเดือนไทย (ต.ค.XX, พ.ย.XX, ...)
+        //   แต่ละ sheet: header มี "สาขา" + "น้ำผลิต" หรือ "น้ำสูญเสีย"
+        // ================================================================
+        if ($category === 'rl') {
+            $rl_months = ['ต.ค.','พ.ย.','ธ.ค.','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.'];
+            $month_sheets = 0;
+            $found_branch = false;
+            $found_water_col = false;
+
+            foreach ($sheetNames as $sn) {
+                foreach ($rl_months as $abbr) {
+                    if (mb_strpos($sn, $abbr) !== false) { $month_sheets++; break; }
+                }
+            }
+
+            // ตรวจ sheet เดือนแรกที่เจอ
+            foreach ($sheetNames as $sn) {
+                $is_month = false;
+                foreach ($rl_months as $abbr) {
+                    if (mb_strpos($sn, $abbr) !== false) { $is_month = true; break; }
+                }
+                if (!$is_month) continue;
+
+                $ws = $spreadsheet->getSheetByName($sn);
+                $hr = min($ws->getHighestDataRow(), 10);
+                $hc = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($ws->getHighestDataColumn());
+                $texts = _vScanText($ws, $hr, min($hc, 15));
+
+                foreach ($texts as $t) {
+                    $lv = $t['v'];
+                    if (mb_strpos($lv, 'สาขา') !== false) $found_branch = true;
+                    if (mb_strpos($lv, 'น้ำผลิต') !== false || mb_strpos($lv, 'น้ำสูญเสีย') !== false ||
+                        mb_strpos($lv, 'น้ำจำหน่าย') !== false || mb_strpos($lv, 'Blow') !== false) {
+                        $found_water_col = true;
+                    }
+                }
+                break; // ตรวจแค่ sheet แรก
+            }
+
+            $spreadsheet->disconnectWorksheets();
+            if ($month_sheets === 0) {
+                return ['valid' => false, 'message' => 'ไม่พบ sheet ชื่อเดือน (ต.ค., พ.ย., ...) — ไม่ใช่รูปแบบไฟล์ Real Leak ที่ต้องมี sheet รายเดือน'];
+            }
+            if (!$found_branch) {
+                return ['valid' => false, 'message' => 'ไม่พบคอลัมน์ "สาขา" ใน sheet เดือน — ไม่ใช่รูปแบบไฟล์ Real Leak'];
+            }
+            if (!$found_water_col) {
+                return ['valid' => false, 'message' => 'ไม่พบคอลัมน์ข้อมูลน้ำ (น้ำผลิต/น้ำสูญเสีย/น้ำจำหน่าย/Blow off) — ไม่ใช่รูปแบบไฟล์ Real Leak'];
+            }
+            return $result;
+        }
+
+        // ================================================================
+        // EU: ต้องมีชื่อสาขา + เดือน (ต.ค.) + ข้อมูลตัวเลขทศนิยม
+        //   โครงสร้าง: col แรก = ลำดับ/สาขา, col ถัดไป = ต.ค., พ.ย., ...
+        // ================================================================
         if ($category === 'eu') {
-            // ค้นหา "สาขา"/"หน่วยงาน" + เดือน (ต.ค.)
             $found_branch = false;
             $found_month = false;
-            for ($r = 1; $r <= min($highRow, 10); $r++) {
-                for ($c = 1; $c <= min($highCol, 20); $c++) {
-                    $v = mb_strtolower(trim((string)($sheet->getCellByColumnAndRow($c, $r)->getValue() ?? '')));
-                    if ($v === '') continue;
-                    if (mb_strpos($v, 'สาขา') !== false || mb_strpos($v, 'หน่วยงาน') !== false) $found_branch = true;
-                    if (mb_strpos($v, 'ต.ค') !== false || mb_strpos($v, 'ตุลาคม') !== false || mb_strpos($v, 'oct') !== false) $found_month = true;
+            $found_decimal = false;
+            $texts = _vScanText($sheet0, min($highRow, 10), min($highCol, 20));
+
+            foreach ($texts as $t) {
+                $lv = mb_strtolower($t['v']);
+                if (mb_strpos($lv, 'สาขา') !== false || mb_strpos($lv, 'หน่วยงาน') !== false ||
+                    mb_strpos($lv, 'ชลบุรี') !== false || mb_strpos($lv, 'พัทยา') !== false) {
+                    $found_branch = true;
                 }
+                if (mb_strpos($lv, 'ต.ค') !== false || mb_strpos($lv, 'ตุลาคม') !== false ||
+                    mb_strpos($lv, 'พ.ย') !== false || mb_strpos($lv, 'oct') !== false) {
+                    $found_month = true;
+                }
+                if (is_numeric($t['v']) && $t['v'] != (int)$t['v']) $found_decimal = true;
             }
+
             $spreadsheet->disconnectWorksheets();
-            if (!$found_branch && !$found_month) {
-                return ['valid' => false, 'message' => 'ไม่พบหัวคอลัมน์ "สาขา" หรือ "เดือน (ต.ค.)" — รูปแบบไฟล์ EU ไม่ตรงกับที่ระบบรองรับ'];
+            if (!$found_month) {
+                return ['valid' => false, 'message' => 'ไม่พบหัวคอลัมน์เดือน (ต.ค., พ.ย., ...) — ไม่ใช่รูปแบบไฟล์ EU (หน่วยไฟ)'];
             }
-        } elseif ($category === 'kpi2') {
-            // ค้นหา "สาขา" + "เป้าหมาย"/"ระดับ"
-            $found_branch = false;
-            $found_kpi = false;
-            for ($r = 1; $r <= min($highRow, 15); $r++) {
-                for ($c = 1; $c <= min($highCol, 15); $c++) {
-                    $v = mb_strtolower(trim((string)($sheet->getCellByColumnAndRow($c, $r)->getValue() ?? '')));
-                    if ($v === '') continue;
-                    if (mb_strpos($v, 'สาขา') !== false) $found_branch = true;
-                    if (mb_strpos($v, 'เป้าหมาย') !== false || mb_strpos($v, 'ระดับ') !== false || mb_strpos($v, 'ผลดำเนินการ') !== false) $found_kpi = true;
+            if (!$found_branch) {
+                return ['valid' => false, 'message' => 'ไม่พบชื่อสาขา — ไม่ใช่รูปแบบไฟล์ EU (หน่วยไฟ)'];
+            }
+            return $result;
+        }
+
+        // ================================================================
+        // MNF: ต้องมี sheet "ภาพรวมเขต" หรือ sheet ชื่อสาขา (1.ชลบุรี, ...)
+        //   แต่ละ sheet: แถวมี "MNF เกิดจริง", "MNF ที่ยอมรับได้", "เป้าหมาย MNF"
+        // ================================================================
+        if ($category === 'mnf') {
+            $mnf_keywords = ['MNF เกิดจริง', 'MNF ที่ยอมรับได้', 'เป้าหมาย MNF', 'น้ำผลิตจ่าย'];
+            $found_mnf_kw = 0;
+            $found_valid_sheet = false;
+
+            // ตรวจว่ามี sheet ที่ชื่อคล้ายสาขาหรือ "ภาพรวมเขต"
+            foreach ($sheetNames as $sn) {
+                if (mb_strpos($sn, 'ภาพรวม') !== false || preg_match('/^\d+\./', $sn)) {
+                    $found_valid_sheet = true;
+                    break;
                 }
             }
+
+            // ตรวจเนื้อหาใน sheet แรก
+            $texts = _vScanText($sheet0, min($highRow, 10), min($highCol, 15));
+            foreach ($texts as $t) {
+                foreach ($mnf_keywords as $kw) {
+                    if (mb_strpos($t['v'], $kw) !== false) { $found_mnf_kw++; break; }
+                }
+            }
+
+            $spreadsheet->disconnectWorksheets();
+            if (!$found_valid_sheet) {
+                return ['valid' => false, 'message' => 'ไม่พบ sheet "ภาพรวมเขต" หรือ sheet ชื่อสาขา (1.ชลบุรี, 2.พัทยา, ...) — ไม่ใช่รูปแบบไฟล์ MNF'];
+            }
+            if ($found_mnf_kw < 2) {
+                return ['valid' => false, 'message' => 'ไม่พบข้อมูล MNF ที่คาดหวัง (MNF เกิดจริง / MNF ที่ยอมรับได้ / เป้าหมาย MNF) — ไม่ใช่รูปแบบไฟล์ MNF'];
+            }
+            return $result;
+        }
+
+        // ================================================================
+        // KPI: ต้องมี "สาขา" + ("เป้าหมาย" หรือ "เกณฑ์วัด" หรือ "ระดับ" หรือ "ผลดำเนินการ")
+        //   รูปแบบเดิม: สาขา | เป้าหมาย | ระดับ 1-5 | ผลดำเนินการ
+        //   รูปแบบใหม่: กปภ.สาขา | เป้าหมาย OIS | ค่าเกณฑ์วัด OIS 1-5 | เป้าหมายเกิดจริง
+        // ================================================================
+        if ($category === 'kpi2') {
+            $found_branch = false;
+            $found_target = false;
+            $found_level = false;
+
+            // สแกนทุก sheet (ไฟล์อาจมีหลาย sheet, ข้อมูลน้ำสูญเสียอาจไม่อยู่ sheet แรก)
+            $kpi2_skip_sheets = ['สารบัญ', 'สรุป', 'ปก', 'cover', 'summary', 'index'];
+            for ($si = 0; $si < $spreadsheet->getSheetCount(); $si++) {
+                $ws = $spreadsheet->getSheet($si);
+                $wsName = mb_strtolower($ws->getTitle());
+                // ข้าม sheet สารบัญ/สรุป
+                $skip = false;
+                foreach ($kpi2_skip_sheets as $sk) {
+                    if (mb_strpos($wsName, $sk) !== false) { $skip = true; break; }
+                }
+                if ($skip) continue;
+
+                $hr = min($ws->getHighestDataRow(), 15);
+                $hc = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($ws->getHighestDataColumn());
+                $texts = _vScanText($ws, $hr, min($hc, 15));
+
+                foreach ($texts as $t) {
+                    $lv = mb_strtolower($t['v']);
+                    if (mb_strpos($lv, 'สาขา') !== false) $found_branch = true;
+                    if (mb_strpos($lv, 'เป้าหมาย') !== false) $found_target = true;
+                    if (mb_strpos($lv, 'ระดับ') !== false || mb_strpos($lv, 'ผลดำเนินการ') !== false) $found_level = true;
+                    if (mb_strpos($lv, 'เกณฑ์วัด') !== false) $found_level = true;
+                    if (mb_strpos($lv, 'เกิดจริง') !== false) $found_level = true;
+                    if (mb_strpos($lv, 'น้ำสูญเสีย') !== false) $found_level = true;
+                    if (mb_strpos($lv, 'ois') !== false) $found_level = true;
+                }
+                if ($found_branch && ($found_target || $found_level)) break;
+            }
+
             $spreadsheet->disconnectWorksheets();
             if (!$found_branch) {
-                return ['valid' => false, 'message' => 'ไม่พบหัวคอลัมน์ "สาขา" — รูปแบบไฟล์ KPI ไม่ตรงกับที่ระบบรองรับ'];
+                return ['valid' => false, 'message' => 'ไม่พบคอลัมน์ "สาขา" ในทุก sheet — ไม่ใช่รูปแบบไฟล์ KPI'];
             }
-            if (!$found_kpi) {
-                return ['valid' => false, 'message' => 'ไม่พบหัวคอลัมน์ "เป้าหมาย/ระดับ/ผลดำเนินการ" — รูปแบบไฟล์ KPI ไม่ตรงกับที่ระบบรองรับ'];
+            if (!$found_target && !$found_level) {
+                return ['valid' => false, 'message' => 'ไม่พบคอลัมน์ "เป้าหมาย" หรือ "เกณฑ์วัด/ระดับ/OIS" ในทุก sheet — ไม่ใช่รูปแบบไฟล์ KPI'];
             }
-        } elseif (in_array($category, ['ois', 'rl', 'mnf'])) {
-            // OIS/RL/MNF: ตรวจว่ามีข้อมูลตัวเลขและชื่อสาขา
-            $found_branch = false;
-            for ($r = 1; $r <= min($highRow, 10); $r++) {
-                for ($c = 1; $c <= min($highCol, 10); $c++) {
-                    $v = mb_strtolower(trim((string)($sheet->getCellByColumnAndRow($c, $r)->getValue() ?? '')));
-                    if (mb_strpos($v, 'สาขา') !== false || mb_strpos($v, 'หน่วยงาน') !== false) {
-                        $found_branch = true;
-                        break 2;
+            return $result;
+        }
+
+        // ================================================================
+        // P3: ต้องมี "พื้นที่" หรือ "P3" หรือ "แรงดัน" + ข้อมูลชั่วโมง (00:00-23:00)
+        //   โครงสร้าง: พื้นที่ | เฉลี่ยเดือนก่อน | เฉลี่ยทั้งวัน | 00:00 | 01:00 | ... | 23:00
+        // ================================================================
+        if ($category === 'p3') {
+            $found_area = false;
+            $found_hour = false;
+            $texts = _vScanText($sheet0, min($highRow, 8), min($highCol, 28));
+
+            foreach ($texts as $t) {
+                $lv = mb_strtolower($t['v']);
+                if (mb_strpos($lv, 'พื้นที่') !== false || mb_strpos($lv, 'แรงดัน') !== false ||
+                    mb_strpos($lv, 'p3') !== false || mb_strpos($lv, 'p1') !== false) {
+                    $found_area = true;
+                }
+                if (preg_match('/^\d{1,2}:\d{2}$/', trim($t['v']))) $found_hour = true;
+            }
+
+            $spreadsheet->disconnectWorksheets();
+            if (!$found_area) {
+                return ['valid' => false, 'message' => 'ไม่พบคอลัมน์ "พื้นที่" หรือ "แรงดัน" — ไม่ใช่รูปแบบไฟล์ P3'];
+            }
+            if (!$found_hour) {
+                return ['valid' => false, 'message' => 'ไม่พบคอลัมน์ชั่วโมง (00:00, 01:00, ...) — ไม่ใช่รูปแบบไฟล์ P3'];
+            }
+            return $result;
+        }
+
+        $spreadsheet->disconnectWorksheets();
+        return $result;
+    } catch (\Throwable $e) {
+        return ['valid' => false, 'message' => 'ไม่สามารถอ่านไฟล์ Excel ได้: ' . $e->getMessage()];
+    }
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Route: POST /api/pre-check/<category>
+// Step 1 ของ 2-step upload: ส่งไฟล์มา → validate → ตั้งชื่อ → เช็คซ้ำ → เก็บ temp → ส่งผลกลับ
+// ───────────────────────────────────────────────────────────────────────────
+if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'pre-check') {
+    $category = $path_parts[1];
+
+    if (!isset(CATEGORY_MAP[$category])) {
+        json_response(['ok' => false, 'error' => 'ไม่รู้จัก category: ' . $category], 400);
+    }
+    if (!isset($_FILES['files'])) {
+        json_response(['ok' => false, 'error' => 'ไม่ได้เลือกไฟล์'], 400);
+    }
+
+    $files = $_FILES['files'];
+    if (!is_array($files['name'])) {
+        $files = [
+            'name' => [$files['name']], 'type' => [$files['type']],
+            'tmp_name' => [$files['tmp_name']], 'error' => [$files['error']], 'size' => [$files['size']]
+        ];
+    }
+
+    $folder_path = RAW_DATA_DIR . DIRECTORY_SEPARATOR . CATEGORY_MAP[$category];
+    if (!is_dir($folder_path)) mkdir($folder_path, 0755, true);
+
+    // สร้าง temp batch directory
+    $batch_id = uniqid('batch_', true);
+    $tmp_dir = BASE_DIR . DIRECTORY_SEPARATOR . '__tmp_upload' . DIRECTORY_SEPARATOR . $batch_id;
+    mkdir($tmp_dir, 0755, true);
+
+    $preview = [];
+    $errors = [];
+    $used_names = [];
+
+    for ($i = 0; $i < count($files['name']); $i++) {
+        if ($files['error'][$i] !== UPLOAD_ERR_OK) {
+            $errors[] = ['filename' => $files['name'][$i], 'error' => 'Upload failed (error code: ' . $files['error'][$i] . ')'];
+            continue;
+        }
+        $filename = trim($files['name'][$i]);
+        if (!$filename) continue;
+
+        try {
+            // ── Validate ──
+            $validation = ['valid' => true, 'message' => '', 'detected_year' => null];
+            if (preg_match('/\.xlsx?$/i', $filename)) {
+                $validation = validate_leak_file($files['tmp_name'][$i], $category);
+                if (!$validation['valid']) {
+                    $errors[] = ['filename' => $filename, 'error' => '⚠️ ' . $validation['message']];
+                    continue;
+                }
+            }
+
+            // ── Rename logic (เหมือน upload ทุกประการ) ──
+            $prefix = isset(PREFIX_MAP[$category]) ? PREFIX_MAP[$category] : strtoupper($category);
+            $pathinfo = pathinfo($filename);
+            $name_only = $pathinfo['filename'];
+            $ext = isset($pathinfo['extension']) ? '.' . $pathinfo['extension'] : '.xlsx';
+            $new_name = null;
+
+            if ($category === 'p3') {
+                $BRANCH_ALIASES = [
+                    'ชลบุรี(พ)' => 'ชลบุรี(พ)', 'พัทยา(พ)' => 'พัทยา(พ)',
+                    'ปากน้ำประแสร์' => 'ปากน้ำประแสร์', 'พนมสารคาม' => 'พนมสารคาม',
+                    'ฉะเชิงเทรา' => 'ฉะเชิงเทรา', 'อรัญประเทศ' => 'อรัญประเทศ',
+                    'แหลมฉบัง' => 'แหลมฉบัง', 'กบินทร์บุรี' => 'กบินทร์บุรี',
+                    'ปราจีนบุรี' => 'ปราจีนบุรี', 'พนัสนิคม' => 'พนัสนิคม',
+                    'คลองใหญ่' => 'คลองใหญ่', 'วัฒนานคร' => 'วัฒนานคร',
+                    'จันทบุรี' => 'จันทบุรี', 'บางปะกง' => 'บางปะกง',
+                    'บ้านฉาง' => 'บ้านฉาง', 'ศรีราชา' => 'ศรีราชา',
+                    'บางคล้า' => 'บางคล้า', 'บ้านบึง' => 'บ้านบึง', 'สระแก้ว' => 'สระแก้ว',
+                    'ชลบุรี' => 'ชลบุรี(พ)', 'พัทยา' => 'พัทยา(พ)',
+                    'ระยอง' => 'ระยอง', 'ตราด' => 'ตราด', 'ขลุง' => 'ขลุง',
+                    'ปากน้ำ' => 'ปากน้ำประแสร์', 'ประแสร์' => 'ปากน้ำประแสร์',
+                    'พนม' => 'พนมสารคาม', 'ฉะเชิง' => 'ฉะเชิงเทรา',
+                    'อรัญ' => 'อรัญประเทศ', 'แหลม' => 'แหลมฉบัง',
+                    'กบินทร์' => 'กบินทร์บุรี', 'ปราจีน' => 'ปราจีนบุรี',
+                    'พนัส' => 'พนัสนิคม', 'วัฒนา' => 'วัฒนานคร',
+                    'จันท์' => 'จันทบุรี', 'จันทร์' => 'จันทบุรี',
+                ];
+                $branch_name = null; $date_code = null;
+                foreach ($BRANCH_ALIASES as $alias => $standard) {
+                    if (mb_strpos($name_only, $alias) !== false) { $branch_name = $standard; break; }
+                }
+                if (!$branch_name) {
+                    $errors[] = ['filename' => $filename, 'error' => '⚠️ กรุณาตั้งชื่อไฟล์ให้มีระบุสาขาและวันที่ให้ถูกต้อง เช่น ชลบุรี_22-03-69, พัทยา_15-02-69 เป็นต้น'];
+                    continue;
+                }
+                if (preg_match('/(\d{2})-(\d{2})-(\d{2})/', $name_only, $dm)) {
+                    $date_code = $dm[3] . '-' . $dm[2];
+                } elseif (preg_match('/(\d{4})-(\d{2})-\d{2}/', $name_only, $dm)) {
+                    $date_code = sprintf('%02d-%s', ((int)$dm[1] + 543) % 100, $dm[2]);
+                } elseif (preg_match('/(\d{2})-(\d{2})/', $name_only, $dm)) {
+                    $date_code = $dm[1] . '-' . $dm[2];
+                }
+                if (!$date_code) {
+                    $errors[] = ['filename' => $filename, 'error' => '⚠️ กรุณาตั้งชื่อไฟล์ให้มีระบุสาขาและวันที่ให้ถูกต้อง เช่น ชลบุรี_22-03-69, พัทยา_15-02-69 เป็นต้น'];
+                    continue;
+                }
+                $new_name = $prefix . '_' . $branch_name . '_' . $date_code . $ext;
+            } elseif ($category === 'rl') {
+                $rl_year = null;
+                if (preg_match('/(\d{4})/', $name_only, $m)) $rl_year = $m[1];
+                if (!$rl_year && !empty($validation['detected_year'])) $rl_year = $validation['detected_year'];
+                $new_name = $prefix . '_' . ($rl_year ?: (date('Y') + 543)) . $ext;
+            } elseif ($category === 'activities') {
+                // Activities: ดึงปีจาก Excel ก่อน ไม่สนใจชื่อไฟล์
+                $act_year = null;
+                if (!empty($validation['detected_year'])) $act_year = $validation['detected_year'];
+                $new_name = $prefix . '_' . ($act_year ?: (date('Y') + 543)) . $ext;
+            } else {
+                // OIS, EU, MNF, KPI2: ดึงปีจากชื่อไฟล์ก่อน ถ้าไม่มีใช้ปีจาก validate
+                $file_year = null;
+                if (preg_match('/(\d{4})/', $name_only, $m)) $file_year = $m[1];
+                if (!$file_year && !empty($validation['detected_year'])) $file_year = $validation['detected_year'];
+                $new_name = $prefix . '_' . ($file_year ?: (date('Y') + 543)) . $ext;
+            }
+
+            // Same-batch overwrite prevention
+            $base_name = pathinfo($new_name, PATHINFO_FILENAME);
+            $base_ext = '.' . pathinfo($new_name, PATHINFO_EXTENSION);
+            if (in_array($new_name, $used_names)) {
+                $counter = 2;
+                while (in_array($base_name . '_' . $counter . $base_ext, $used_names)) $counter++;
+                $new_name = $base_name . '_' . $counter . $base_ext;
+            }
+            $used_names[] = $new_name;
+
+            // ── เช็คว่าจะทับไฟล์เดิมไหม ──
+            $dest_path = $folder_path . DIRECTORY_SEPARATOR . $new_name;
+            $will_overwrite = file_exists($dest_path);
+            // เช็ค extension ต่าง (.xls vs .xlsx) ด้วย
+            $overwrite_file = null;
+            if ($will_overwrite) {
+                $overwrite_file = $new_name;
+            } else {
+                // เช็ค stem เดียวกันแต่ ext ต่าง
+                $stem = pathinfo($new_name, PATHINFO_FILENAME);
+                foreach (scandir($folder_path) as $ef) {
+                    if ($ef[0] === '.') continue;
+                    if (pathinfo($ef, PATHINFO_FILENAME) === $stem && $ef !== $new_name) {
+                        $will_overwrite = true;
+                        $overwrite_file = $ef;
+                        break;
                     }
                 }
             }
-            $spreadsheet->disconnectWorksheets();
-            if (!$found_branch) {
-                return ['valid' => false, 'message' => 'ไม่พบหัวคอลัมน์ "สาขา/หน่วยงาน" — รูปแบบไฟล์ไม่ตรงกับที่ระบบรองรับ'];
+
+            // ── Save to temp ──
+            $tmp_dest = $tmp_dir . DIRECTORY_SEPARATOR . $new_name;
+            move_uploaded_file($files['tmp_name'][$i], $tmp_dest);
+
+            $preview[] = [
+                'original' => $filename,
+                'new_name' => $new_name,
+                'valid' => true,
+                'will_overwrite' => $will_overwrite,
+                'overwrite_file' => $overwrite_file,
+            ];
+        } catch (Exception $e) {
+            $errors[] = ['filename' => $filename, 'error' => $e->getMessage()];
+        }
+    }
+
+    json_response([
+        'ok' => true,
+        'batch_id' => $batch_id,
+        'category' => $category,
+        'preview' => $preview,
+        'errors' => $errors
+    ]);
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Route: POST /api/upload-confirm/<batch_id>
+// Step 2: ย้ายไฟล์จาก temp → ที่จริง
+// ───────────────────────────────────────────────────────────────────────────
+if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'upload-confirm') {
+    $batch_id = $path_parts[1];
+    $category = isset($_POST['category']) ? $_POST['category'] : '';
+
+    if (!isset(CATEGORY_MAP[$category])) {
+        json_response(['ok' => false, 'error' => 'ไม่รู้จัก category: ' . $category], 400);
+    }
+
+    $tmp_dir = BASE_DIR . DIRECTORY_SEPARATOR . '__tmp_upload' . DIRECTORY_SEPARATOR . $batch_id;
+    if (!is_dir($tmp_dir)) {
+        json_response(['ok' => false, 'error' => 'Batch not found หรือหมดอายุ — กรุณาอัปโหลดใหม่'], 400);
+    }
+
+    $folder_path = RAW_DATA_DIR . DIRECTORY_SEPARATOR . CATEGORY_MAP[$category];
+    if (!is_dir($folder_path)) mkdir($folder_path, 0755, true);
+
+    $results = [];
+    $errors = [];
+
+    foreach (scandir($tmp_dir) as $f) {
+        if ($f[0] === '.') continue;
+        $src = $tmp_dir . DIRECTORY_SEPARATOR . $f;
+        $dest = $folder_path . DIRECTORY_SEPARATOR . $f;
+
+        // ลบไฟล์ stem เดียวกัน ext ต่าง ก่อน
+        $stem = pathinfo($f, PATHINFO_FILENAME);
+        foreach (scandir($folder_path) as $ef) {
+            if ($ef[0] === '.') continue;
+            if (pathinfo($ef, PATHINFO_FILENAME) === $stem && $ef !== $f) {
+                unlink($folder_path . DIRECTORY_SEPARATOR . $ef);
             }
-        } else {
-            $spreadsheet->disconnectWorksheets();
         }
 
-        return ['valid' => true, 'message' => ''];
-    } catch (Exception $e) {
-        return ['valid' => false, 'message' => 'ไม่สามารถอ่านไฟล์ Excel ได้: ' . $e->getMessage()];
+        $overwrite = file_exists($dest);
+        if (rename($src, $dest)) {
+            chmod($dest, 0644);
+            $results[] = [
+                'filename' => $f,
+                'status' => 'success',
+                'message' => $f . ($overwrite ? ' (เขียนทับ)' : '')
+            ];
+        } else {
+            $errors[] = ['filename' => $f, 'error' => 'ย้ายไฟล์ล้มเหลว'];
+        }
     }
+
+    // Cleanup temp dir
+    @rmdir($tmp_dir);
+
+    // Write upload log
+    if (!empty($results)) {
+        $log_file = __DIR__ . DIRECTORY_SEPARATOR . 'upload_log.json';
+        $log = file_exists($log_file) ? (json_decode(file_get_contents($log_file), true) ?: []) : [];
+        $log[] = ['time' => date('Y-m-d H:i:s'), 'category' => $category, 'files' => array_map(function($r) { return $r['filename']; }, $results), 'count' => count($results)];
+        if (count($log) > 200) $log = array_slice($log, -200);
+        file_put_contents($log_file, json_encode($log, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    }
+
+    json_response([
+        'ok' => true,
+        'category' => $category,
+        'thai_name' => CATEGORY_MAP[$category],
+        'results' => $results,
+        'errors' => $errors
+    ]);
 }
 
 // Route: POST /api/upload/<category>
@@ -420,6 +943,7 @@ if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'upload
 
     $results = [];
     $errors = [];
+    $used_names = []; // Track filenames used in this batch to prevent overwrites
 
     for ($i = 0; $i < count($files['name']); $i++) {
         if ($files['error'][$i] !== UPLOAD_ERR_OK) {
@@ -454,64 +978,146 @@ if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'upload
             $new_name = null;
 
             if ($category === 'p3') {
-                // P3: extract branch name + YY-MM → P3_สาขา_YY-MM.xlsx
+                // P3: rename to P3_สาขา_YY-MM.xlsx
+                // หาชื่อสาขาจากชื่อไฟล์ — รองรับทั้งชื่อเต็ม ชื่อย่อ ชื่อเรียกทั่วไป
+                // alias → ชื่อมาตรฐาน (key ต้องเรียงจากยาวไปสั้น เพื่อ match ชื่อยาวก่อน)
+                $BRANCH_ALIASES = [
+                    // ชื่อเต็ม (พ) ก่อน
+                    'ชลบุรี(พ)' => 'ชลบุรี(พ)',
+                    'พัทยา(พ)' => 'พัทยา(พ)',
+                    // ชื่อมาตรฐาน
+                    'ปากน้ำประแสร์' => 'ปากน้ำประแสร์',
+                    'พนมสารคาม' => 'พนมสารคาม',
+                    'ฉะเชิงเทรา' => 'ฉะเชิงเทรา',
+                    'อรัญประเทศ' => 'อรัญประเทศ',
+                    'แหลมฉบัง' => 'แหลมฉบัง',
+                    'กบินทร์บุรี' => 'กบินทร์บุรี',
+                    'ปราจีนบุรี' => 'ปราจีนบุรี',
+                    'พนัสนิคม' => 'พนัสนิคม',
+                    'คลองใหญ่' => 'คลองใหญ่',
+                    'วัฒนานคร' => 'วัฒนานคร',
+                    'จันทบุรี' => 'จันทบุรี',
+                    'บางปะกง' => 'บางปะกง',
+                    'บ้านฉาง' => 'บ้านฉาง',
+                    'ศรีราชา' => 'ศรีราชา',
+                    'บางคล้า' => 'บางคล้า',
+                    'บ้านบึง' => 'บ้านบึง',
+                    'สระแก้ว' => 'สระแก้ว',
+                    'ชลบุรี' => 'ชลบุรี(พ)',
+                    'พัทยา' => 'พัทยา(พ)',
+                    'ระยอง' => 'ระยอง',
+                    'ตราด' => 'ตราด',
+                    'ขลุง' => 'ขลุง',
+                    // ชื่อย่อ / ชื่อเรียกทั่วไป
+                    'ปากน้ำ' => 'ปากน้ำประแสร์',
+                    'ประแสร์' => 'ปากน้ำประแสร์',
+                    'พนม' => 'พนมสารคาม',
+                    'ฉะเชิง' => 'ฉะเชิงเทรา',
+                    'อรัญ' => 'อรัญประเทศ',
+                    'แหลม' => 'แหลมฉบัง',
+                    'กบินทร์' => 'กบินทร์บุรี',
+                    'ปราจีน' => 'ปราจีนบุรี',
+                    'พนัส' => 'พนัสนิคม',
+                    'วัฒนา' => 'วัฒนานคร',
+                    'จันท์' => 'จันทบุรี',
+                    'จันทร์' => 'จันทบุรี',
+                ];
+
                 $branch_name = null;
                 $date_code = null;
 
-                // Extract YY-MM pattern
-                if (preg_match('/(\d{2}-\d{2})/', $name_only, $m)) {
-                    $date_code = $m[1];
-                }
-
-                // Extract branch: try known branches or Thai text between underscores
-                $parts = preg_split('/[_\-]/', $name_only);
-                foreach ($parts as $p) {
-                    $p = trim($p);
-                    if ($p && !preg_match('/^(P3|p3|\d+)$/', $p) && !preg_match('/^\d{2}-\d{2}$/', $p)) {
-                        $branch_name = $p;
+                // 1) หาชื่อสาขาจากชื่อไฟล์ — match alias ที่ยาวที่สุดก่อน
+                foreach ($BRANCH_ALIASES as $alias => $standard) {
+                    if (mb_strpos($name_only, $alias) !== false) {
+                        $branch_name = $standard;
                         break;
                     }
                 }
 
-                if ($branch_name && $date_code) {
-                    $new_name = $prefix . '_' . $branch_name . '_' . $date_code . $ext;
-                } elseif ($branch_name) {
-                    $new_name = $prefix . '_' . $branch_name . $ext;
-                } elseif ($date_code) {
-                    $new_name = $prefix . '_' . $date_code . $ext;
-                } else {
-                    $clean = preg_replace('/[^\w\-.]/', '_', $name_only);
-                    $clean = trim($clean, '_');
-                    if (strlen($clean) > 30) {
-                        $clean = substr($clean, 0, 30);
-                    }
-                    $new_name = $prefix . '_' . $clean . $ext;
+                // ถ้าไม่พบชื่อสาขาในชื่อไฟล์ → reject
+                if (!$branch_name) {
+                    $errors[] = [
+                        'filename' => $filename,
+                        'error' => '⚠️ กรุณาตั้งชื่อไฟล์ให้มีระบุสาขาและวันที่ให้ถูกต้อง เช่น ชลบุรี_22-03-69, พัทยา_15-02-69 เป็นต้น'
+                    ];
+                    continue;
                 }
+
+                // 2) Extract date_code → normalize เป็น YY-MM
+                // รองรับหลาย format:
+                //   DD-MM-YY  (22-03-69)  → 69-03
+                //   YY-MM     (69-03)     → 69-03
+                //   YYYY-MM-DD (2026-04-01) → 69-04
+                if (preg_match('/(\d{2})-(\d{2})-(\d{2})/', $name_only, $dm)) {
+                    // DD-MM-YY → YY-MM
+                    $date_code = $dm[3] . '-' . $dm[2];
+                } elseif (preg_match('/(\d{4})-(\d{2})-\d{2}/', $name_only, $dm)) {
+                    // YYYY-MM-DD → Thai year YY-MM
+                    $ce_year = (int)$dm[1];
+                    $month = $dm[2];
+                    $thai_yy = ($ce_year + 543) % 100;
+                    $date_code = sprintf('%02d-%s', $thai_yy, $month);
+                } elseif (preg_match('/(\d{2})-(\d{2})/', $name_only, $dm)) {
+                    // YY-MM
+                    $date_code = $dm[1] . '-' . $dm[2];
+                }
+
+                // ถ้าไม่พบวันที่ในชื่อไฟล์ → reject
+                if (!$date_code) {
+                    $errors[] = [
+                        'filename' => $filename,
+                        'error' => '⚠️ กรุณาตั้งชื่อไฟล์ให้มีระบุสาขาและวันที่ให้ถูกต้อง เช่น ชลบุรี_22-03-69, พัทยา_15-02-69 เป็นต้น'
+                    ];
+                    continue;
+                }
+
+                // 3) Build filename: P3_สาขา_YY-MM.xlsx
+                $new_name = $prefix . '_' . $branch_name . '_' . $date_code . $ext;
+            } elseif ($category === 'rl') {
+                // RL: ใช้ปีที่ดึงมาตอน validate (ไม่ต้องโหลดไฟล์ซ้ำ)
+                $rl_year = null;
+                if (preg_match('/(\d{4})/', $name_only, $m)) {
+                    $rl_year = $m[1];
+                }
+                if (!$rl_year && !empty($validation['detected_year'])) {
+                    $rl_year = $validation['detected_year'];
+                }
+                $new_name = $prefix . '_' . ($rl_year ?: (date('Y') + 543)) . $ext;
+            } elseif ($category === 'activities') {
+                // Activities: ดึงปีจาก Excel ก่อน ไม่สนใจชื่อไฟล์
+                $act_year = null;
+                if (!empty($validation['detected_year'])) {
+                    $act_year = $validation['detected_year'];
+                }
+                $new_name = $prefix . '_' . ($act_year ?: (date('Y') + 543)) . $ext;
             } else {
-                // Other categories: extract numbers/dates
-                // Try YYMMDD format
-                if (preg_match('/(\d{6})/', $name_only, $m)) {
-                    $new_name = $prefix . '_' . $m[1] . $ext;
-                } elseif (preg_match('/(\d{4})/', $name_only, $m)) {
-                    // Try 4-digit year like 2569
-                    $new_name = $prefix . '_' . $m[1] . $ext;
-                } elseif (preg_match('/(\d{3,4})/', $name_only, $m)) {
-                    // Try 3-4 digits
-                    $new_name = $prefix . '_' . $m[1] . $ext;
-                } else {
-                    // Fallback: clean filename
-                    $clean = preg_replace('/[^\w\-.]/', '_', $name_only);
-                    $clean = trim($clean, '_');
-                    if (strlen($clean) > 30) {
-                        $clean = substr($clean, 0, 30);
-                    }
-                    $new_name = $prefix . '_' . $clean . $ext;
+                // OIS, EU, MNF, KPI2: ดึงปีจากชื่อไฟล์ก่อน ถ้าไม่มีใช้ปีจาก validate
+                $file_year = null;
+                if (preg_match('/(\d{4})/', $name_only, $m)) {
+                    $file_year = $m[1];
                 }
+                if (!$file_year && !empty($validation['detected_year'])) {
+                    $file_year = $validation['detected_year'];
+                }
+                $new_name = $prefix . '_' . ($file_year ?: (date('Y') + 543)) . $ext;
             }
+
+            // ── Prevent same-batch overwrites ──
+            // If this name was already used in this upload batch, add counter
+            $base_name = pathinfo($new_name, PATHINFO_FILENAME);
+            $base_ext = '.' . pathinfo($new_name, PATHINFO_EXTENSION);
+            if (in_array($new_name, $used_names)) {
+                $counter = 2;
+                while (in_array($base_name . '_' . $counter . $base_ext, $used_names)) {
+                    $counter++;
+                }
+                $new_name = $base_name . '_' . $counter . $base_ext;
+            }
+            $used_names[] = $new_name;
 
             $dest_path = $folder_path . DIRECTORY_SEPARATOR . $new_name;
 
-            // Check if overwriting
+            // Check if overwriting pre-existing file
             $overwrite = file_exists($dest_path);
 
             // Move uploaded file
@@ -537,6 +1143,21 @@ if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'upload
                 'error' => $e->getMessage()
             ];
         }
+    }
+
+    // Write upload log — who uploaded what and when
+    if (!empty($results)) {
+        $log_file = __DIR__ . DIRECTORY_SEPARATOR . 'upload_log.json';
+        $log = file_exists($log_file) ? (json_decode(file_get_contents($log_file), true) ?: []) : [];
+        $log[] = [
+            'time' => date('Y-m-d H:i:s'),
+            'category' => $category,
+            'files' => array_map(function($r) { return $r['filename']; }, $results),
+            'count' => count($results)
+        ];
+        // Keep last 200 entries
+        if (count($log) > 200) $log = array_slice($log, -200);
+        file_put_contents($log_file, json_encode($log, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
     }
 
     json_response([
@@ -600,11 +1221,14 @@ if ($method === 'DELETE' && count($path_parts) === 3 && $path_parts[0] === 'data
 
 // ───────────────────────────────────────────────────────────────────────────
 // Route: POST /api/notes/<slug>
+// Accepts category slugs (e.g. 'ois') and derived keys (e.g. 'ois_source_url')
 // ───────────────────────────────────────────────────────────────────────────
 if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'notes') {
     $slug = $path_parts[1];
 
-    if (!isset(CATEGORY_MAP[$slug])) {
+    // Validate: must be a known category OR a derived key like {category}_source_url
+    $base_slug = preg_replace('/_source_url$/', '', $slug);
+    if (!isset(CATEGORY_MAP[$base_slug])) {
         json_response([
             'ok' => false,
             'error' => 'invalid slug'
@@ -661,13 +1285,108 @@ if ($method === 'POST' && count($path_parts) === 1 && $path_parts[0] === 'open-m
 }
 
 // ───────────────────────────────────────────────────────────────────────────
-// Route: POST /api/rebuild (not applicable in XAMPP)
+// Route: POST /api/rebuild — run build_dashboard.php to re-embed data into index.html
 // ───────────────────────────────────────────────────────────────────────────
 if ($method === 'POST' && count($path_parts) === 1 && $path_parts[0] === 'rebuild') {
-    json_response([
-        'ok' => false,
-        'error' => 'rebuild not available in XAMPP; run build_dashboard.py manually'
-    ], 400);
+    // Read optional "only" + "files" parameters — incremental build for speed
+    // only: ois, rl, eu, mnf, kpi2, p3 (same slugs as CATEGORY_MAP)
+    // files: array of filenames that were just uploaded (e.g. ["OIS_2569.xls"])
+    $body = json_decode(file_get_contents('php://input'), true) ?: [];
+    $only = isset($body['only']) ? preg_replace('/[^a-z0-9]/', '', $body['only']) : '';
+    $files_arg = '';
+    if (!empty($body['files']) && is_array($body['files'])) {
+        // Sanitize filenames — only allow safe characters
+        $safe_files = [];
+        foreach ($body['files'] as $f) {
+            $f = basename($f); // strip path
+            if (preg_match('/^[a-zA-Z0-9_\-\.\x{0E00}-\x{0E7F}]+$/u', $f)) {
+                $safe_files[] = $f;
+            }
+        }
+        if (!empty($safe_files)) {
+            $files_arg = ' --files=' . implode(',', $safe_files);
+        }
+    }
+
+    // Clear API cache for rebuilt category only (not all categories)
+    // mtime check handles the rest — other categories keep their cache
+    $cache_dir = __DIR__ . DIRECTORY_SEPARATOR . '.cache';
+    if (is_dir($cache_dir)) {
+        if (!empty($only)) {
+            // Selective: only clear cache for the specific category being rebuilt
+            $cat_prefix = $only . '_';
+            foreach (glob($cache_dir . '/*.json') as $cf) {
+                $fname = basename($cf);
+                if (strpos($fname, $cat_prefix) === 0) {
+                    @unlink($cf);
+                }
+            }
+        } else {
+            // Full rebuild: clear all cache
+            foreach (glob($cache_dir . '/*.json') as $cf) { @unlink($cf); }
+        }
+    }
+
+    $script = __DIR__ . DIRECTORY_SEPARATOR . 'build_dashboard.php';
+    if (!file_exists($script)) {
+        json_response(['ok' => false, 'message' => 'build_dashboard.php not found'], 500);
+    }
+
+    // Find php.exe CLI path — try multiple strategies
+    $php = null;
+    // Strategy 1: Derive from php.ini location (most reliable on XAMPP)
+    $ini = php_ini_loaded_file();
+    if ($ini) {
+        $candidate = dirname($ini) . DIRECTORY_SEPARATOR . 'php.exe';
+        if (file_exists($candidate)) $php = $candidate;
+    }
+    // Strategy 2: Common XAMPP paths
+    if (!$php) {
+        foreach (['C:\\xampp\\php\\php.exe', 'D:\\xampp\\php\\php.exe', PHP_BINDIR . '\\php.exe'] as $p) {
+            if (file_exists($p)) { $php = $p; break; }
+        }
+    }
+    // Strategy 3: Try PATH via where command
+    if (!$php) {
+        $where_out = [];
+        @exec('where php.exe 2>NUL', $where_out);
+        if (!empty($where_out) && file_exists(trim($where_out[0]))) {
+            $php = trim($where_out[0]);
+        }
+    }
+    if (!$php) {
+        json_response(['ok' => false, 'message' => 'php.exe not found (ini: ' . ($ini ?: 'none') . ')'], 500);
+    }
+    // Ensure required extensions are loaded (zip is needed for .xlsx via PhpSpreadsheet)
+    $ext_flags = '';
+    if (!extension_loaded('zip')) {
+        $ext_dir = dirname($php) . DIRECTORY_SEPARATOR . 'ext';
+        if (is_dir($ext_dir)) {
+            $ext_flags = ' -d extension_dir="' . $ext_dir . '" -d extension=php_zip.dll';
+        }
+    }
+    $cmd = '"' . $php . '"' . $ext_flags . ' -d memory_limit=512M "' . $script . '"' . ($only ? ' --only=' . $only : '') . $files_arg . ' 2>&1';
+    $output = [];
+    $exitCode = -1;
+
+    // Increase time limit for long-running build (P3 can have 20+ files)
+    set_time_limit(600);
+    ini_set('memory_limit', '512M');
+    exec($cmd, $output, $exitCode);
+
+    if ($exitCode === 0) {
+        json_response([
+            'ok' => true,
+            'message' => 'Dashboard rebuilt successfully',
+            'log' => implode("\n", $output)
+        ]);
+    } else {
+        json_response([
+            'ok' => false,
+            'message' => 'Build failed (exit code ' . $exitCode . ')',
+            'log' => implode("\n", $output)
+        ], 500);
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -704,7 +1423,16 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'eu-data
             $fpath = $eu_folder . DIRECTORY_SEPARATOR . $fname;
             try {
                 $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($fpath);
-                $sheet = $spreadsheet->getSheet(0); // First sheet (กราฟ)
+                // ╔══════════════════════════════════════════════════════════════╗
+                // ║ ⚠️  EU SHEET — อ่านเฉพาะ sheet แรก (ข้อมูลค่าไฟ)          ║
+                // ║                                                              ║
+                // ║ ไฟล์ EU ปกติมี sheet เดียว = ตารางค่าหน่วยไฟรายสาขา        ║
+                // ║ ถ้ามี sheet อื่น (กราฟ, สรุป) จะไม่ถูกอ่าน                  ║
+                // ║                                                              ║
+                // ║ Sheet to PROCESS: sheet แรก (index 0) เท่านั้น              ║
+                // ║ Sheets to AVOID: sheet อื่น ๆ ทั้งหมด (ถ้ามี)              ║
+                // ╚══════════════════════════════════════════════════════════════╝
+                $sheet = $spreadsheet->getSheet(0);
                 $highRow = $sheet->getHighestDataRow();
 
                 $year_data = [];
@@ -716,6 +1444,7 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'eu-data
                 $eu_data_start = 3;  // default row 3
                 $eu_kw_branch = ['สาขา', 'หน่วยงาน', 'ภาพรวม', 'ชื่อสาขา'];
                 $eu_kw_month  = ['ต.ค.', 'ต.ค', 'พ.ย.', 'ตุลาคม', 'oct'];
+                $found_month = false;
 
                 for ($sr = 1; $sr <= min($highRow, 10); $sr++) {
                     $found_branch = false;
@@ -729,16 +1458,30 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'eu-data
                                 break;
                             }
                         }
-                        foreach ($eu_kw_month as $kw) {
-                            if (mb_strpos($hv, mb_strtolower($kw)) !== false) {
-                                $eu_month_start = $sc;
-                                break;
+                        if (!$found_month) {
+                            foreach ($eu_kw_month as $kw) {
+                                if (mb_strpos($hv, mb_strtolower($kw)) !== false) {
+                                    $eu_month_start = $sc;
+                                    $found_month = true;
+                                    break;
+                                }
                             }
                         }
                     }
                     if ($found_branch) {
                         $eu_data_start = $sr + 1;
                         break;
+                    }
+                }
+                if (!$found_branch && $found_month) {
+                    for ($sr = 1; $sr <= min($highRow, 10); $sr++) {
+                        $hv = mb_strtolower(trim((string)(cellVal($sheet, $eu_month_start, $sr) ?? '')));
+                        foreach ($eu_kw_month as $kw) {
+                            if (mb_strpos($hv, mb_strtolower($kw)) !== false) {
+                                $eu_data_start = $sr + 1;
+                                break 2;
+                            }
+                        }
                     }
                 }
 
@@ -772,7 +1515,7 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'eu-data
                 }
                 $spreadsheet->disconnectWorksheets();
                 unset($spreadsheet);
-            } catch (Exception $e) {
+            } catch (\Throwable $e) {
                 error_log("EU parse error ($fname): " . $e->getMessage());
             }
         }
@@ -834,7 +1577,18 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'rl-data
                 $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($fpath);
 
                 foreach ($spreadsheet->getSheetNames() as $sheetName) {
-                    // Parse month and fiscal year from sheet name
+                    // ╔══════════════════════════════════════════════════════════════╗
+                    // ║ ⚠️  RL SHEET FILTER — ข้ามชีทสรุป/กราฟ                      ║
+                    // ║                                                              ║
+                    // ║ ไฟล์ RL Excel มีชีทแรก "กราฟ" ที่เป็นสรุปรวม —             ║
+                    // ║ ข้อมูลในนั้นเป็นสูตร cross-sheet ที่คอลัมน์ "ปริมาณ"       ║
+                    // ║ จริง ๆ แล้วคือ "อัตรา(%)" ทำให้ volume ผิดพลาดร้ายแรง      ║
+                    // ║                                                              ║
+                    // ║ ต้องอ่านเฉพาะชีทรายเดือน (ต.ค., พ.ย., ..., ก.ย.)          ║
+                    // ║                                                              ║
+                    // ║ Sheets to AVOID: "กราฟ", "สรุป", "รวม", "Chart", "Summary" ║
+                    // ║ Sheets to PROCESS: only month-named sheets                  ║
+                    // ╚══════════════════════════════════════════════════════════════╝
                     $mi = null;
                     foreach ($MONTH_ABBR as $abbr => $idx) {
                         if (mb_strpos($sheetName, $abbr) !== false) {
@@ -842,7 +1596,7 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'rl-data
                             break;
                         }
                     }
-                    if ($mi === null) continue;
+                    if ($mi === null) continue; // ข้ามชีทที่ไม่ใช่รายเดือน (เช่น "กราฟ")
 
                     // Extract 2-digit calendar year from sheet name
                     $fy_str = $file_year;
@@ -997,13 +1751,22 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'mnf-dat
             try {
                 $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($fpath);
 
+                // ╔══════════════════════════════════════════════════════════════╗
+                // ║ ⚠️  MNF SHEET FILTER — อ่านเฉพาะชีทที่อยู่ใน MNF_SHEET_MAP  ║
+                // ║                                                              ║
+                // ║ ไฟล์ MNF มีชีทสรุป "รวมกราฟสาขา" ที่เป็นกราฟรวม →         ║
+                // ║ ข้อมูลไม่ใช่ raw data ต้องข้าม                               ║
+                // ║                                                              ║
+                // ║ Sheets to AVOID: "รวมกราฟสาขา", "กราฟ", "สรุป", "Chart"    ║
+                // ║ Sheets to PROCESS: "ภาพรวมเขต" + ชีทสาขาใน MNF_SHEET_MAP   ║
+                // ╚══════════════════════════════════════════════════════════════╝
                 foreach ($spreadsheet->getSheetNames() as $sheetName) {
                     $branch_key = null;
                     $data_start = 4; // branch sheets: data starts row 4
                     foreach ($MNF_SHEET_MAP as $sn => $bk) {
                         if ($sheetName === $sn) { $branch_key = $bk; break; }
                     }
-                    if ($branch_key === null) continue;
+                    if ($branch_key === null) continue; // ข้ามชีทที่ไม่อยู่ใน map (เช่น "รวมกราฟสาขา")
                     if ($branch_key === '__regional__') $data_start = 3; // regional: row 3
 
                     $sheet = $spreadsheet->getSheetByName($sheetName);
@@ -1107,53 +1870,100 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'kpi-dat
             $fpath = $kpi_folder . DIRECTORY_SEPARATOR . $fname;
             try {
                 $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($fpath);
-                $sheet = $spreadsheet->getSheet(0);
-                $highRow = $sheet->getHighestDataRow();
-                $highCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($sheet->getHighestDataColumn());
 
-                // --- Smart Header Detection for KPI ---
+                // สแกนทุก sheet หา sheet ที่มีข้อมูล KPI (สาขา + เป้าหมาย)
+                // ข้าม sheet สารบัญ/สรุป/ปก
+                $kpi2_skip = ['สารบัญ', 'สรุป', 'ปก', 'cover', 'summary', 'index'];
+                $sheet = null;
                 $headerRow = null;
-                $kpi_branch_col = 2;  // default Col B
-                $kpi_target_col = 3;  // default Col C
-                $kpi_l1_col = 4;      // default Col D
-                $kpi_actual_col = 9;  // default Col I
+                $kpi_branch_col = 2;
+                $kpi_target_col = 3;
+                $kpi_l1_col = 4;
+                $kpi_actual_col = 9;
 
                 $kw_branch  = ['สาขา', 'หน่วยงาน', 'ชื่อสาขา'];
                 $kw_target  = ['เป้าหมาย', 'target', 'เป้า'];
-                $kw_level   = ['ระดับ', 'level', 'ระดับ 1', 'ระดับ1'];
-                $kw_actual  = ['ผลดำเนินการ', 'ผลการดำเนินงาน', 'actual', 'ผล'];
+                $kw_level   = ['ระดับ', 'level', 'ระดับ 1', 'ระดับ1', 'เกณฑ์วัด'];
+                $kw_actual  = ['ผลดำเนินการ', 'ผลการดำเนินงาน', 'actual', 'ผล', 'เกิดจริง'];
 
-                for ($r = 1; $r <= min($highRow, 15); $r++) {
-                    for ($c = 1; $c <= min($highCol, 20); $c++) {
-                        $v = trim((string)(cellVal($sheet, $c, $r) ?? ''));
-                        if ($v === '') continue;
-                        $lv = mb_strtolower($v);
+                for ($si = 0; $si < $spreadsheet->getSheetCount(); $si++) {
+                    $ws = $spreadsheet->getSheet($si);
+                    $wsName = mb_strtolower($ws->getTitle());
+                    $skip = false;
+                    foreach ($kpi2_skip as $sk) {
+                        if (mb_strpos($wsName, $sk) !== false) { $skip = true; break; }
+                    }
+                    if ($skip) continue;
 
-                        foreach ($kw_branch as $kw) {
-                            if (mb_strpos($lv, mb_strtolower($kw)) !== false && mb_strpos($lv, 'รวม') === false) {
-                                $kpi_branch_col = $c;
-                                $headerRow = $r;
+                    $highRow = $ws->getHighestDataRow();
+                    $highCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($ws->getHighestDataColumn());
+
+                    // --- Smart Header Detection for KPI ---
+                    $headerRow = null;
+                    $kpi_branch_col = 2;
+                    $kpi_target_col = 3;
+                    $kpi_l1_col = 4;
+                    $kpi_actual_col = 9;
+                    $_found_branch = false;
+                    $_found_target = false;
+                    // first-match flags: reset ทุก sheet
+                    $_ft = false; $_fl = false; $_fa = false;
+
+                    for ($r = 1; $r <= min($highRow, 15); $r++) {
+                        for ($c = 1; $c <= min($highCol, 20); $c++) {
+                            $v = trim((string)(cellVal($ws, $c, $r) ?? ''));
+                            if ($v === '') continue;
+                            $lv = mb_strtolower($v);
+                            // ข้าม cell ที่มี "ผลต่าง" (เป็นคอลัมน์คำนวณ ไม่ใช่ข้อมูลดิบ)
+                            if (mb_strpos($lv, 'ผลต่าง') !== false) continue;
+
+                            foreach ($kw_branch as $kw) {
+                                if (mb_strpos($lv, mb_strtolower($kw)) !== false && mb_strpos($lv, 'รวม') === false) {
+                                    $kpi_branch_col = $c;
+                                    $headerRow = $r;
+                                    $_found_branch = true;
+                                }
                             }
-                        }
-                        foreach ($kw_target as $kw) {
-                            if (mb_strpos($lv, mb_strtolower($kw)) !== false) {
-                                $kpi_target_col = $c;
+                            if (!$_ft) {
+                                foreach ($kw_target as $kw) {
+                                    if (mb_strpos($lv, mb_strtolower($kw)) !== false) {
+                                        $kpi_target_col = $c;
+                                        $_found_target = true;
+                                        $_ft = true;
+                                        break;
+                                    }
+                                }
                             }
-                        }
-                        foreach ($kw_level as $kw) {
-                            if (mb_strpos($lv, mb_strtolower($kw)) !== false) {
-                                $kpi_l1_col = $c; // first level column
+                            if (!$_fl) {
+                                foreach ($kw_level as $kw) {
+                                    if (mb_strpos($lv, mb_strtolower($kw)) !== false) {
+                                        $kpi_l1_col = $c;
+                                        $_found_target = true;
+                                        $_fl = true;
+                                        break;
+                                    }
+                                }
                             }
-                        }
-                        foreach ($kw_actual as $kw) {
-                            if (mb_strpos($lv, mb_strtolower($kw)) !== false) {
-                                $kpi_actual_col = $c;
+                            if (!$_fa) {
+                                foreach ($kw_actual as $kw) {
+                                    if (mb_strpos($lv, mb_strtolower($kw)) !== false) {
+                                        $kpi_actual_col = $c;
+                                        $_fa = true;
+                                        break;
+                                    }
+                                }
                             }
                         }
                     }
-                    if ($headerRow) break;
+                    // ถ้าเจอ sheet ที่มี สาขา + เป้าหมาย → ใช้ sheet นี้
+                    if ($_found_branch && $_found_target) { $sheet = $ws; break; }
+                    $headerRow = null; // reset ถ้า sheet นี้ไม่ใช่
                 }
-                if (!$headerRow) { $spreadsheet->disconnectWorksheets(); continue; }
+
+                if (!$headerRow || !$sheet) { $spreadsheet->disconnectWorksheets(); continue; }
+
+                // ใช้ highRow จาก sheet ที่เลือก
+                $highRow = $sheet->getHighestDataRow();
 
                 $year_data = [];
                 $dataStart = $headerRow + 2;
@@ -1183,8 +1993,8 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'kpi-dat
                 if (!empty($year_data)) $result[$year_str] = $year_data;
                 $spreadsheet->disconnectWorksheets();
                 unset($spreadsheet);
-            } catch (Exception $e) {
-                error_log("KPI parse error ($fname): " . $e->getMessage());
+            } catch (\Throwable $e) {
+                error_log("KPI parse error ($fname): " . $e->getMessage() . " at " . $e->getFile() . ":" . $e->getLine());
             }
         }
     }
@@ -1348,8 +2158,18 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'ois-dat
         '4.5 วัสดุการผลิต' => '4.4 วัสดุการผลิต',
     ];
 
-    // Skip these sheet names
-    $SKIP_SHEETS = ['เป้าหมาย'];
+    // ╔══════════════════════════════════════════════════════════════╗
+    // ║ ⚠️  OIS SHEET FILTER — ข้ามชีทสรุป/กราฟ/เป้าหมาย          ║
+    // ║                                                              ║
+    // ║ ไฟล์ OIS แต่ละ sheet = 1 สาขา มีรายการ KPI ตัวชี้วัด       ║
+    // ║ ชีทที่ชื่อ "กราฟ", "สรุป", "เป้าหมาย" เป็นชีทสรุป          ║
+    // ║ ไม่ใช่ข้อมูลรายสาขา → ข้ามเพื่อป้องกันข้อมูลเพี้ยน        ║
+    // ║                                                              ║
+    // ║ Sheets to AVOID: "กราฟ", "สรุป", "รวม", "เป้าหมาย",       ║
+    // ║                  "Chart", "Summary", "Graph"                ║
+    // ║ Sheets to PROCESS: ชีทรายสาขาที่มี header เดือน             ║
+    // ╚══════════════════════════════════════════════════════════════╝
+    $SKIP_SHEETS = ['เป้าหมาย', 'กราฟ', 'สรุป', 'รวม', 'chart', 'summary', 'graph'];
 
     // Helper: find month header row (row with 6+ month keywords)
     function ois_find_header_row($sheet, $highestRow, $highestCol) {
@@ -1450,10 +2270,11 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'ois-dat
             }
 
             // Target year = col 3 (C), target month = col 5 (E)
+            // ใช้ cellCalc() แทน cellVal() เพราะอาจเป็น formula
             $targetYear = null;
             $targetMonth = null;
-            $tyv = cellVal($sheet, 3, $r);
-            $tmv = cellVal($sheet, 5, $r);
+            $tyv = cellCalc($sheet, 3, $r);
+            $tmv = cellCalc($sheet, 5, $r);
             if (is_numeric($tyv)) $targetYear = floatval($tyv);
             if (is_numeric($tmv)) $targetMonth = floatval($tmv);
 

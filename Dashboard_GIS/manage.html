@@ -344,6 +344,56 @@
             border: 1px solid #4db8c4;
         }
 
+        /* ── Rebuild Overlay Modal ── */
+        .rebuild-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,.55);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
+        .rebuild-overlay.active { display: flex; }
+        .rebuild-modal {
+            background: #fff;
+            border-radius: 16px;
+            padding: 40px 50px;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0,0,0,.3);
+            max-width: 420px;
+            width: 90%;
+        }
+        body.dark .rebuild-modal {
+            background: #1a2744;
+            color: #e0e0e0;
+        }
+        .rebuild-modal .spinner {
+            width: 48px; height: 48px;
+            border: 5px solid #e0e0e0;
+            border-top-color: #00838f;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .rebuild-modal .msg { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+        .rebuild-modal .sub { font-size: 14px; color: #777; }
+        body.dark .rebuild-modal .sub { color: #aaa; }
+        .rebuild-modal .icon-done { font-size: 48px; margin-bottom: 12px; }
+        .rebuild-modal .btn-close-modal {
+            margin-top: 18px;
+            padding: 10px 32px;
+            border: none;
+            border-radius: 8px;
+            background: #00838f;
+            color: #fff;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .rebuild-modal .btn-close-modal:hover { background: #006064; }
+
         /* Buttons */
         .button-group {
             display: flex;
@@ -589,8 +639,11 @@
             background: white;
             border-radius: 12px;
             padding: 30px;
-            max-width: 400px;
+            max-width: 520px;
             width: 90%;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
         }
 
@@ -599,6 +652,7 @@
             font-weight: 600;
             margin-bottom: 15px;
             color: #333;
+            flex-shrink: 0;
         }
 
         .modal-message {
@@ -606,7 +660,9 @@
             color: #666;
             margin-bottom: 25px;
             line-height: 1.5;
-            white-space: pre-line;
+            overflow-y: auto;
+            flex: 1;
+            min-height: 0;
         }
 
         .modal-actions {
@@ -670,6 +726,7 @@
             </div>
             <div style="display:flex;align-items:center;gap:12px">
                 <button class="back-btn" id="backBtn" onclick="goBack()">← กลับหน้า Dashboard</button>
+                <button class="btn btn-primary" style="font-size:13px;padding:8px 16px;white-space:nowrap" onclick="fullRebuild()">🔄 Update All Data</button>
                 <div class="theme-toggle" onclick="toggleTheme()">
                     <span class="theme-icon">&#9788;</span>
                     <div class="theme-switch"></div>
@@ -775,7 +832,8 @@
             initTheme();
             createUploadPanels();
             setupEventListeners();
-            switchTab('repair'); // apply initial tab color
+            const savedTab = location.hash.replace('#', '');
+            switchTab(savedTab && CATEGORIES[savedTab] ? savedTab : 'repair');
             await loadData();
         });
 
@@ -1015,6 +1073,7 @@
 
         function switchTab(slug) {
             currentCategory = slug;
+            try { history.replaceState(null, '', '#' + slug); } catch(e){}
             const cat = CATEGORIES[slug];
 
             // Update active tab + color
@@ -1033,119 +1092,144 @@
             document.getElementById(`panel-${slug}`).classList.add('active');
         }
 
-        // ─── Duplicate Detection ────────────────────────────────────────────
-        function findDuplicateFiles(slug, newFiles) {
-            const existing = (cachedData[slug]?.files || []);
-            if (existing.length === 0) return [];
-            const existYears = new Set(existing.map(f => extractYear(slug, f)).filter(Boolean));
-            const dupes = newFiles.filter(f => {
-                const y = extractYear(slug, f.name);
-                return y && existYears.has(y);
-            });
-            if (dupes.length === 0) {
-                const existSet = new Set(existing.map(f => f.toLowerCase()));
-                return newFiles.filter(f => existSet.has(f.name.toLowerCase()));
-            }
-            return dupes;
-        }
-
-        // ─── Upload Files ─────────────────────────────────────────────────────
+        // ─── Upload Files (2-step flow) ──────────────────────────────────────────
 
         async function uploadFiles(slug) {
             const store = window._fileStore[slug] || [];
-
             if (store.length === 0) {
                 showStatus(slug, 'โปรดเลือกไฟล์', 'error');
                 return;
             }
 
-            let fileList = store.map(f => f.name).join(', ');
-            let confirmMsg = `อัปโหลด ${store.length} ไฟล์:\n${fileList}`;
+            showStatus(slug, 'กำลังตรวจสอบไฟล์...', 'loading');
+            showRebuildOverlay('<div class="spinner"></div><div class="msg">กำลังตรวจสอบไฟล์...</div><div class="sub">ตรวจรูปแบบข้อมูล + ตั้งชื่อไฟล์อัตโนมัติ</div>');
 
-            const duplicates = findDuplicateFiles(slug, store);
-            if (duplicates.length > 0) {
-                confirmMsg += `\n\n⚠️ ไฟล์ต่อไปนี้มีอยู่แล้ว จะถูกเขียนทับ:\n${duplicates.map(f => f.name).join(', ')}`;
+            const formData = new FormData();
+            store.forEach(file => formData.append('files[]', file));
+
+            let preCheck;
+            try {
+                const resp = await fetch(`${API_BASE}/api/pre-check/${slug}`, { method: 'POST', body: formData });
+                preCheck = await resp.json();
+                if (!resp.ok) throw new Error(preCheck.error || 'Pre-check failed');
+            } catch (error) {
+                hideRebuildOverlay();
+                showStatus(slug, `ข้อผิดพลาด: ${error.message}`, 'error');
+                return;
+            }
+            hideRebuildOverlay();
+
+            const preview = preCheck.preview || [];
+            const pcErrors = preCheck.errors || [];
+            const batchId = preCheck.batch_id;
+
+            if (preview.length === 0 && pcErrors.length > 0) {
+                pcErrors.forEach(e => addLog(`❌ ${e.filename}: ${e.error}`, 'error'));
+                showStatus(slug, `❌ ไฟล์ไม่ผ่านการตรวจสอบทั้งหมด ${pcErrors.length} ไฟล์`, 'error');
+                return;
             }
 
-            showConfirmDialog(
-                duplicates.length > 0 ? '⚠️ ยืนยันเขียนทับข้อมูลเดิม' : 'ยืนยันการอัปโหลด',
-                confirmMsg,
-                async () => {
-                    await performUpload(slug, store);
+            const overwrites = preview.filter(p => p.will_overwrite);
+            const MAX_SHOW = 5; // แสดงไฟล์สูงสุด 5 รายการ ที่เหลือพับซ่อน
+
+            // ── สร้าง HTML confirm message (กระชับ ไม่ล้นจอ) ──
+            let html = '';
+
+            // ส่วนผ่านการตรวจสอบ
+            if (preview.length > 0) {
+                const renamed = preview.filter(p => p.original !== p.new_name);
+                const same = preview.filter(p => p.original === p.new_name);
+                html += `<div style="margin-bottom:10px"><b style="color:#00838f">✅ ผ่านการตรวจสอบ ${preview.length} ไฟล์</b></div>`;
+
+                if (renamed.length > 0) {
+                    html += `<div style="font-size:13px;margin-bottom:6px;color:#555">เปลี่ยนชื่อ ${renamed.length} ไฟล์:</div>`;
+                    const showR = renamed.slice(0, MAX_SHOW);
+                    html += '<div style="font-size:12px;color:#666;padding-left:8px;margin-bottom:8px">';
+                    showR.forEach(p => { html += `${p.original} → <b>${p.new_name}</b><br>`; });
+                    if (renamed.length > MAX_SHOW) html += `<i>...และอีก ${renamed.length - MAX_SHOW} ไฟล์</i><br>`;
+                    html += '</div>';
                 }
-            );
+                if (same.length > 0 && renamed.length > 0) {
+                    html += `<div style="font-size:13px;color:#555;margin-bottom:8px">ชื่อเดิม ${same.length} ไฟล์</div>`;
+                }
+            }
+
+            // ส่วนไม่ผ่าน
+            if (pcErrors.length > 0) {
+                html += `<div style="margin-bottom:6px"><b style="color:#c62828">❌ ไม่ผ่าน ${pcErrors.length} ไฟล์</b></div>`;
+                const showE = pcErrors.slice(0, MAX_SHOW);
+                html += '<div style="font-size:12px;color:#c62828;padding-left:8px;margin-bottom:8px">';
+                showE.forEach(e => { html += `${e.filename}: ${e.error}<br>`; });
+                if (pcErrors.length > MAX_SHOW) html += `<i>...และอีก ${pcErrors.length - MAX_SHOW} ไฟล์</i><br>`;
+                html += '</div>';
+            }
+
+            // ส่วนเขียนทับ
+            if (overwrites.length > 0) {
+                html += `<div style="margin:8px 0 6px;padding:8px 10px;background:#fff3e0;border-radius:6px;border-left:3px solid #e65100">`;
+                html += `<b style="color:#e65100">⚠️ จะเขียนทับไฟล์เดิม ${overwrites.length} ไฟล์</b>`;
+                if (overwrites.length <= MAX_SHOW) {
+                    html += '<div style="font-size:12px;color:#bf360c;margin-top:4px">';
+                    overwrites.forEach(p => { html += `${p.new_name}<br>`; });
+                    html += '</div>';
+                }
+                html += '</div>';
+            } else {
+                html += `<div style="margin-top:8px;color:#2e7d32"><b>✅ ไม่มีชื่อไฟล์ซ้ำกับที่มีอยู่</b></div>`;
+            }
+
+            let title = 'ยืนยันการอัปโหลด';
+            if (overwrites.length > 0) title = `⚠️ ยืนยันเขียนทับ ${overwrites.length} ไฟล์`;
+
+            showConfirmDialog(title, html, async () => {
+                await performUploadConfirm(slug, batchId, preview);
+            });
         }
 
-        async function performUpload(slug, files) {
-            const formData = new FormData();
-            files.forEach(file => {
-                formData.append('files', file);
-            });
-
-            // Pending หลายไฟล์: แสดง loading popup ระหว่างรวมไฟล์
-            const isPendingMerge = slug === 'pending' && files.length > 1;
-            if (isPendingMerge) {
-                const names = files.map(f => f.name).join('\n');
-                showLoadingModal('กรุณารอสักครู่', `อยู่ระหว่างรวม ${files.length} ไฟล์เข้าด้วยกัน...\n\n${names}`);
-            }
-
-            showStatus(slug, 'กำลังอัปโหลด...', 'loading');
+        async function performUploadConfirm(slug, batchId, preview) {
+            showStatus(slug, 'กำลังบันทึกข้อมูล...', 'loading');
+            showRebuildOverlay('<div class="spinner"></div><div class="msg">กำลังบันทึกข้อมูล...</div><div class="sub">' + preview.length + ' ไฟล์</div>');
 
             try {
-                const response = await fetch(`${API_BASE}/api/upload/${slug}`, {
-                    method: 'POST',
-                    body: formData
-                });
-
+                const formData = new FormData();
+                formData.append('category', slug);
+                const response = await fetch(`${API_BASE}/api/upload-confirm/${batchId}`, { method: 'POST', body: formData });
                 const result = await response.json();
-
-                if (!response.ok) {
-                    if (isPendingMerge) closeLoadingModal();
-                    throw new Error(result.error || 'Upload failed');
-                }
+                if (!response.ok) throw new Error(result.error || 'Confirm failed');
 
                 const errors = result.errors || [];
                 const successes = result.results || [];
+                window._lastUploadResult = { errors, successes, total: preview.length };
 
+                // Handle results display same as existing performUpload
                 if (errors.length > 0 && successes.length === 0) {
-                    if (isPendingMerge) closeLoadingModal();
-                    const failMsg = errors.map(e => `${e.filename}: ${e.error}`).join('\n');
-                    showStatus(slug, '⚠️ ไฟล์ไม่ตรงรูปแบบที่ระบบรองรับ ไม่สามารถ Upload ได้', 'error');
-                    errors.forEach(e => addLog(`${e.filename}: ${e.error}`, 'error'));
+                    errors.forEach(e => addLog(`❌ ${e.filename}: ${e.error}`, 'error'));
+                    showStatus(slug, `❌ บันทึกล้มเหลวทั้งหมด ${errors.length} ไฟล์`, 'error');
                 } else if (errors.length > 0) {
-                    if (isPendingMerge) closeLoadingModal();
-                    const failNames = errors.map(e => e.filename).join(', ');
-                    showStatus(slug, `${successes.length} สำเร็จ, ${errors.length} ล้มเหลว (${failNames})`, 'error');
-                    successes.forEach(r => addLog(`อัปโหลดสำเร็จ: ${r.filename}`, 'success'));
-                    errors.forEach(e => addLog(`${e.filename}: ${e.error}`, 'error'));
+                    successes.forEach(r => addLog(`✅ ${r.message || r.filename}`, 'success'));
+                    errors.forEach(e => addLog(`❌ ${e.filename}: ${e.error}`, 'error'));
+                    showStatus(slug, `⚠️ ผ่าน ${successes.length} / ไม่ผ่าน ${errors.length} ไฟล์`, 'error');
                 } else {
-                    const names = files.map(f => f.name).join(', ');
-                    showStatus(slug, `อัปโหลดสำเร็จ ${successes.length} ไฟล์`, 'success');
-                    addLog(`Upload ${slug} สำเร็จ (${names})`, 'success');
-
-                    // Pending: เปลี่ยน loading popup → success popup
-                    if (isPendingMerge && successes.length > 0) {
-                        const s = successes[successes.length - 1];
-                        const mergeMsg = s.message || `รวมไฟล์สำเร็จ → ${s.filename}`;
-                        updateLoadingModal('✅ รวมไฟล์สำเร็จ', mergeMsg);
-                    }
+                    successes.forEach(r => addLog(`✅ ${r.message || r.filename}`, 'success'));
+                    showStatus(slug, `✅ อัปโหลดสำเร็จ ${successes.length} ไฟล์`, 'success');
                 }
 
-                // Clear file store + input + file list UI
                 window._fileStore[slug] = [];
                 document.getElementById(`fileInput-${slug}`).value = '';
                 document.getElementById(`uploadBtn-${slug}`).disabled = true;
                 renderFileList(slug);
 
-                // Reload data
                 await loadData();
-                // Signal main dashboard to refresh
+                if (successes.length > 0) {
+                    const uploadedFiles = successes.map(r => r.filename);
+                    await autoRebuildDashboard(slug, slug, uploadedFiles);
+                }
                 try { localStorage.setItem('dashboard_updated', Date.now().toString()); } catch(e){}
             } catch (error) {
-                if (isPendingMerge) closeLoadingModal();
                 showStatus(slug, `ข้อผิดพลาด: ${error.message}`, 'error');
                 addLog(`Upload ${slug} ล้มเหลว: ${error.message}`, 'error');
             }
+            hideRebuildOverlay();
         }
 
         function showStatus(slug, message, type) {
@@ -1375,26 +1459,117 @@
             }
         }
 
-        async function rebuildDashboard() {
-            showConfirmDialog(
-                '⚠️ สร้าง Dashboard ใหม่',
-                'ระบบจะรัน build_dashboard.py เพื่อประมวลผลข้อมูล กระบวนการนี้อาจใช้เวลาสักครู่',
-                async () => {
-                    try {
-                        const response = await fetch(`${API_BASE}/api/rebuild`, { method: 'POST' });
-                        const result = await response.json();
+        function showRebuildOverlay(html) {
+            const overlay = document.getElementById('rebuildOverlay');
+            document.getElementById('rebuildModal').innerHTML = html;
+            overlay.classList.add('active');
+        }
+        function hideRebuildOverlay() {
+            document.getElementById('rebuildOverlay').classList.remove('active');
+        }
 
-                        if (result.ok) {
-                            addLog('สร้าง Dashboard สำเร็จ! ⚡', 'success');
-                            showConfirmDialog('สำเร็จ', 'Dashboard ได้อัปเดตเรียบร้อยแล้ว!', () => {});
-                        } else {
-                            addLog(`Build ล้มเหลว: ${result.message}`, 'error');
-                        }
-                    } catch (error) {
-                        addLog(`Build ล้มเหลว: ${error.message}`, 'error');
-                    }
-                }
+        async function autoRebuildDashboard(slug, changedCategory, changedFiles) {
+            showRebuildOverlay(
+                '<div class="spinner"></div>' +
+                '<div class="msg">กำลังอัปเดตข้อมูล</div>' +
+                '<div class="sub">กรุณารอสักครู่...</div>'
             );
+            const filesInfo = changedFiles ? changedFiles.join(', ') : '';
+            addLog('เริ่มสร้าง Dashboard ใหม่อัตโนมัติ (เฉพาะ ' + (changedCategory || 'ทั้งหมด') + (filesInfo ? ': ' + filesInfo : '') + ')...', 'info');
+            try {
+                const payload = {};
+                if (changedCategory) payload.only = changedCategory;
+                if (changedFiles && changedFiles.length) payload.files = changedFiles;
+                const body = Object.keys(payload).length ? JSON.stringify(payload) : null;
+                const response = await fetch(`${API_BASE}/api/rebuild`, {
+                    method: 'POST',
+                    headers: body ? { 'Content-Type': 'application/json' } : {},
+                    body: body
+                });
+                const result = await response.json();
+                if (result.ok) {
+                    const ur = window._lastUploadResult || { errors: [], successes: [], total: 0 };
+                    const hasErrors = ur.errors.length > 0;
+                    if (hasErrors) {
+                        // มีไฟล์ fail → แสดงสรุปใน overlay + status
+                        const failList = ur.errors.map(e => `<div style="color:#c62828;font-size:13px;margin:2px 0">❌ ${e.filename}: ${e.error}</div>`).join('');
+                        showRebuildOverlay(
+                            '<div class="icon-done">⚠️</div>' +
+                            '<div class="msg">อัปโหลดผ่าน ' + ur.successes.length + ' ไฟล์ / ไม่ผ่าน ' + ur.errors.length + ' ไฟล์</div>' +
+                            '<div style="max-height:200px;overflow:auto;margin:8px 0;text-align:left">' + failList + '</div>' +
+                            '<div class="sub">Dashboard อัปเดตเฉพาะไฟล์ที่ผ่านแล้ว</div>' +
+                            '<button class="btn-close-modal" onclick="hideRebuildOverlay()">ตกลง</button>'
+                        );
+                        showStatus(slug, `⚠️ ผ่าน ${ur.successes.length} ไฟล์ / ไม่ผ่าน ${ur.errors.length} ไฟล์ — Dashboard อัปเดตแล้ว`, 'error');
+                    } else {
+                        showRebuildOverlay(
+                            '<div class="icon-done">✅</div>' +
+                            '<div class="msg">อัปโหลดสำเร็จ ' + ur.successes.length + ' ไฟล์ — อัปเดตเรียบร้อย!</div>' +
+                            '<div class="sub">Dashboard ถูกสร้างใหม่พร้อมข้อมูลล่าสุด</div>' +
+                            '<button class="btn-close-modal" onclick="hideRebuildOverlay()">ตกลง</button>'
+                        );
+                        showStatus(slug, '✅ อัปโหลดสำเร็จ ' + ur.successes.length + ' ไฟล์ — Dashboard อัปเดตแล้ว', 'success');
+                    }
+                    addLog('สร้าง Dashboard สำเร็จ!', 'success');
+                } else {
+                    showRebuildOverlay(
+                        '<div class="icon-done">⚠️</div>' +
+                        '<div class="msg">อัปโหลดสำเร็จ แต่สร้าง Dashboard ล้มเหลว</div>' +
+                        '<div class="sub">' + (result.message || 'Unknown error') + '</div>' +
+                        '<button class="btn-close-modal" onclick="hideRebuildOverlay()">ปิด</button>'
+                    );
+                    showStatus(slug, '⚠️ อัปโหลดสำเร็จ แต่สร้าง Dashboard ล้มเหลว', 'error');
+                    addLog('Build Dashboard ล้มเหลว: ' + (result.message || 'Unknown error'), 'error');
+                    if (result.log) addLog(result.log, 'error');
+                }
+            } catch (error) {
+                showRebuildOverlay(
+                    '<div class="icon-done">❌</div>' +
+                    '<div class="msg">เกิดข้อผิดพลาด</div>' +
+                    '<div class="sub">' + error.message + '</div>' +
+                    '<button class="btn-close-modal" onclick="hideRebuildOverlay()">ปิด</button>'
+                );
+                showStatus(slug, '⚠️ อัปโหลดสำเร็จ แต่สร้าง Dashboard ล้มเหลว', 'error');
+                addLog('Build Dashboard error: ' + error.message, 'error');
+            }
+        }
+
+        async function fullRebuild() {
+            showRebuildOverlay(
+                '<div class="spinner"></div>' +
+                '<div class="msg">กำลังอัปเดตข้อมูลทั้งหมด</div>' +
+                '<div class="sub">อาจใช้เวลาสักครู่...</div>'
+            );
+            addLog('เริ่มสร้าง Dashboard ใหม่ทั้งหมด (Full Rebuild)...', 'info');
+            try {
+                const response = await fetch(`${API_BASE}/api/rebuild`, { method: 'POST' });
+                const result = await response.json();
+                if (result.ok) {
+                    showRebuildOverlay(
+                        '<div class="icon-done">✅</div>' +
+                        '<div class="msg">อัปเดตข้อมูลทั้งหมดเรียบร้อย!</div>' +
+                        '<div class="sub">Dashboard ถูกสร้างใหม่ด้วยข้อมูลทุกหมวด</div>' +
+                        '<button class="btn-close-modal" onclick="hideRebuildOverlay()">ตกลง</button>'
+                    );
+                    addLog('Full Rebuild สำเร็จ!', 'success');
+                } else {
+                    showRebuildOverlay(
+                        '<div class="icon-done">⚠️</div>' +
+                        '<div class="msg">สร้าง Dashboard ล้มเหลว</div>' +
+                        '<div class="sub">' + (result.message || 'Unknown error') + '</div>' +
+                        '<button class="btn-close-modal" onclick="hideRebuildOverlay()">ปิด</button>'
+                    );
+                    addLog('Full Rebuild ล้มเหลว: ' + (result.message || ''), 'error');
+                }
+            } catch (error) {
+                showRebuildOverlay(
+                    '<div class="icon-done">❌</div>' +
+                    '<div class="msg">เกิดข้อผิดพลาด</div>' +
+                    '<div class="sub">' + error.message + '</div>' +
+                    '<button class="btn-close-modal" onclick="hideRebuildOverlay()">ปิด</button>'
+                );
+                addLog('Full Rebuild error: ' + error.message, 'error');
+            }
         }
 
         // ─── Logging ──────────────────────────────────────────────────────────
@@ -1438,7 +1613,15 @@
 
         function showConfirmDialog(title, message, callback) {
             document.getElementById('confirmTitle').textContent = title;
-            document.getElementById('confirmMessage').textContent = message;
+            const msgEl = document.getElementById('confirmMessage');
+            // รองรับทั้ง HTML (จาก upload preview) และ plain text
+            if (message.includes('<') && message.includes('>')) {
+                msgEl.innerHTML = message;
+                msgEl.style.whiteSpace = 'normal';
+            } else {
+                msgEl.textContent = message;
+                msgEl.style.whiteSpace = 'pre-wrap';
+            }
             confirmCallback = callback;
             document.getElementById('confirmModal').classList.add('active');
         }
@@ -1462,5 +1645,12 @@
             }
         });
     </script>
+
+    <!-- Rebuild overlay modal -->
+    <div class="rebuild-overlay" id="rebuildOverlay">
+        <div class="rebuild-modal" id="rebuildModal">
+            <!-- content set by JS -->
+        </div>
+    </div>
 </body>
 </html>

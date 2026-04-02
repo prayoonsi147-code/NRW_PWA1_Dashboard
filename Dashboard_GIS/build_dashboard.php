@@ -19,6 +19,11 @@
  * Usage: php.exe build_dashboard.php
  */
 
+// ─── Error Handling ────────────────────────────────────────────────────────
+ini_set('display_errors', '0');
+error_reporting(E_ALL);
+ini_set('log_errors', '1');
+
 // ────────────────────────────────────────────────────────────────────────────
 // Configuration & Setup
 // ────────────────────────────────────────────────────────────────────────────
@@ -87,7 +92,7 @@ function parse_thai_date($val) {
                 $dt = new DateTime("$ce_year-$mm-$dd");
                 return [$dt, $by];
             }
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             return [null, null];
         }
     }
@@ -115,7 +120,7 @@ function detect_repair_columns($worksheet) {
     for ($r = 1; $r <= $maxScan; $r++) {
         $found = [];
         for ($c = 1; $c <= $maxCol; $c++) {
-            $val = trim((string)($worksheet->getCellByColumnAndRow($c, $r)->getValue() ?? ''));
+            $val = trim((string)($worksheet->getCell([$c, $r])->getValue() ?? ''));
             if ($val === '') continue;
 
             $lower = mb_strtolower($val);
@@ -137,6 +142,87 @@ function detect_repair_columns($worksheet) {
 
     // Fallback: default positions
     return ['header_row' => 1, 'cols' => ['branch' => 1, 'closed' => 2, 'complete' => 3, 'score' => 4], 'fallback' => true];
+}
+
+/**
+ * Extract year (4-digit) from filename
+ * Returns: year string like "2569" or null if not found
+ */
+function extract_year_from_filename($filename) {
+    $base = pathinfo($filename, PATHINFO_FILENAME);
+    if (preg_match('/(\d{4})/', $base, $m)) {
+        return $m[1];
+    }
+    return null;
+}
+
+/**
+ * Extract year from Excel file content as fallback
+ * Looks for "ปีงบประมาณ XXXX" or sheet names with 2-digit year suffix like "ก.พ. 69"
+ * Returns: year string like "2569" or null if not found
+ */
+function extract_year_from_excel_content($filepath) {
+    if (!class_exists('PhpOffice\\PhpSpreadsheet\\IOFactory')) {
+        return null;
+    }
+
+    try {
+        $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($filepath);
+
+        // ╔══════════════════════════════════════════════════════════════╗
+        // ║ ⚠️  [FISCAL YEAR DETECTION] SHEET FILTER — ข้ามชีทสรุป/กราฟ  ║
+        // ║                                                              ║
+        // ║ ตรวจสอบเฉพาะ 2 ชีทแรก เพื่อหา "ปีงบประมาณ XXXX"              ║
+        // ║ ข้ามชีทสรุป (สรุป, กราฟ, Summary, Chart)                    ║
+        // ║                                                              ║
+        // ║ Sheets to AVOID: "กราฟ", "สรุป", "รวม", "Chart", "Summary" ║
+        // ║ Sheets to PROCESS: Main data sheets with fiscal year info   ║
+        // ╚══════════════════════════════════════════════════════════════╝
+        // Look for "ปีงบประมาณ XXXX" in first few rows of first sheet
+        for ($si = 0; $si < min(2, $spreadsheet->getSheetCount()); $si++) {
+            $ws = $spreadsheet->getSheet($si);
+            $maxRow = min(6, $ws->getHighestDataRow());
+            $maxCol = min(30, \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($ws->getHighestDataColumn()));
+
+            for ($r = 1; $r <= $maxRow; $r++) {
+                for ($c = 1; $c <= $maxCol; $c++) {
+                    $v = (string)($ws->getCell([$c, $r])->getValue() ?? '');
+                    if (preg_match('/ปีงบประมาณ\s*(\d{4})/', $v, $m)) {
+                        $spreadsheet->disconnectWorksheets();
+                        return $m[1];
+                    }
+                }
+            }
+        }
+
+        // ╔══════════════════════════════════════════════════════════════╗
+        // ║ ⚠️  [FALLBACK] SHEET NAME SCAN — ค้นหาปีจากชื่อชีท            ║
+        // ║                                                              ║
+        // ║ ถ้าไม่พบ "ปีงบประมาณ" ในข้อมูล ลองค้นหา 2 หลักปี             ║
+        // ║ จากชื่อชีท เช่น "ก.พ. 69" → "2569"                         ║
+        // ║ โปรแกรมจะตรวจสอบชีท 1 ชั้น แล้ว break ไม่ต้องตรวจทั้งหมด   ║
+        // ║                                                              ║
+        // ║ Sheets to AVOID: "กราฟ", "สรุป", "รวม", "Chart", "Summary" ║
+        // ║ Sheets to PROCESS: Main data sheets with year in name       ║
+        // ╚══════════════════════════════════════════════════════════════╝
+        // If not found, try sheet names — majority vote
+        $_yc = [];
+        foreach ($spreadsheet->getSheetNames() as $sname) {
+            if (preg_match('/(\d{2})\s*$/', trim($sname), $m)) {
+                $_yy = $m[1];
+                $_yc[$_yy] = ($_yc[$_yy] ?? 0) + 1;
+            }
+        }
+        $spreadsheet->disconnectWorksheets();
+        if (!empty($_yc)) {
+            arsort($_yc);
+            return '25' . array_key_first($_yc);
+        }
+    } catch (\Throwable $e) {
+        // Ignore and return null
+    }
+
+    return null;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -204,16 +290,16 @@ function read_repair_data($REPAIR_DIR, $MONTH_NAMES) {
             $max_row = $worksheet->getHighestRow();
 
             for ($r = $hdr + 1; $r <= $max_row; $r++) {
-                $branch = $worksheet->getCellByColumnAndRow($cBranch, $r)->getValue();
+                $branch = $worksheet->getCell([$cBranch, $r])->getValue();
                 if (!$branch || !is_string($branch)) continue;
 
                 $branch = trim($branch);
                 if ($branch === '' || mb_strpos($branch, 'ชื่อสาขา') !== false) continue;
 
                 $month_data[$branch] = [
-                    'closed'   => clean_num($worksheet->getCellByColumnAndRow($cClosed, $r)->getValue()),
-                    'complete' => clean_num($worksheet->getCellByColumnAndRow($cComplete, $r)->getValue()),
-                    'score'    => clean_num($worksheet->getCellByColumnAndRow($cScore, $r)->getValue())
+                    'closed'   => clean_num($worksheet->getCell([$cClosed, $r])->getValue()),
+                    'complete' => clean_num($worksheet->getCell([$cComplete, $r])->getValue()),
+                    'score'    => clean_num($worksheet->getCell([$cScore, $r])->getValue())
                 ];
 
                 if (!in_array($branch, $branches_order)) {
@@ -223,7 +309,7 @@ function read_repair_data($REPAIR_DIR, $MONTH_NAMES) {
 
             $all_data[$mk] = $month_data;
             $spreadsheet->disconnectWorksheets();
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             echo "  [WARNING] ข้ามไฟล์เสีย: {$fi['fname']} ({$e->getMessage()})\n";
         }
     }
@@ -301,7 +387,7 @@ function read_pressure_data($PRESSURE_DIR) {
             for ($c = 1; $c <= min(50, \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString(
                 $worksheet->getHighestColumn()
             )); $c++) {
-                $header = trim((string)($worksheet->getCellByColumnAndRow($c, 5)->getValue() ?? ''));
+                $header = trim((string)($worksheet->getCell([$c, 5])->getValue() ?? ''));
                 if ($header === '') continue;
 
                 foreach ($thai_month_map as $thai_m => $m_num) {
@@ -329,7 +415,7 @@ function read_pressure_data($PRESSURE_DIR) {
                 $max_row = $worksheet->getHighestRow();
 
                 for ($r = 7; $r <= $max_row; $r++) {
-                    $v = $worksheet->getCellByColumnAndRow($col_idx, $r)->getValue();
+                    $v = $worksheet->getCell([$col_idx, $r])->getValue();
                     if (is_numeric($v) && $v > 0) {
                         $total += (float)$v;
                         $count++;
@@ -346,7 +432,7 @@ function read_pressure_data($PRESSURE_DIR) {
             }
 
             $spreadsheet->disconnectWorksheets();
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             echo "  [WARNING] ข้ามไฟล์: {$fname} ({$e->getMessage()})\n";
         }
     }
@@ -416,6 +502,26 @@ function read_pending_data($PENDING_DIR, $BRANCH_LIST) {
     sort($fy_list);
     $fy_list = array_filter($fy_list, function($k) { return $k > 0; });
 
+    // For files without year in filename (key 0), try to extract from Excel content
+    if (isset($fy_files[0])) {
+        $fallback_year = extract_year_from_excel_content($fy_files[0]);
+        if ($fallback_year) {
+            $fallback_fy_be = (int)$fallback_year;
+            $fy_files[$fallback_fy_be] = $fy_files[0];
+            if (!in_array($fallback_fy_be, $fy_list)) {
+                $fy_list[] = $fallback_fy_be;
+                echo "    ปีงบฯ {$fallback_fy_be} (ดึงจากเนื้อหา)\n";
+            }
+            sort($fy_list);
+        } else {
+            // If can't extract year, use default 2569
+            $fy_list[] = 2569;
+            $fy_files[2569] = $fy_files[0];
+            echo "    ปีงบฯ 2569 (ค่าเริ่มต้น)\n";
+        }
+        unset($fy_files[0]);
+    }
+
     // Column indices (0-based)
     $col_date = 3;      // วันที่แจ้ง
     $col_finish = 5;    // วันเวลาเสร็จสิ้น
@@ -449,7 +555,7 @@ function read_pending_data($PENDING_DIR, $BRANCH_LIST) {
             $last_report_dt = null;
 
             for ($r = $data_start + 1; $r <= $max_row; $r++) {
-                $date_val = $worksheet->getCellByColumnAndRow($col_date + 1, $r)->getValue();
+                $date_val = $worksheet->getCell([$col_date + 1, $r])->getValue();
                 if (!$date_val) continue;
 
                 [$dt, $by] = parse_thai_date($date_val);
@@ -459,7 +565,7 @@ function read_pending_data($PENDING_DIR, $BRANCH_LIST) {
                     $last_report_dt = $dt;
                 }
 
-                $finish_val = $worksheet->getCellByColumnAndRow($col_finish + 1, $r)->getValue();
+                $finish_val = $worksheet->getCell([$col_finish + 1, $r])->getValue();
                 $finish_dt = null;
                 if ($finish_val) {
                     [$fdt, $_] = parse_thai_date($finish_val);
@@ -471,8 +577,8 @@ function read_pending_data($PENDING_DIR, $BRANCH_LIST) {
                     }
                 }
 
-                $status = trim((string)($worksheet->getCellByColumnAndRow($col_status + 1, $r)->getValue() ?? ''));
-                $branch = trim((string)($worksheet->getCellByColumnAndRow($col_branch + 1, $r)->getValue() ?? ''));
+                $status = trim((string)($worksheet->getCell([$col_status + 1, $r])->getValue() ?? ''));
+                $branch = trim((string)($worksheet->getCell([$col_branch + 1, $r])->getValue() ?? ''));
 
                 if (!$branch) continue;
 
@@ -639,7 +745,7 @@ function read_pending_data($PENDING_DIR, $BRANCH_LIST) {
             ];
 
             $spreadsheet->disconnectWorksheets();
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             echo "  [WARNING] อ่านไฟล์ไม่ได้: {$fpath} ({$e->getMessage()})\n";
         }
     }
@@ -784,25 +890,68 @@ function embed_all($html, $repair_data, $pressure_data, $pressure_months, $pendi
 // Main Build
 // ────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Parse CLI arguments for incremental build:
+ *   --only=repair   → process only repair category (skip pressure, pending)
+ *   --files=a.xlsx  → process only these specific files within the category
+ */
+function parse_cli_args() {
+    global $argv;
+    $args = ['only' => '', 'files' => []];
+    if (!isset($argv)) return $args;
+    foreach ($argv as $a) {
+        if (strpos($a, '--only=') === 0) {
+            $args['only'] = substr($a, 7);
+        }
+        if (strpos($a, '--files=') === 0) {
+            $args['files'] = array_filter(explode(',', substr($a, 8)));
+        }
+    }
+    return $args;
+}
+
 function build() {
     global $SCRIPT_DIR, $REPAIR_DIR, $PRESSURE_DIR, $PENDING_DIR, $HTML_TEMPLATE;
     global $MONTH_NAMES, $BRANCH_LIST;
 
+    $args = parse_cli_args();
+    $only = $args['only'];       // e.g. 'repair', 'pressure', 'pending', or '' (all)
+    $only_files = $args['files'];
+
     echo "==================================================\n";
     echo "  Build Dashboard แผนที่แนวท่อ (GIS) กปภ.เขต 1\n";
+    if ($only) {
+        echo "  ⚡ Incremental build: only=$only" . ($only_files ? " files=" . implode(',', $only_files) : '') . "\n";
+    }
     echo "==================================================\n";
 
     // --- 1) Read repair data (TAB 1) ---
-    echo "\n[1/4] อ่านข้อมูล KPI จุดซ่อมท่อ...\n";
-    $repair_data = read_repair_data($REPAIR_DIR, $MONTH_NAMES);
+    if (!$only || $only === 'repair') {
+        echo "\n[1/4] อ่านข้อมูล KPI จุดซ่อมท่อ...\n";
+        $repair_data = read_repair_data($REPAIR_DIR, $MONTH_NAMES);
+    } else {
+        echo "\n⏭️  Repair: ข้าม (ไม่ได้เปลี่ยน)\n";
+        $repair_data = [];
+    }
 
     // --- 2) Read pressure data (TAB 2) ---
-    echo "\n[2/4] อ่านข้อมูลแรงดันน้ำ...\n";
-    [$pressure_data, $pressure_months] = read_pressure_data($PRESSURE_DIR);
+    if (!$only || $only === 'pressure') {
+        echo "\n[2/4] อ่านข้อมูลแรงดันน้ำ...\n";
+        [$pressure_data, $pressure_months] = read_pressure_data($PRESSURE_DIR);
+    } else {
+        echo "⏭️  Pressure: ข้าม (ไม่ได้เปลี่ยน)\n";
+        $pressure_data = [];
+        $pressure_months = [];
+    }
 
     // --- 3) Read pending data (TAB 3) ---
-    echo "\n[3/4] อ่านข้อมูลงานค้างซ่อม...\n";
-    $pending_result = read_pending_data($PENDING_DIR, $BRANCH_LIST);
+    if (!$only || $only === 'pending') {
+        echo "\n[3/4] อ่านข้อมูลงานค้างซ่อม...\n";
+        $pending_result = read_pending_data($PENDING_DIR, $BRANCH_LIST);
+    } else {
+        echo "⏭️  Pending: ข้าม (ไม่ได้เปลี่ยน)\n";
+        $pending_result = null;
+    }
 
     // --- 4) Embed into index.html ---
     echo "\n[4/4] Embed ข้อมูลลงใน index.html...\n";

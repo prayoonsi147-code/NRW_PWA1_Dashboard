@@ -1,7 +1,11 @@
 ================================================================================
   Quick Context — Dashboard กปภ.ข.1 (อ่านไฟล์นี้แทน README+prompt_history)
-  อัปเดตล่าสุด: 28 มี.ค. 2569
+  อัปเดตล่าสุด: 2 เม.ย. 2569
 ================================================================================
+
+*** สำคัญ: อ่าน NAMING_RULES.md ก่อนแก้โค้ด upload/rename ***
+กฎตั้งชื่อไฟล์อัตโนมัติทุกหมวดทุก Dashboard อยู่ใน NAMING_RULES.md
+Upload ทุกหมวดต้องเป็น 2-step (pre-check → confirm) + แจ้งซ้ำ/ไม่ซ้ำ
 
 โปรเจค: 4 Dashboard + 1 Landing Page (index.html ราก)
 ทุก Dashboard: standalone HTML + server.py (Flask) + manage.html
@@ -138,8 +142,13 @@ Dashboard_Meter   | 5003 | ม่วง #4a148c    | ~22KB
     - Dashboard_Meter ✅ (dead_meter + total_meters)
     - Dashboard_PR ✅ (PR + AON — AON values=0 ปัญหา parser เดิม, fallback ใช้ได้)
   - Leak/PR/Meter: build_dashboard.py ฝังข้อมูลทั้งหมดลง index.html → ทำงานบน GitHub Pages ได้
-  - push_to_github.bat: ★ run build ทุก Dashboard ก่อน → git add → commit → push
-    ⚠️ ทำให้ข้อมูลบน GitHub Pages อัพเดตอัตโนมัติ ไม่ต้อง run build แยก
+  - push_to_github.bat: ★ 9-step flow: checkpoint → build → validate → git → push → restore
+    - Step 1: CHECKPOINT — backup index.html → .checkpoint ทุก Dashboard
+    - Step 2: BUILD — run build_dashboard.php ทุก Dashboard
+    - Step 3: VALIDATE — ตรวจ DOCTYPE + min 1KB, auto-restore ถ้า fail
+    - Steps 4-8: Git init/identity/pull+squash/stage/commit+push
+    - Step 9: RESTORE — คืน index.html จาก .checkpoint (local กลับเป็นเดิม)
+    ⚠️ ทำให้ข้อมูลบน GitHub Pages อัพเดตอัตโนมัติ + local ไม่ถูกแก้
 
   - GIS build ฝังข้อมูล TAB 2+3 เป็น static fallback (แก้ 27 มี.ค.)
     - อ่านจาก ข้อมูลดิบ/แรงดันน้ำ/ → PRESSURE_DATA, PRESSURE_MONTHS
@@ -338,5 +347,155 @@ Dashboard_Meter   | 5003 | ม่วง #4a148c    | ~22KB
 
 ★ ตารางทุกตาราง: มี class="table-resizable" (resize:both; overflow:auto)
   ปรับขนาดได้โดยลากมุมล่างขวา
+
+================================================================================
+  Session 4 Work Log (29 มี.ค. 2569)
+================================================================================
+
+งานที่ทำ:
+  1. Y-axis sync สำหรับ Leak dashboard (paired charts ใน card เดียวกัน)
+  2. Y-axis sync สำหรับ PR dashboard (5 ด้านใน TAB ข้อร้องเรียน)
+  3. แก้ push_to_github.bat (CRLF, syntax, soft reset logic)
+  4. แก้ build_dashboard.php หลายจุด (OIS format, RL parsing, regex→strpos)
+  5. แก้ปัญหา .sqlite 143MB บล็อก GitHub push
+  6. กู้คืน Leak index.html ที่ถูก build script เขียนทับจนเสีย
+
+================================================================================
+  ⚠️ ปัญหาที่รู้แล้ว (Known Issues)
+================================================================================
+
+1. build_dashboard.php (Leak) — replace_js_var อาจเขียน index.html เสียหาย
+   - สาเหตุ: ฟังก์ชัน replace_js_var ที่ parse {…} ด้วย brace counting
+     อาจนับผิดถ้ามี { หรือ } ภายใน string literal ที่ซับซ้อน
+   - แก้ชั่วคราว: เพิ่ม safety checks (ตรวจ DOCTYPE, ตรวจขนาดไฟล์, backup)
+     ถ้า content เสียหาย จะไม่เขียนทับ
+   - แก้ถาวร (ยังไม่ทำ): อาจต้องเปลี่ยนวิธี parse ใหม่ เช่น หา marker
+     comment ที่ชัดเจน แทนการ parse JS syntax
+
+2. RL (Real Leak) "0 branches with data"
+   - RL files ถูกอ่านได้ แต่ไม่มี branch data ที่ match
+   - เพิ่ม debug output แล้ว — รัน build อีกครั้งจะเห็น col_map ของแต่ละ sheet
+   - อาจเป็นปัญหา header detection หรือ branch name matching
+
+3. OIS files — format ไม่ตรงกับ parser
+   - OIS .xls มี branches เป็น columns (เป้าหมาย format) ไม่ใช่ months เป็น columns
+   - build script จะ skip OIS replacement → คงค่าเดิมที่ฝังใน index.html
+
+================================================================================
+  ⚠️ GitHub Push — ปัญหาไฟล์ใหญ่เกิน 100MB
+================================================================================
+
+ปัญหา:
+  GitHub ปฏิเสธ push ถ้ามีไฟล์เกิน 100MB ใน commit history
+  (ถึงแม้จะลบไฟล์แล้ว ถ้ายังอยู่ใน commit เก่าก็ push ไม่ได้)
+
+วิธีแก้ที่ใช้:
+  push_to_github.bat มี Step 4.5 ที่ทำ git reset --soft origin/main
+  ก่อน commit ใหม่ — เป็นการ squash unpushed commits ทิ้ง history เก่า
+  + .gitignore มี: *.sqlite, *.db, *.cache.json, *.zip, *.rar, *.7z, *.bak
+
+ถ้าเกิดอีกในอนาคต (ไฟล์ใหญ่หลุดเข้า git):
+  วิธี A — ถ้ายัง push ไม่สำเร็จ (commits อยู่ local):
+    git reset --soft origin/main
+    git rm --cached "path/to/largefile"
+    เพิ่ม pattern ใน .gitignore
+    git add -A && git commit -m "Remove large file"
+    git push
+
+  วิธี B — ถ้า push สำเร็จแล้ว (ไฟล์อยู่ใน remote history):
+    ใช้ BFG Repo-Cleaner (https://rtyley.github.io/bfg-repo-cleaner/)
+    java -jar bfg.jar --strip-blobs-bigger-than 100M
+    git reflog expire --expire=now --all
+    git gc --prune=now --aggressive
+    git push --force
+
+  วิธี C — ถ้าจะเริ่มใหม่ (ง่ายสุด):
+    ลบ .git folder
+    git init && git remote add origin <url>
+    git add -A && git commit -m "Fresh start"
+    git push --force origin main
+
+================================================================================
+  📋 เปลี่ยนเครื่อง / Setup ใหม่ — Checklist
+================================================================================
+
+เมื่อย้ายไปเครื่องใหม่ ต้องทำ:
+
+  1. ติดตั้ง Git for Windows
+     https://git-scm.com/download/win
+
+  2. ติดตั้ง XAMPP (สำหรับ PHP + build scripts)
+     https://www.apachefriends.org/
+     - เปิด php.ini → uncomment: extension=gd (จำเป็นสำหรับ PhpSpreadsheet)
+     - path: C:\xampp\php\php.ini
+
+  3. ติดตั้ง Composer (PHP package manager)
+     cd เข้า project root แล้วรัน:
+       C:\xampp\php\php.exe -r "copy('https://getcomposer.org/installer','composer-setup.php');"
+       C:\xampp\php\php.exe composer-setup.php
+       C:\xampp\php\php.exe composer.phar install
+
+  4. Clone repo
+     git clone https://github.com/prayoonsi147-code/NRW_PWA1_Dashboard.git
+     cd NRW_PWA1_Dashboard
+
+  5. ตั้งค่า Git identity
+     git config user.email "prayoonsi147@gmail.com"
+     git config user.name "prayoonsi147-code"
+
+  6. ทดสอบ push
+     ดับเบิลคลิก push_to_github.bat
+     (ครั้งแรกอาจต้อง login GitHub ผ่าน browser)
+
+  7. ถ้า push ติด "file exceeds 100MB"
+     → ดูหัวข้อ "GitHub Push — ปัญหาไฟล์ใหญ่เกิน 100MB" ด้านบน
+
+  8. ถ้า build ทำ index.html เสีย (หน้าว่าง)
+     → กู้คืน: git checkout HEAD~1 -- Dashboard_Leak/index.html
+     → push ด้วย quick_push.bat (ไม่รัน build)
+
+================================================================================
+  Session 5 Work Log (1-2 เม.ย. 2569)
+================================================================================
+
+งานที่ทำ:
+
+  1. ★ แก้ bug GIS api.php — upload validation ใช้ไม่ได้ (4 bugs):
+     - detect_repair_columns() อยู่ใน GET route block → ย้ายมา top-level (ก่อน validate_gis_file)
+     - $PREFIX_MAP ขาด $ → เป็น PREFIX_MAP[$category] 2 จุด (line ~711, ~1390) → เพิ่ม $
+     - Thai regex ผิด: [\u0e00-\u0e7f] → [\x{0e00}-\x{0e7f}] (PCRE ไม่รู้จัก \u)
+     - Pressure branch name = "ปีงบ" แทนชื่อสาขา → เพิ่ม $non_branch_words filter:
+       array('ปีงบ', 'ปีงบประมาณ', 'แรงดัน', 'แรงดันน้ำ') กรองออกก่อน reset()
+
+  2. ★ แก้ GIS manage.html — confirm dialog ล้นจอ (22 ไฟล์):
+     - Modal CSS: max-height:80vh, display:flex, flex-direction:column, overflow-y:auto
+     - Modal width: max-width 400→520px
+     - Upload confirm: เปลี่ยนจากแสดงทุกไฟล์ → compact HTML (MAX_SHOW=5 + summary)
+     - showConfirmDialog(): detect HTML content → ใช้ innerHTML แทน textContent
+
+  3. ★ เขียน push_to_github.bat ใหม่ทั้งหมด — 9-step flow:
+     - Step 1: CHECKPOINT — copy index.html → .checkpoint ทุก 4 Dashboard
+     - Step 2: BUILD — run build_dashboard.php ทุกตัว (ต้องมี PHP/XAMPP)
+     - Step 3: VALIDATE — ตรวจ DOCTYPE + min 1KB, auto-restore จาก checkpoint ถ้า fail
+     - Steps 4-7: Git init/identity/pull+squash/stage
+     - Step 8: Commit + push (goto RESTORE ถ้า fail)
+     - Step 9: RESTORE — คืน .checkpoint → index.html, ลบ .checkpoint
+     - ★ Concept: push built HTML ขึ้น Git แต่ local กลับเป็น index.html เดิม (ไม่มี data ฝัง)
+
+  4. ★ สร้าง Dashboard_Meter/build_dashboard.php (ไฟล์ใหม่):
+     - ฝัง 3 ตัวแปรลง index.html: DEAD_METER, TOTAL_METERS, DEAD_METER_DATE
+     - DEAD_METER: parse จาก METER_*.xlsx (branch code → dead meter count by size)
+     - TOTAL_METERS: parse จาก OIS latest (total meters per branch)
+     - DEAD_METER_DATE: จาก file modification time ล่าสุด
+     - Safety checks: backup ก่อนเขียน, DOCTYPE validation, min size 1KB, 30% shrink protection
+     - ⚠️ มี normalize_size() ใช้ eval() → ควรเปลี่ยนเป็น lookup ในอนาคต
+
+  5. .gitignore: เพิ่ม *.checkpoint
+
+งานค้าง:
+  - เพิ่ม safety checks ให้ PR + GIS build_dashboard.php (backup, DOCTYPE, size validation)
+    → ตอนนี้มีเฉพาะ Leak + Meter เท่านั้นที่มี safety checks ครบ
+  - ทดสอบ build ทุก Dashboard ว่า index.html ไม่พัง
+  - แก้ normalize_size() ใน Meter build ที่ใช้ eval() → เปลี่ยนเป็น lookup table
 
 ================================================================================

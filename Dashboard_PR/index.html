@@ -739,6 +739,29 @@ function _storeChartDefaults(scope){
     });
 }
 
+// ==================== ZEBRA BACKGROUND PLUGIN ====================
+var zebrahBgPlugin={
+    id:'zebraBackground',
+    beforeDraw:function(chart){
+        var ctx=chart.ctx;
+        var xAxis=chart.scales.x;
+        var yAxis=chart.scales.y;
+        if(!xAxis||!yAxis)return;
+        var isDark=document.body.classList.contains('dark');
+        var colorA=isDark?'rgba(255,255,255,0.04)':'rgba(0,0,0,0.03)';
+        var colorB=isDark?'rgba(255,255,255,0.09)':'rgba(0,0,0,0.07)';
+        var ticks=xAxis.ticks;
+        if(!ticks||ticks.length===0)return;
+        for(var i=0;i<ticks.length;i++){
+            var x0,x1;
+            if(i===0){x0=xAxis.left;}else{x0=(xAxis.getPixelForTick(i-1)+xAxis.getPixelForTick(i))/2;}
+            if(i===ticks.length-1){x1=xAxis.right;}else{x1=(xAxis.getPixelForTick(i)+xAxis.getPixelForTick(i+1))/2;}
+            ctx.fillStyle=(i%2===0)?colorA:colorB;
+            ctx.fillRect(x0,yAxis.top,x1-x0,yAxis.bottom-yAxis.top);
+        }
+    }
+};
+
 // ==================== PR DATA TAB ====================
 
 // Complaint categories
@@ -1784,6 +1807,7 @@ function pr2UpdateChart() {
   pr2ChartInst = new Chart(ctx, {
     type: chartTypeMap[chartType],
     data: { labels: labels, datasets: datasets },
+    ...(xAxis === 'branch' ? { plugins: [zebrahBgPlugin] } : {}),
     options: {
       responsive: true,
       maintainAspectRatio: false,
@@ -1805,7 +1829,7 @@ function pr2UpdateChart() {
         datalabels: showValues ? { display: function(ctx){ return ctx.dataset.data[ctx.dataIndex] != null; }, font: { size: parseInt(document.getElementById('fpDataLabel')?.value || 10) } } : false
       },
       scales: {
-        x: { ticks: { font: { size: parseInt(document.getElementById('fpAxisX')?.value || 10) } } },
+        x: { ticks: { font: { size: parseInt(document.getElementById('fpAxisX')?.value || 10) } }, ...(xAxis === 'branch' ? { grid: { display: true, color: 'rgba(0,0,0,0.08)' } } : {}) },
         y: { ticks: { font: { size: parseInt(document.getElementById('fpAxisY')?.value || 12) } } }
       }
     }
@@ -2750,6 +2774,7 @@ function aonRender(){
             labels:labels,
             datasets:datasets
         },
+        plugins:[zebrahBgPlugin],
         options:{
             responsive:true,
             maintainAspectRatio:false,
@@ -2774,7 +2799,7 @@ function aonRender(){
             scales:{
                 x:{
                     ticks:{font:{size:12},maxRotation:45,minRotation:45},
-                    grid:{display:true,color:'rgba(0,0,0,0.1)',drawOnChartArea:true,drawTicks:true},
+                    grid:{display:true,color:'rgba(0,0,0,0.08)',drawOnChartArea:true,drawTicks:true},
                     offset:true,
                     stacked:true
                 },
@@ -2975,6 +3000,7 @@ function aonCmpRender(){
     aonCmpChartInst=new Chart(ctx,{
         type:'bar',
         data:{labels:labels,datasets:datasets},
+        plugins:[zebrahBgPlugin],
         options:{
             responsive:true,
             maintainAspectRatio:false,
@@ -2995,7 +3021,7 @@ function aonCmpRender(){
             scales:{
                 x:{
                     ticks:{font:{size:12},maxRotation:45,minRotation:45},
-                    grid:{display:true,color:'rgba(0,0,0,0.1)',drawOnChartArea:true,drawTicks:true},
+                    grid:{display:true,color:'rgba(0,0,0,0.08)',drawOnChartArea:true,drawTicks:true},
                     offset:true
                 },
                 y:{
@@ -3303,6 +3329,7 @@ function aon2Render(){
     aonChart2Inst=new Chart(ctx,{
         type:'line',
         data:{labels:labels,datasets:datasets},
+        ...(xAxis==='branch'?{plugins:[zebrahBgPlugin]}:{}),
         options:{
             responsive:true,
             maintainAspectRatio:false,
@@ -3328,7 +3355,7 @@ function aon2Render(){
             scales:{
                 x:{
                     ticks:{font:{size:12},maxRotation:45,minRotation:45},
-                    grid:{display:true,color:'rgba(0,0,0,0.1)',drawOnChartArea:true,drawTicks:true},
+                    grid:{display:true,color:xAxis==='branch'?'rgba(0,0,0,0.08)':'rgba(0,0,0,0.1)',drawOnChartArea:true,drawTicks:true},
                     offset:(chartType==='bar')
                 },
                 y:{
@@ -4424,7 +4451,7 @@ function buildBranchChart(canvasId, units, chartObjRef, titleText, showLegend) {
   const newChart = new Chart(ctx, {
     type: 'bar',
     data: { labels, datasets },
-    plugins: [arrowPlugin],
+    plugins: [zebrahBgPlugin, arrowPlugin],
     options: {
       responsive: true,
       maintainAspectRatio: false,
@@ -4463,7 +4490,7 @@ function buildBranchChart(canvasId, units, chartObjRef, titleText, showLegend) {
             maxRotation: 0,
             minRotation: 0,
           },
-          grid: { display: true, color: 'rgba(0,0,0,0.06)' }
+          grid: { display: true, color: 'rgba(0,0,0,0.08)' }
         },
         y: {
           title: {
@@ -5377,7 +5404,7 @@ function buildPipeChart(canvasId,units,chartObjRef,titleText,showLegend){
     var ctx=document.getElementById(canvasId).getContext('2d');
     if(chartObjRef&&chartObjRef.chart){chartObjRef.chart.destroy();}
     return new Chart(ctx,{
-        type:'bar',data:{labels:labels,datasets:datasets},plugins:[arrowPlugin],
+        type:'bar',data:{labels:labels,datasets:datasets},plugins:[zebrahBgPlugin,arrowPlugin],
         options:{
             responsive:true,maintainAspectRatio:false,
             interaction:{mode:'nearest',intersect:true},
@@ -5387,7 +5414,7 @@ function buildPipeChart(canvasId,units,chartObjRef,titleText,showLegend){
                 tooltip:{callbacks:{title:function(items){if(!items.length)return'';return items[0].label+' — '+items[0].dataset.label;},label:function(ctx){return ctx.parsed.y.toFixed(4)+'%';}}}
             },
             scales:{
-                x:{ticks:{font:overviewTickFont,maxRotation:0,minRotation:0},grid:{display:true,color:'rgba(0,0,0,0.06)'}},
+                x:{ticks:{font:overviewTickFont,maxRotation:0,minRotation:0},grid:{display:true,color:'rgba(0,0,0,0.08)'}},
                 y:{title:{display:true,text:'ร้อยละต่อจำนวนลูกค้า (%)',font:{size:12,weight:'bold'}},ticks:{font:{size:11},callback:function(v){return v.toFixed(2)+'%';}},beginAtZero:true}
             }
         }
@@ -5521,7 +5548,7 @@ function buildQualityChart(canvasId,units,chartObjRef,titleText,showLegend){
     var ctx=document.getElementById(canvasId).getContext('2d');
     if(chartObjRef&&chartObjRef.chart){chartObjRef.chart.destroy();}
     return new Chart(ctx,{
-        type:'bar',data:{labels:labels,datasets:datasets},plugins:[arrowPlugin],
+        type:'bar',data:{labels:labels,datasets:datasets},plugins:[zebrahBgPlugin,arrowPlugin],
         options:{
             responsive:true,maintainAspectRatio:false,
             interaction:{mode:'nearest',intersect:true},
@@ -5531,7 +5558,7 @@ function buildQualityChart(canvasId,units,chartObjRef,titleText,showLegend){
                 tooltip:{callbacks:{title:function(items){if(!items.length)return'';return items[0].label+' — '+items[0].dataset.label;},label:function(ctx){return ctx.parsed.y.toFixed(4)+'%';}}}
             },
             scales:{
-                x:{ticks:{font:overviewTickFont,maxRotation:0,minRotation:0},grid:{display:true,color:'rgba(0,0,0,0.06)'}},
+                x:{ticks:{font:overviewTickFont,maxRotation:0,minRotation:0},grid:{display:true,color:'rgba(0,0,0,0.08)'}},
                 y:{title:{display:true,text:'ร้อยละต่อจำนวนลูกค้า (%)',font:{size:12,weight:'bold'}},ticks:{font:{size:11},callback:function(v){return v.toFixed(2)+'%';}},beginAtZero:true}
             }
         }
@@ -5665,7 +5692,7 @@ function buildServiceChart(canvasId,units,chartObjRef,titleText,showLegend){
     var ctx=document.getElementById(canvasId).getContext('2d');
     if(chartObjRef&&chartObjRef.chart){chartObjRef.chart.destroy();}
     return new Chart(ctx,{
-        type:'bar',data:{labels:labels,datasets:datasets},plugins:[arrowPlugin],
+        type:'bar',data:{labels:labels,datasets:datasets},plugins:[zebrahBgPlugin,arrowPlugin],
         options:{
             responsive:true,maintainAspectRatio:false,
             interaction:{mode:'nearest',intersect:true},
@@ -5675,7 +5702,7 @@ function buildServiceChart(canvasId,units,chartObjRef,titleText,showLegend){
                 tooltip:{callbacks:{title:function(items){if(!items.length)return'';return items[0].label+' — '+items[0].dataset.label;},label:function(ctx){return ctx.parsed.y.toFixed(4)+'%';}}}
             },
             scales:{
-                x:{ticks:{font:overviewTickFont,maxRotation:0,minRotation:0},grid:{display:true,color:'rgba(0,0,0,0.06)'}},
+                x:{ticks:{font:overviewTickFont,maxRotation:0,minRotation:0},grid:{display:true,color:'rgba(0,0,0,0.08)'}},
                 y:{title:{display:true,text:'ร้อยละต่อจำนวนลูกค้า (%)',font:{size:12,weight:'bold'}},ticks:{font:{size:11},callback:function(v){return v.toFixed(2)+'%';}},beginAtZero:true}
             }
         }
@@ -5808,7 +5835,7 @@ function buildStaffChart(canvasId,units,chartObjRef,titleText,showLegend){
     var ctx=document.getElementById(canvasId).getContext('2d');
     if(chartObjRef&&chartObjRef.chart){chartObjRef.chart.destroy();}
     return new Chart(ctx,{
-        type:'bar',data:{labels:labels,datasets:datasets},plugins:[arrowPlugin],
+        type:'bar',data:{labels:labels,datasets:datasets},plugins:[zebrahBgPlugin,arrowPlugin],
         options:{
             responsive:true,maintainAspectRatio:false,
             interaction:{mode:'nearest',intersect:true},
@@ -5818,7 +5845,7 @@ function buildStaffChart(canvasId,units,chartObjRef,titleText,showLegend){
                 tooltip:{callbacks:{title:function(items){if(!items.length)return'';return items[0].label+' — '+items[0].dataset.label;},label:function(ctx){return ctx.parsed.y.toLocaleString('th-TH')+' เรื่อง';}}}
             },
             scales:{
-                x:{ticks:{font:overviewTickFont,maxRotation:0,minRotation:0},grid:{display:true,color:'rgba(0,0,0,0.06)'}},
+                x:{ticks:{font:overviewTickFont,maxRotation:0,minRotation:0},grid:{display:true,color:'rgba(0,0,0,0.08)'}},
                 y:{title:{display:true,text:'จำนวนเรื่อง',font:{size:12,weight:'bold'}},ticks:{font:{size:11},callback:function(v){return v.toLocaleString('th-TH');}},beginAtZero:true}
             }
         }
@@ -6966,6 +6993,20 @@ document.addEventListener('click',function(e){
             .then(function(r){return r.json();})
             .then(function(res){
                 if(!res.ok||!res.has_data)return;
+                // Validate: check that at least one month has Thai branch-name keys (not numeric)
+                var validData=false;
+                var monthKeys=Object.keys(res.data);
+                for(var mi=0;mi<monthKeys.length;mi++){
+                    var bd=res.data[monthKeys[mi]];
+                    var bKeys=Object.keys(bd);
+                    if(bKeys.length>0 && isNaN(bKeys[0])){
+                        validData=true;break;
+                    }
+                }
+                if(!validData){
+                    console.warn('[Dual Mode] AON API returned invalid data (numeric keys), keeping hardcoded data');
+                    return;
+                }
                 AON=res.data;
                 // Rebuild AON_MONTH_LABELS and AON_KEYS_SORTED
                 AON_MONTH_LABELS={};

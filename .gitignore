@@ -13,6 +13,7 @@ desktop.ini
 # Temporary files
 *.tmp
 ~$*
+*.checkpoint
 
 # Unused assets
 hero-bg.svg
@@ -29,3 +30,14 @@ prompt_history.txt
 
 # SQLite databases (generated from xlsx — too large for GitHub)
 *.sqlite
+
+# Large/generated files that may exceed GitHub 100MB limit
+*.db
+*.mdb
+*.accdb
+*.bak
+*.zip
+*.rar
+*.7z
+index.html.bak
+quick_push.bat

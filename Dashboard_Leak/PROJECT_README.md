@@ -225,20 +225,42 @@ Dashboard_Leak/
 ---
 
 ## Checkpoint ล่าสุด
-> **เซสชันที่ 12 (ต่อ) — 2026-03-16**
-> - **คำสั่ง:** เปลี่ยน Hero Section เป็นตาราง Dataset Summary + Toggle แหล่งข้อมูล + นำไปใช้กับ Dashboard_PR
+> **เซสชันที่ 15-16 — 2026-04-01**
+> - **คำสั่ง:** แก้ปัญหา upload หลายอย่าง + สร้าง RULES.md สำหรับ cross-session memory
 > - **สิ่งที่ทำ:**
->   1. เปลี่ยน Hero Section (stat-cards) เป็นตาราง Dataset Summary (OIS, RL, EU, MNF, P3) แสดงจำนวนเดือนที่มีข้อมูลต่อปี พร้อม dropdown ปีงบฯ/ปีปฏิทิน
->   2. เพิ่ม P3 ใน file tags (สี #0891b2) และเป็นแถวที่ 5 ในตาราง
->   3. จัดตารางและ file tags ให้อยู่ใน Card เดียวกัน (div.file-list)
->   4. เปลี่ยนปุ่มข้อมูลจาก toggle เดี่ยว เป็น "แหล่งข้อมูล [แสดง|ซ่อน]" แบบ two-button toggle (.ymt/.ymb)
->   5. นำ pattern เดียวกัน (toggle + file tags + dataset table) ไปใช้กับ Dashboard_PR/index.html
->   6. แก้ bug initPRInfo() ถูกเรียกก่อนถูก define (ย้ายจาก script block แรกไปหลัง function definition)
-> - **งานค้าง:** ไม่มี
+>   1. แก้ OIS comparison bars หาย → reset rlcOISMap cache ใน OIS callback + re-init RL tab
+>   2. แก้ JSON "Unexpected token '<'" → .htaccess ปิด display_errors + เพิ่ม max_file_uploads=100
+>   3. แก้ multi-file upload ส่งแค่ไฟล์เดียว → files[] (มีวงเล็บเหลี่ยม) ทุก manage.html
+>   4. แก้ P3 rename ทุกไฟล์ชื่อเดียวกัน → อ่าน branch จาก Excel content ด้วย standard branch lookup (ไม่ใช้ regex P3-xxx)
+>   5. เพิ่ม error logging สำหรับ P3 branch extraction
+>   6. สร้าง RULES.md — รวบรวมบทเรียนทั้งหมดสำหรับ cross-session memory
+>   7. แก้ไขทุก dashboard (Leak, PR, GIS, Meter): .htaccess + manage.html files[]
+> - **งานค้าง:**
+>   - ต้องให้ user ทดสอบ upload P3 อีกครั้ง (Ctrl+Shift+R hard refresh ก่อน)
+>   - ตรวจสอบว่า P3 branch extraction ทำงานถูกต้องกับไฟล์จริง (ดู PHP error log)
 
 ---
 
 ## บันทึกการทำงาน (Changelog)
+
+### 2026-04-01 — เซสชันที่ 15-16 (แก้ upload bugs + RULES.md)
+- **แก้ OIS comparison bars หายหลัง upload**: rlcOISMap cache ไม่ถูก invalidate เมื่อ OIS data มาทีหลัง RL → เพิ่ม `rlcOISMap=null` + `rlcInit()` ใน OIS callback
+- **แก้ JSON parse error "Unexpected token '<'"**: PHP display_errors=On + max_file_uploads=20 (default) เมื่อ upload 23 ไฟล์ → HTML error ก่อน JSON → แก้ใน .htaccess (display_errors Off, max_file_uploads 100)
+- **แก้ multi-file upload ส่งแค่ 1 ไฟล์**: `formData.append('files', file)` ไม่มี `[]` → PHP ได้แค่ไฟล์สุดท้าย → แก้เป็น `files[]` ทุก manage.html (4 dashboards)
+- **แก้ P3 rename ชื่อซ้ำ**: Regex `/P\d[\-\s]+(.+?)[\s\d\(]/` match "P1 - Pn" จาก row 1 ได้ค่าผิด "Pn" → เปลี่ยนเป็น standard branch name lookup (22 สาขา) + "สถานีผลิตน้ำ" pattern
+- **สร้าง RULES.md**: รวบรวม 11 บทเรียนสำคัญสำหรับ cross-session memory
+- **เพิ่ม .htaccess** ทุก dashboard: display_errors Off, max_file_uploads 100, upload_max_filesize 50M, post_max_size 200M, max_execution_time 600, memory_limit 512M
+
+### 2026-03-31 — เซสชันที่ 13-14 (แก้ PHP build: OIS data ไม่ embed + column index bug)
+- **Root Cause**: `extract_sheet_data()` ใช้ 0-based column index ($row[0], $row[1]...) แต่ PhpSpreadsheet คืนค่า 1-based ($row[1], $row[2]...)
+  - $row[0] → $row[1] (label), $row[1] → $row[2] (unit), $row[2] → $row[3] (target_year), $row[4] → $row[5] (target_month)
+- **แก้ formula resolution**: เปลี่ยนจาก getCalculatedValue() (ช้ามาก, timeout) เป็น getOldCalculatedValue() (อ่านค่าที่ Excel คำนวณไว้, เร็ว ~4ms)
+- **เพิ่ม merged cell handling**: อ่านค่าจากเซลล์ต้นทางของ merge range
+- **เพิ่ม RichText handling**: แปลง RichText objects เป็น plain text ด้วย ->getPlainText()
+- **เพิ่ม data structure documentation**: เพิ่ม comment block อธิบายโครงสร้าง OIS Excel ใน build_dashboard.php (column mapping, formula resolution, merged cells)
+- **ลบ debug logging**: ลบ [DIAG], [DEBUG], [DEBUG2], [DEBUG3] ออกจาก process_ois_files()
+- **ลบ diag.php**: ไฟล์ทดสอบชั่วคราวที่ใช้ debug
+- **ผลลัพธ์**: Build สำเร็จ — OIS 13 ปี × 24 sheets, ก.พ.69 = 14.34% ปรากฏใน comparisonChart ทันทีจาก embedded data
 
 ### 2026-03-16 — เซสชันที่ 12 (ต่อ: Hero Section → Dataset Table + แหล่งข้อมูล Toggle + Dashboard_PR)
 - เปลี่ยน Hero Section (stat-cards) เป็นตาราง Dataset Summary
