@@ -20,6 +20,7 @@
 ini_set('display_errors', '0');
 error_reporting(E_ALL);
 ini_set('log_errors', '1');
+ini_set('memory_limit', '512M');
 
 // ============================================================================
 // Configuration
@@ -1713,8 +1714,7 @@ function process_p3_files($only_files = []) {
         return $points;
     }
 
-    function process_p3_folder($path, $year_key, $cache_dir, $only_files) {
-        global $result;
+    function process_p3_folder($path, $year_key, $cache_dir, $only_files, &$result) {
         $files = array_merge(
             glob($path . DIRECTORY_SEPARATOR . 'P3_*.xlsx'),
             glob($path . DIRECTORY_SEPARATOR . '*.xlsx')
@@ -1783,11 +1783,11 @@ function process_p3_files($only_files = []) {
         if ($year_folder[0] === '.') continue;
         $year_path = $p3_dir . DIRECTORY_SEPARATOR . $year_folder;
         if (!is_dir($year_path)) continue;
-        process_p3_folder($year_path, $year_folder, $cache_dir, $only_files);
+        process_p3_folder($year_path, $year_folder, $cache_dir, $only_files, $result);
     }
 
     // Scan flat structure
-    process_p3_folder($p3_dir, null, $cache_dir, $only_files);
+    process_p3_folder($p3_dir, null, $cache_dir, $only_files, $result);
 
     if (!empty($result)) {
         $total = 0;
