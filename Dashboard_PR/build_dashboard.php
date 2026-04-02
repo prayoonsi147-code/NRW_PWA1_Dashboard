@@ -8,6 +8,8 @@
 ini_set('display_errors', '0');
 error_reporting(E_ALL);
 ini_set('log_errors', '1');
+ini_set('memory_limit', '512M');
+ini_set('pcre.backtrack_limit', '10000000');
 
 // ─── Setup ─────────────────────────────────────────────────────────────────────
 
@@ -362,15 +364,39 @@ function build() {
         echo "  (ใช้ placeholder)\n";
     } else {
         // Replace existing embedded DATA (previously built file)
-        // DATA is on a single line: const DATA = {...};
-        $pattern = '/^const DATA = \{.*\};$/m';
-        $new_val = 'const DATA = ' . $data_json . ';';
-        $html_new = preg_replace($pattern, $new_val, $html, 1, $count);
-        if ($count > 0) {
-            $html = $html_new;
-            echo "  (แทนที่ const DATA เดิม)\n";
-        } else {
-            echo "  [WARNING] ไม่พบ DASHBOARD_DATA_PLACEHOLDER หรือ const DATA ใน HTML!\n";
+        // DATA is on a single line: var DATA = {...}; or const DATA = {...};
+        // Use strpos-based approach (regex can fail on 600KB+ lines)
+        $replaced = false;
+        foreach (['var DATA', 'const DATA'] as $needle) {
+            $pos = strpos($html, $needle);
+            if ($pos === false) continue;
+            // Find '=' after the needle
+            $eq = strpos($html, '=', $pos + strlen($needle));
+            if ($eq === false || $eq - $pos > 20) continue;
+            // Find '{' after '='
+            $brace = strpos($html, '{', $eq);
+            if ($brace === false || $brace - $eq > 5) continue;
+            // Count braces to find matching '}'
+            $depth = 0; $i = $brace; $len = strlen($html);
+            while ($i < $len) {
+                $ch = $html[$i];
+                if ($ch === '{') $depth++;
+                elseif ($ch === '}') { $depth--; if ($depth === 0) break; }
+                elseif ($ch === '"') { $i++; while ($i < $len && $html[$i] !== '"') { if ($html[$i] === '\\') $i++; $i++; } }
+                $i++;
+            }
+            if ($depth !== 0) continue;
+            $end = $i + 1;
+            if ($end < $len && $html[$end] === ';') $end++;
+            $old_len = $end - $pos;
+            $new_val = 'var DATA = ' . $data_json . ';';
+            echo "  🔄 Replacing '$needle' at pos $pos (old: {$old_len} bytes, new: " . strlen($new_val) . " bytes)\n";
+            $html = substr($html, 0, $pos) . $new_val . substr($html, $end);
+            $replaced = true;
+            break;
+        }
+        if (!$replaced) {
+            echo "  [WARNING] ไม่พบ DASHBOARD_DATA_PLACEHOLDER หรือ var/const DATA ใน HTML!\n";
         }
     }
 
