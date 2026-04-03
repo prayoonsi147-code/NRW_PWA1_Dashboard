@@ -685,13 +685,26 @@ function process_rl_files($only_files = []) {
         }
 
         if ($use_cache) {
-            $year_str = $cached['year'];
-            $rl_data[$year_str] = $cached['data'];
-            $count = 0;
-            foreach ($cached['data'] as $b => $m) {
-                if (count(array_filter($m['rate'])) > 0) $count++;
+            // Support both old (single-year) and new (multi-fy) cache format
+            if (isset($cached['multi_fy'])) {
+                foreach ($cached['multi_fy'] as $_fy => $_fydata) {
+                    $rl_data[$_fy] = $_fydata;
+                    $count = 0;
+                    foreach ($_fydata as $b => $m) {
+                        if (count(array_filter($m['rate'])) > 0) $count++;
+                    }
+                    echo "   ⚡ ปี $_fy: $count branches (cache)\n";
+                }
+            } else {
+                // Old format fallback
+                $year_str = $cached['year'];
+                $rl_data[$year_str] = $cached['data'];
+                $count = 0;
+                foreach ($cached['data'] as $b => $m) {
+                    if (count(array_filter($m['rate'])) > 0) $count++;
+                }
+                echo "   ⚡ ปี $year_str: $count branches (cache — old format)\n";
             }
-            echo "   ⚡ ปี $year_str: $count branches (cache)\n";
             continue;
         }
         try {
@@ -734,17 +747,16 @@ function process_rl_files($only_files = []) {
                 echo "   📌 " . $fname . ": ดึงปี $year_str จากเนื้อหาในไฟล์\n";
             }
 
-            $result = [];
-            foreach (STANDARD_BRANCHES as $branch) {
-                $result[$branch] = [
-                    'rate' => array_fill(0, 12, null),
-                    'volume' => array_fill(0, 12, null),
-                    'production' => array_fill(0, 12, null),
-                    'supplied' => array_fill(0, 12, null),
-                    'sold' => array_fill(0, 12, null),
-                    'blowoff' => array_fill(0, 12, null)
-                ];
-            }
+            // ╔══════════════════════════════════════════════════════════════╗
+            // ║ ⚠️  MULTI-FY SUPPORT                                        ║
+            // ║                                                              ║
+            // ║ ไฟล์ RL อาจมี sheet ข้ามปีงบประมาณ เช่น RL_2568.xlsx       ║
+            // ║ มี sheet ต.ค.67-ก.ย.68 (fy 2568) และ ต.ค.68-ก.พ.69        ║
+            // ║ (fy 2569) → ต้องคำนวณ fiscal year ต่อ sheet                 ║
+            // ║ ไม่ใช่ใช้ $year_str จากชื่อไฟล์เพียงอย่างเดียว             ║
+            // ╚══════════════════════════════════════════════════════════════╝
+            // $rl_results[fy_str] = [branch => [rate=>[12], volume=>[12], ...]]
+            $rl_results = [];
 
             foreach ($spreadsheet->getSheetNames() as $sname) {
                 // ╔══════════════════════════════════════════════════════════════╗
@@ -771,6 +783,30 @@ function process_rl_files($only_files = []) {
                 if ($mi === null) {
                     echo "      ⏭️  Skip sheet '$sname' (ไม่ใช่ชีทรายเดือน)\n";
                     continue;
+                }
+
+                // ── คำนวณ fiscal year ต่อ sheet (ไม่ใช้ $year_str จากชื่อไฟล์) ──
+                // ต.ค.(mi=0), พ.ย.(mi=1), ธ.ค.(mi=2) → fy = cal_year + 1
+                // ม.ค.(mi=3) - ก.ย.(mi=11) → fy = cal_year
+                $sheet_fy = $year_str; // fallback to file name year
+                if (preg_match('/(\d{2})\s*$/', trim($sname), $_ym)) {
+                    $cal_year = 2500 + intval($_ym[1]);
+                    $sheet_fy = ($mi <= 2) ? strval($cal_year + 1) : strval($cal_year);
+                }
+
+                // Initialize branch data for this fiscal year if not exists
+                if (!isset($rl_results[$sheet_fy])) {
+                    $rl_results[$sheet_fy] = [];
+                    foreach (STANDARD_BRANCHES as $_b) {
+                        $rl_results[$sheet_fy][$_b] = [
+                            'rate' => array_fill(0, 12, null),
+                            'volume' => array_fill(0, 12, null),
+                            'production' => array_fill(0, 12, null),
+                            'supplied' => array_fill(0, 12, null),
+                            'sold' => array_fill(0, 12, null),
+                            'blowoff' => array_fill(0, 12, null)
+                        ];
+                    }
                 }
 
                 $sheet = $spreadsheet->getSheetByName($sname);
@@ -866,7 +902,7 @@ function process_rl_files($only_files = []) {
 
                 // Debug: show what columns were found for first sheet
                 if ($mi === 0 || empty($col_map)) {
-                    echo "      Sheet '$sname' (month $mi): header_row=$header_row, col_branch=$col_branch\n";
+                    echo "      Sheet '$sname' (month $mi, fy=$sheet_fy): header_row=$header_row, col_branch=$col_branch\n";
                     echo "      col_map: " . json_encode($col_map) . "\n";
                     if (empty($col_map)) {
                         echo "      ⚠️  No columns mapped! First 3 header rows:\n";
@@ -890,46 +926,65 @@ function process_rl_files($only_files = []) {
 
                     if (isset($col_map['rate']) && isset($row[$col_map['rate']])) {
                         $val = $row[$col_map['rate']];
-                        if (is_numeric($val)) $result[$branch]['rate'][$mi] = $val;
+                        if (is_numeric($val)) $rl_results[$sheet_fy][$branch]['rate'][$mi] = $val;
                     }
                     if (isset($col_map['volume']) && isset($row[$col_map['volume']])) {
                         $val = $row[$col_map['volume']];
-                        if (is_numeric($val)) $result[$branch]['volume'][$mi] = $val;
+                        if (is_numeric($val)) $rl_results[$sheet_fy][$branch]['volume'][$mi] = $val;
                     }
                     if (isset($col_map['production']) && isset($row[$col_map['production']])) {
                         $val = $row[$col_map['production']];
-                        if (is_numeric($val)) $result[$branch]['production'][$mi] = $val;
+                        if (is_numeric($val)) $rl_results[$sheet_fy][$branch]['production'][$mi] = $val;
                     }
                     if (isset($col_map['supplied']) && isset($row[$col_map['supplied']])) {
                         $val = $row[$col_map['supplied']];
-                        if (is_numeric($val)) $result[$branch]['supplied'][$mi] = $val;
+                        if (is_numeric($val)) $rl_results[$sheet_fy][$branch]['supplied'][$mi] = $val;
                     }
                     if (isset($col_map['sold']) && isset($row[$col_map['sold']])) {
                         $val = $row[$col_map['sold']];
-                        if (is_numeric($val)) $result[$branch]['sold'][$mi] = $val;
+                        if (is_numeric($val)) $rl_results[$sheet_fy][$branch]['sold'][$mi] = $val;
                     }
                     if (isset($col_map['blowoff']) && isset($row[$col_map['blowoff']])) {
                         $val = $row[$col_map['blowoff']];
-                        if (is_numeric($val)) $result[$branch]['blowoff'][$mi] = $val;
+                        if (is_numeric($val)) $rl_results[$sheet_fy][$branch]['blowoff'][$mi] = $val;
+                    }
+
+                    // ── Fallback: คำนวณ rate จาก supplied/sold/blowoff ถ้าไม่มีคอลัมน์ rate ──
+                    // บาง sheet (เช่น พ.ย. 68 เป็นต้นไปใน RL_2569) ไม่มีคอลัมน์ "อัตรา (%)"
+                    if (!isset($col_map['rate']) && $rl_results[$sheet_fy][$branch]['rate'][$mi] === null) {
+                        $s = $rl_results[$sheet_fy][$branch]['supplied'][$mi];
+                        $d = $rl_results[$sheet_fy][$branch]['sold'][$mi];
+                        $b = $rl_results[$sheet_fy][$branch]['blowoff'][$mi] ?? 0;
+                        if ($s !== null && $d !== null && $s > 0) {
+                            $rl_results[$sheet_fy][$branch]['rate'][$mi] = round(($s - $d - $b) / $s * 100, 4);
+                        }
                     }
                 }
 
-                $rl_data[$year_str] = $result;
+                // Merge into $rl_data per fiscal year
+                $rl_data[$sheet_fy] = $rl_results[$sheet_fy];
             }
             $spreadsheet->disconnectWorksheets();
             unset($spreadsheet);
 
-            $count = 0;
-            foreach ($result as $b => $m) {
-                if (count(array_filter($m['rate'])) > 0) $count++;
+            // Summary per fiscal year found in this file
+            foreach ($rl_results as $_fy => $_fydata) {
+                $count = 0;
+                foreach ($_fydata as $b => $m) {
+                    if (count(array_filter($m['rate'])) > 0) $count++;
+                }
+                $month_count = 0;
+                foreach ($_fydata as $b => $m) {
+                    $month_count = max($month_count, count(array_filter($m['rate'])));
+                }
+                echo "   ✅ ปี $_fy: $count branches, $month_count months with data\n";
             }
-            echo "   ✅ ปี $year_str: $count branches with data\n";
 
-            // ── Save file-level cache ──
+            // ── Save file-level cache (save all fiscal years from this file) ──
             $cache_entry = [
                 'mtime' => filemtime($filepath),
                 'year' => $year_str,
-                'data' => $result
+                'multi_fy' => $rl_results
             ];
             @file_put_contents($cache_file, json_encode($cache_entry, JSON_UNESCAPED_UNICODE));
 

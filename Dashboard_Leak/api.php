@@ -1684,6 +1684,17 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'rl-data
                                 if ($k) $result[$fy_str][$branch][$k][$mi] = round((float)$val, 4);
                             }
                         }
+
+                        // ── Fallback: คำนวณ rate จาก supplied/sold/blowoff ถ้าไม่มีคอลัมน์ rate ──
+                        // บาง sheet (เช่น พ.ย. 68 เป็นต้นไปใน RL_2569) ไม่มีคอลัมน์ "อัตรา (%)"
+                        if (!isset($metricCols['rate']) && $result[$fy_str][$branch]['r'][$mi] === null) {
+                            $s = $result[$fy_str][$branch]['s'][$mi];
+                            $d = $result[$fy_str][$branch]['d'][$mi];
+                            $b = $result[$fy_str][$branch]['b'][$mi] ?? 0;
+                            if ($s !== null && $d !== null && $s > 0) {
+                                $result[$fy_str][$branch]['r'][$mi] = round(($s - $d - $b) / $s * 100, 4);
+                            }
+                        }
                     }
                 }
 
@@ -2109,7 +2120,26 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'p3-data
         }
     }
 
-    $response = ['ok' => true, 'has_data' => !empty($result), 'data' => $result];
+    // Compute last_modified from P3 folder
+    $p3_last_mod = null;
+    if (is_dir($p3_folder)) {
+        foreach (scandir($p3_folder) as $ff) {
+            if ($ff[0] === '.') continue;
+            $ffp = $p3_folder . DIRECTORY_SEPARATOR . $ff;
+            if (is_file($ffp)) {
+                $mt = filemtime($ffp);
+                if ($p3_last_mod === null || $mt > $p3_last_mod) $p3_last_mod = $mt;
+            }
+        }
+    }
+    $p3_last_mod_str = null;
+    if ($p3_last_mod !== null) {
+        $dt = new DateTime('@' . $p3_last_mod);
+        $dt->setTimezone(new DateTimeZone('Asia/Bangkok'));
+        $p3_last_mod_str = $dt->format('d/m/Y H:i');
+    }
+
+    $response = ['ok' => true, 'has_data' => !empty($result), 'data' => $result, 'last_modified' => $p3_last_mod_str];
     save_cache('p3_data', $response);
     json_response($response);
 }

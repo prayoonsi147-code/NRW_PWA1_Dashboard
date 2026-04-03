@@ -1,6 +1,6 @@
 ================================================================================
   Quick Context — Dashboard กปภ.ข.1 (อ่านไฟล์นี้แทน README+prompt_history)
-  อัปเดตล่าสุด: 2 เม.ย. 2569
+  อัปเดตล่าสุด: 3 เม.ย. 2569 (Session 7)
 ================================================================================
 
 *** สำคัญ: อ่าน NAMING_RULES.md ก่อนแก้โค้ด upload/rename ***
@@ -372,10 +372,11 @@ Dashboard_Meter   | 5003 | ม่วง #4a148c    | ~22KB
    - แก้ถาวร (ยังไม่ทำ): อาจต้องเปลี่ยนวิธี parse ใหม่ เช่น หา marker
      comment ที่ชัดเจน แทนการ parse JS syntax
 
-2. RL (Real Leak) "0 branches with data"
-   - RL files ถูกอ่านได้ แต่ไม่มี branch data ที่ match
-   - เพิ่ม debug output แล้ว — รัน build อีกครั้งจะเห็น col_map ของแต่ละ sheet
-   - อาจเป็นปัญหา header detection หรือ branch name matching
+2. RL (Real Leak) — ✅ แก้แล้ว (Session 7)
+   - ปัญหาเดิม: "0 branches with data" + ปี 68 ข้อมูลผิด
+   - สาเหตุ: build_dashboard.php ใช้ปีจากชื่อไฟล์ ($year_str) สำหรับทุก sheet
+     แต่ RL_2568.xlsx มี sheets ข้ามปีงบ (ต.ค.67-ก.พ.69 = ปี 68+69)
+   - แก้: เพิ่ม per-sheet fiscal year calculation + rate fallback (ดู Session 7)
 
 3. OIS files — format ไม่ตรงกับ parser
    - OIS .xls มี branches เป็น columns (เป้าหมาย format) ไม่ใช่ months เป็น columns
@@ -497,5 +498,132 @@ Dashboard_Meter   | 5003 | ม่วง #4a148c    | ~22KB
     → ตอนนี้มีเฉพาะ Leak + Meter เท่านั้นที่มี safety checks ครบ
   - ทดสอบ build ทุก Dashboard ว่า index.html ไม่พัง
   - แก้ normalize_size() ใน Meter build ที่ใช้ eval() → เปลี่ยนเป็น lookup table
+
+================================================================================
+  Session 6 Work Log (2 เม.ย. 2569)
+================================================================================
+
+งานที่ทำ:
+
+  1. ★ แก้ Leak Dashboard — P3 tab ไม่แสดงข้อมูลบน GitHub Pages:
+     - สาเหตุ: Dashboard_Leak/build_dashboard.php ฟังก์ชัน process_p3_folder()
+       ใช้ `global $result` ซึ่งเข้าถึง global scope ไม่ใช่ตัวแปร local ของ parent function
+     - แก้: เปลี่ยนจาก `global $result` → pass `&$result` by reference
+       function process_p3_folder($path, $year_key, $cache_dir, $only_files, &$result)
+     - แก้ทั้ง 2 call sites ให้ส่ง $result เป็น argument
+     - เพิ่ม ini_set('memory_limit', '512M')
+     - ผลลัพธ์: P3 embedded (80,212 bytes) → P3 tab ทำงานบน GitHub Pages
+
+  2. ★ แก้ PR Dashboard — ข้อมูล มี.ค.69 ไม่ตรงระหว่าง localhost (13,902) กับ GitHub Pages (5,985):
+     - สาเหตุ 1 (Root Cause): $DATA_DIR ผิด directory
+       OLD: uploaded_data/pr/ (ไฟล์เก่าจาก 27 มี.ค.)
+       NEW: ข้อมูลดิบ/เรื่องร้องเรียน/ (ไฟล์ปัจจุบัน อัพเดตผ่าน manage.html)
+     - สาเหตุ 2: regex `/^const DATA = \{.*\};$/m` ค้นหา "const DATA" แต่ HTML ใช้ "var DATA"
+       → regex ไม่ match → ข้อมูลไม่ถูกแทนที่ (silent failure)
+     - สาเหตุ 3: บรรทัด var DATA ยาว 674,747 ตัวอักษร → PCRE backtrack limit fail
+     - แก้: เปลี่ยนจาก preg_replace → strpos + brace counting
+       ค้นทั้ง 'var DATA' และ 'const DATA', นับ { } depth → หา end position → substr replace
+     - เพิ่ม ini_set('memory_limit', '512M') + ini_set('pcre.backtrack_limit', '10000000')
+     - ไฟล์: Dashboard_PR/build_dashboard.php (line 20 $DATA_DIR, lines ~90-130 replace logic)
+
+  3. ★ แก้ GIS build memory exhaustion:
+     - สาเหตุ: ไฟล์ ค้างซ่อม xlsx ใช้ memory ~536MB → 512MB ไม่พอ
+     - แก้: ini_set('memory_limit', '1024M') ใน Dashboard_GIS/build_dashboard.php
+
+  4. ★ แก้ PR กราฟที่ 2 (Tab 1) — สี legend จาง/อ่านยาก:
+     - แก้ 1: PR2_COLORS array — เอาสีเทาออกหมด (#34495e, #95a5a6, #7f8c8d, #2c3e50)
+       เปลี่ยนเป็นสีสด Material Design (#E91E63, #3F51B5, #D81B60, #7B1FA2 ฯลฯ)
+     - แก้ 2: Chart.defaults.color = '#000' (เปลี่ยนสี text ทั้ง chart เป็นสีดำ)
+     - แก้ 3: Legend กราฟ 2 — color:'#000', font.size:14, font.weight:'bold'
+       ทั้ง branch mode (generateLabels + fontColor:'#000') และ time mode
+     - ไฟล์: Dashboard_PR/index.html (line 771 PR2_COLORS, line 4144 defaults, lines 1816-1828 legend)
+
+  5. GitHub Pages cache delay:
+     - หลัง push สำเร็จ ต้องรอ 1-3 นาที หรือ Hard Refresh (Ctrl+Shift+R) ถึงจะเห็นข้อมูลใหม่
+     - verify ด้วย: git show origin/main:Dashboard_PR/index.html | grep -o "69-03.*" | head -1
+
+★ วิธี Push ขึ้น GitHub Pages (สำหรับ Claude session ใหม่):
+
+  วิธี A — ผ่าน push_to_github.bat (แนะนำ ใช้บนเครื่อง user):
+    1. ดับเบิลคลิก push_to_github.bat ที่ root ของโปรเจค
+    2. Bat จะทำ 9 ขั้นตอนอัตโนมัติ:
+       Step 1: CHECKPOINT — backup index.html → .checkpoint ทุก Dashboard
+       Step 2: BUILD — php build_dashboard.php ทุก Dashboard (ฝัง JSON data ลง HTML)
+       Step 3: VALIDATE — ตรวจ DOCTYPE + min 1KB, restore ถ้า fail
+       Step 4: Git init + remote
+       Step 5: Git identity (prayoonsi147-code)
+       Step 6: Git pull + squash unpushed (soft reset origin/main)
+       Step 7: Git add -A
+       Step 8: Git commit + push
+       Step 9: RESTORE — คืน index.html จาก .checkpoint (local กลับเป็นเดิม)
+    ★ Concept: Push HTML+embedded data ขึ้น Git แต่ local กลับเป็น index.html เดิม (ไม่มี data ฝัง)
+
+  วิธี B — ผ่าน Cowork/Claude (ไม่มี PHP → ต้อง manual):
+    ⚠️ Cowork sandbox ไม่มี XAMPP/PHP → รัน build_dashboard.php ไม่ได้
+    ⚠️ ถ้าต้อง push จาก Cowork จะต้อง:
+      1. แก้ไขไฟล์ source ที่ต้องการ (เช่น index.html)
+      2. บอก user ให้รัน push_to_github.bat บนเครื่องเอง
+    ⚠️ ถ้า push โดยไม่ build → GitHub Pages จะแสดง index.html ที่ไม่มี embedded data
+      (กราฟจะว่างเปล่าบน GitHub Pages เพราะไม่มี API)
+    ★ ข้อยกเว้น: ถ้าแก้แค่ HTML/CSS/JS (ไม่เกี่ยวกับ data) สามารถ push ตรงได้:
+      cd "/path/to/project"
+      git add -A && git commit -m "message" && git push origin main
+
+  วิธี C — Quick push ไม่รัน build (เฉพาะแก้ UI):
+    ถ้าแก้แค่ CSS/JS/HTML layout (ไม่แก้ data) → push ตรงโดยไม่ต้อง build:
+      git add Dashboard_PR/index.html
+      git commit -m "Fix PR chart legend colors"
+      git push origin main
+    ★ ข้อมูล embedded เดิมจะยังอยู่ (ไม่หาย) เพราะไม่ได้ run build script
+
+งานค้าง:
+  - Push การแก้ไข PR index.html ขึ้น GitHub Pages (สี legend + Chart.defaults.color)
+    → ใช้วิธี C ได้เพราะแก้แค่ JS ไม่เกี่ยวกับ data
+  - เพิ่ม safety checks ให้ PR + GIS build_dashboard.php (backup, DOCTYPE, size validation)
+  - แก้ normalize_size() ใน Meter build ที่ใช้ eval()
+  - RL "0 branches with data" → ✅ แก้แล้ว Session 7
+  - AON values ยังเป็น 0 (ปัญหา parser เดิม)
+
+================================================================================
+  Session 7 Work Log (3 เม.ย. 2569)
+================================================================================
+
+งานที่ทำ:
+
+  1. ★ แก้ bug RL ปี 68 ข้อมูลผิดใน WSC-R chart (ภาพรวมเขต):
+     - อาการ: กราฟน้ำสูญเสียจริง ปี 68 แสดง 0.83-11.53% แทนที่จะเป็น 24-27%
+     - สาเหตุหลัก (Root Cause): build_dashboard.php ใช้ $year_str จากชื่อไฟล์
+       (เช่น "2568" จาก RL_2568.xlsx) สำหรับทุก sheet ในไฟล์นั้น
+       แต่ RL_2568.xlsx มี 17 sheets ที่ข้ามปีงบ:
+         - ต.ค.67 - ก.ย.68 = ปีงบ 2568 (12 เดือน)
+         - ต.ค.68 - ก.พ.69 = ปีงบ 2569 (5 เดือน)
+       sheets ปี 69 ถูกเขียนทับ months 0-4 ของปี 68 ด้วยข้อมูลผิด
+     - แก้ไข build_dashboard.php:
+       a) เปลี่ยนจาก single $result → $rl_results[fiscal_year] (multi-FY structure)
+       b) เพิ่ม per-sheet fiscal year calculation:
+          ดึง YY จากชื่อ sheet (เช่น "ต.ค.67" → 67)
+          คำนวณ: mi<=2 (ต.ค.-ธ.ค.) → fy=cal_year+1, mi>=3 (ม.ค.-ก.ย.) → fy=cal_year
+       c) เขียน data ลง $rl_results[$sheet_fy] แทน $result
+       d) อัปเดต cache format รองรับ multi-FY (key "multi_fy")
+     - ไฟล์: Dashboard_Leak/build_dashboard.php (~6 edits, lines 737-950)
+
+  2. ★ เพิ่ม Rate Fallback Calculation (ทั้ง api.php + build_dashboard.php):
+     - ปัญหา: RL_2569.xlsx sheets พ.ย.68 เป็นต้นไป มี column structure ต่าง
+       (มีคอลัมน์ "สะสม" เพิ่ม แต่ไม่มี "อัตรา (%)")
+     - แก้: ถ้าไม่เจอ rate column → คำนวณจาก (supplied-sold-blowoff)/supplied*100
+     - api.php: เพิ่ม rate fallback ที่ line ~1686 (api.php มี per-sheet FY อยู่แล้ว)
+     - build_dashboard.php: เพิ่ม rate fallback หลัง data write loop
+
+  3. ตรวจสอบ + ยืนยันข้อมูลถูกต้อง:
+     - API verified: fy2568 ชลบุรี(พ) ต.ค.=21.09%, พ.ย.=20.51% ตรงกับ Excel
+     - Regional weighted average fy2568: 24-27% ทุกเดือน (ก่อนแก้เป็น 0.83-11.53%)
+     - fy2569: months 0-4 มีค่า (28.29%, 25.19%, 26.63%, 25.45%, 21.77%)
+     - WSC-R chart แสดงข้อมูลถูกต้องบน localhost
+
+งานค้าง:
+  - User ต้องรัน push_to_github.bat เพื่อ rebuild + push ขึ้น GitHub Pages
+  - เพิ่ม safety checks ให้ PR + GIS build_dashboard.php
+  - แก้ normalize_size() ใน Meter build ที่ใช้ eval()
+  - AON values ยังเป็น 0
 
 ================================================================================

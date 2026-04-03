@@ -167,4 +167,15 @@ if (typeof rlcInit === 'function') rlcInit();  // re-init RL tab
 
 ---
 
-## อัพเดทล่าสุด: 2026-04-01
+## 12. การปรับแกน Y (Y-Axis Interaction) — ข้อตกลงทุกกราฟ
+
+**กฎ:**
+1. **Scroll (zoom) เมื่อ Origin = 0:** Fix origin ไว้ที่ 0 เสมอ — ขยาย/หดเฉพาะ max
+2. **Scroll (zoom) เมื่อ Origin ≠ 0:** ไม่ fix origin — zoom ทั้ง min/max ได้อิสระ และ Pan ลากเลื่อนค่าแกน Y ได้
+3. **คลิกขวาที่แกน Y:** เปิด dialog กำหนด Origin, Max, Min, Step ได้
+
+ใช้กับ **ทุกกราฟ ทุก Dashboard**
+
+---
+
+## อัพเดทล่าสุด: 2026-04-03

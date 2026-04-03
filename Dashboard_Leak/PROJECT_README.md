@@ -16,6 +16,12 @@
   - X-axis ticks: `maxRotation:60, font size:12`
   - `beginAtZero:false`
   - ลงทะเบียนใน `getChartObj()` map เพื่อให้ scroll/zoom, double-click แก้ไขแกน, pan แกน Y ทำงานได้
+
+### การปรับแกน Y (Y-Axis Interaction) — ข้อตกลง
+- **Scroll (zoom) เมื่อ Origin = 0:** Fix origin ไว้ที่ 0 เสมอ (ขยาย/หดเฉพาะ max)
+- **Scroll (zoom) เมื่อ Origin ≠ 0:** ไม่ต้อง fix origin — zoom ทั้ง min และ max ได้อิสระ และสามารถ Pan ลากเลื่อนค่าแกน Y ได้
+- **คลิกขวาที่แกน Y:** เปิด dialog กำหนด Origin, Max, Min, Step ได้
+- ใช้กับ **ทุกกราฟ ทุก Dashboard**
   - ลงทะเบียนใน `CTX_CHART_TYPE_MAP` และ `CTX_CHART_UPDATE_MAP` เพื่อให้ context menu (คลิกขวา) เปลี่ยนประเภทกราฟ/สีพื้นหลัง/สีเส้น ทำงานได้
   - มี export bar ครบ (reset, show values, font, PNG, copy, Excel, PowerPoint)
 
