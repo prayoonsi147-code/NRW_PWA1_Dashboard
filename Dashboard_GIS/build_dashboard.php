@@ -482,15 +482,28 @@ function read_pending_data($PENDING_DIR, $BRANCH_LIST) {
         }
 
         $fpath = $PENDING_DIR . DIRECTORY_SEPARATOR . $fname;
+
+        // Format 1 (old merged): ค้างซ่อม_10-68_to_03-69.xlsx
         if (preg_match('/(\d{1,2})-(\d{2})_to_(\d{1,2})-(\d{2})/', $fname, $m)) {
             $start_mm = (int)$m[1];
             $start_yy = (int)$m[2];
             $fy_be = 2500 + $start_yy + ($start_mm >= 10 ? 1 : 0);
-            $fy_files[$fy_be] = $fpath;
-            $fy_list[] = $fy_be;
+            if (!isset($fy_files[$fy_be])) $fy_files[$fy_be] = [];
+            $fy_files[$fy_be][] = $fpath;
+            if (!in_array($fy_be, $fy_list)) $fy_list[] = $fy_be;
+            echo "    ปีงบฯ {$fy_be} <- {$fname}\n";
+        // Format 2 (new per-month): ค้างซ่อม_MM-YY.xlsx
+        } elseif (preg_match('/ค้างซ่อม_(\d{2})-(\d{2})\.xlsx?$/i', $fname, $m)) {
+            $mm = (int)$m[1];
+            $yy = (int)$m[2];
+            $fy_be = ($mm >= 10) ? (2500 + $yy + 1) : (2500 + $yy);
+            if (!isset($fy_files[$fy_be])) $fy_files[$fy_be] = [];
+            $fy_files[$fy_be][] = $fpath;
+            if (!in_array($fy_be, $fy_list)) $fy_list[] = $fy_be;
             echo "    ปีงบฯ {$fy_be} <- {$fname}\n";
         } else {
-            $fy_files[0] = $fpath;
+            if (!isset($fy_files[0])) $fy_files[0] = [];
+            $fy_files[0][] = $fpath;
             echo "    (ไม่ระบุปี) <- {$fname}\n";
         }
     }
@@ -505,10 +518,12 @@ function read_pending_data($PENDING_DIR, $BRANCH_LIST) {
 
     // For files without year in filename (key 0), try to extract from Excel content
     if (isset($fy_files[0])) {
-        $fallback_year = extract_year_from_excel_content($fy_files[0]);
+        $first_unknown = $fy_files[0][0] ?? null;
+        $fallback_year = $first_unknown ? extract_year_from_excel_content($first_unknown) : null;
         if ($fallback_year) {
             $fallback_fy_be = (int)$fallback_year;
-            $fy_files[$fallback_fy_be] = $fy_files[0];
+            if (!isset($fy_files[$fallback_fy_be])) $fy_files[$fallback_fy_be] = [];
+            $fy_files[$fallback_fy_be] = array_merge($fy_files[$fallback_fy_be], $fy_files[0]);
             if (!in_array($fallback_fy_be, $fy_list)) {
                 $fy_list[] = $fallback_fy_be;
                 echo "    ปีงบฯ {$fallback_fy_be} (ดึงจากเนื้อหา)\n";
@@ -516,8 +531,9 @@ function read_pending_data($PENDING_DIR, $BRANCH_LIST) {
             sort($fy_list);
         } else {
             // If can't extract year, use default 2569
-            $fy_list[] = 2569;
-            $fy_files[2569] = $fy_files[0];
+            if (!in_array(2569, $fy_list)) $fy_list[] = 2569;
+            if (!isset($fy_files[2569])) $fy_files[2569] = [];
+            $fy_files[2569] = array_merge($fy_files[2569], $fy_files[0]);
             echo "    ปีงบฯ 2569 (ค่าเริ่มต้น)\n";
         }
         unset($fy_files[0]);
@@ -533,63 +549,70 @@ function read_pending_data($PENDING_DIR, $BRANCH_LIST) {
     $all_fy_results = [];
 
     foreach ($fy_list as $fy) {
-        $fpath = isset($fy_files[$fy]) ? $fy_files[$fy] : null;
-        if (!$fpath || !is_file($fpath)) {
-            if (!empty($fy_files)) {
-                $fpath = reset($fy_files);
-            } else {
-                continue;
+        $fpaths = isset($fy_files[$fy]) ? $fy_files[$fy] : [];
+        if (empty($fpaths)) {
+            // Fallback to first available FY
+            foreach ($fy_files as $ff) {
+                if (!empty($ff)) { $fpaths = $ff; break; }
             }
+            if (empty($fpaths)) continue;
         }
 
         try {
-            $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($fpath);
-            $worksheet = $spreadsheet->getActiveSheet();
-            $max_row = $worksheet->getHighestRow();
-
             $fy_be = $fy > 0 ? $fy : 2569;
             $fy_ce = $fy_be - 543;
             $count_start = new DateTime("$fy_ce-01-01");
 
-            // Read all records
+            // Read all records from all files for this FY
             $records = [];
             $last_report_dt = null;
 
-            for ($r = $data_start + 1; $r <= $max_row; $r++) {
-                $date_val = $worksheet->getCell([$col_date + 1, $r])->getValue();
-                if (!$date_val) continue;
+            foreach ($fpaths as $fpath) {
+                if (!is_file($fpath)) continue;
 
-                [$dt, $by] = parse_thai_date($date_val);
-                if (!$dt) continue;
+                $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($fpath);
+                $worksheet = $spreadsheet->getActiveSheet();
+                $max_row = $worksheet->getHighestRow();
 
-                if ($last_report_dt === null || $dt > $last_report_dt) {
-                    $last_report_dt = $dt;
-                }
+                for ($r = $data_start + 1; $r <= $max_row; $r++) {
+                    $date_val = $worksheet->getCell([$col_date + 1, $r])->getValue();
+                    if (!$date_val) continue;
 
-                $finish_val = $worksheet->getCell([$col_finish + 1, $r])->getValue();
-                $finish_dt = null;
-                if ($finish_val) {
-                    [$fdt, $_] = parse_thai_date($finish_val);
-                    if ($fdt) {
-                        $finish_dt = $fdt;
-                    } elseif (is_string($finish_val) && strlen($finish_val) >= 10) {
-                        [$fdt, $_] = parse_thai_date(substr($finish_val, 0, 10));
-                        if ($fdt) $finish_dt = $fdt;
+                    [$dt, $by] = parse_thai_date($date_val);
+                    if (!$dt) continue;
+
+                    if ($last_report_dt === null || $dt > $last_report_dt) {
+                        $last_report_dt = $dt;
                     }
+
+                    $finish_val = $worksheet->getCell([$col_finish + 1, $r])->getValue();
+                    $finish_dt = null;
+                    if ($finish_val) {
+                        [$fdt, $_] = parse_thai_date($finish_val);
+                        if ($fdt) {
+                            $finish_dt = $fdt;
+                        } elseif (is_string($finish_val) && strlen($finish_val) >= 10) {
+                            [$fdt, $_] = parse_thai_date(substr($finish_val, 0, 10));
+                            if ($fdt) $finish_dt = $fdt;
+                        }
+                    }
+
+                    $status = trim((string)($worksheet->getCell([$col_status + 1, $r])->getValue() ?? ''));
+                    $branch = trim((string)($worksheet->getCell([$col_branch + 1, $r])->getValue() ?? ''));
+
+                    if (!$branch) continue;
+
+                    $records[] = [
+                        'dt' => $dt,
+                        'by' => $by,
+                        'finish_dt' => $finish_dt,
+                        'status' => $status,
+                        'branch' => $branch
+                    ];
                 }
 
-                $status = trim((string)($worksheet->getCell([$col_status + 1, $r])->getValue() ?? ''));
-                $branch = trim((string)($worksheet->getCell([$col_branch + 1, $r])->getValue() ?? ''));
-
-                if (!$branch) continue;
-
-                $records[] = [
-                    'dt' => $dt,
-                    'by' => $by,
-                    'finish_dt' => $finish_dt,
-                    'status' => $status,
-                    'branch' => $branch
-                ];
+                $spreadsheet->disconnectWorksheets();
+                unset($spreadsheet);
             }
 
             // Build update_date
@@ -745,9 +768,8 @@ function read_pending_data($PENDING_DIR, $BRANCH_LIST) {
                 ]
             ];
 
-            $spreadsheet->disconnectWorksheets();
         } catch (\Throwable $e) {
-            echo "  [WARNING] อ่านไฟล์ไม่ได้: {$fpath} ({$e->getMessage()})\n";
+            echo "  [WARNING] อ่านไฟล์ไม่ได้: ปีงบฯ {$fy} ({$e->getMessage()})\n";
         }
     }
 

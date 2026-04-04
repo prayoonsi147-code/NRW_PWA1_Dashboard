@@ -726,7 +726,6 @@
             </div>
             <div style="display:flex;align-items:center;gap:12px">
                 <button class="back-btn" id="backBtn" onclick="goBack()">← กลับหน้า Dashboard</button>
-                <button class="btn btn-primary" style="font-size:13px;padding:8px 16px;white-space:nowrap" onclick="fullRebuild()">🔄 Update All Data</button>
                 <div class="theme-toggle" onclick="toggleTheme()">
                     <span class="theme-icon">&#9788;</span>
                     <div class="theme-switch"></div>
@@ -814,7 +813,7 @@
             'pressure': { thai: 'แรงดันน้ำ', icon: '💧', color: '#1565c0', dark: '#0d47a1',
                 hint: 'ไฟล์ข้อมูลแรงดันน้ำจากระบบ OIS เช่น <code>PRESSURE_69-02.xlsx</code> หรือ <code>แรงดันน้ำ_69-02.xlsx</code><br>ตั้งชื่อไฟล์ให้มี <b>YY-MM</b> เช่น 69-02 = ก.พ. 2569' },
             'pending': { thai: 'ซ่อมท่อค้างระบบ', icon: '🔨', color: '#e65100', dark: '#bf360c',
-                hint: 'ไฟล์ข้อมูลงานซ่อมค้างระบบ<br>ระบบจะตรวจสอบข้อมูลในไฟล์เพื่อหาเดือนของข้อมูล แล้วตั้งชื่อไฟล์อัตโนมัติเป็น <code>Repair_MM-YY.xlsx</code><br>ต้องมีคอลัมน์: ประเภทงาน, เลขงานซ่อม, วันที่รับแจ้ง, สถานะ, สถานที่เกิดเหตุ' }
+                hint: 'แหล่งข้อมูลมาจาก รายงาน GUI_022 จากระบบ Smart1662 โดยโหลดข้อมูลภาพรวมทั้งเขต ตั้งแต่เดือนแรกของปีงบประมาณ ถึงปีที่กำลังจัดติดตาม Link ด้านบน (หากโหลดทั้งหมดไม่ได้ ให้โหลดแยกหลายไฟล์ได้ แล้วลากมาใส่ทั้งหมดทุกไฟล์ ระบบจะรวมให้กันเอง)<br>- ชื่อของไฟล์ที่ Upload ไม่มีผล / ระบบจะดูข้อมูลข้างในและตั้งชื่ออัตโนมัติ ตามเดือน-ปี ที่มีข้อมูลล่าสุด' }
         };
 
         let currentCategory = 'repair';
@@ -1220,10 +1219,8 @@
                 renderFileList(slug);
 
                 await loadData();
-                if (successes.length > 0) {
-                    const uploadedFiles = successes.map(r => r.filename);
-                    await autoRebuildDashboard(slug, slug, uploadedFiles);
-                }
+                // ไม่ rebuild ฝังข้อมูลใน index.html — Local ใช้ API อย่างเดียว
+                // การฝังข้อมูลสำหรับ GitHub Pages ทำผ่าน push_to_github.bat เท่านั้น
                 try { localStorage.setItem('dashboard_updated', Date.now().toString()); } catch(e){}
             } catch (error) {
                 showStatus(slug, `ข้อผิดพลาด: ${error.message}`, 'error');
@@ -1279,7 +1276,7 @@
         // ดึงปีงบประมาณ (พ.ศ.) จากชื่อไฟล์ ตาม pattern ของแต่ละหมวด
         // ปีงบประมาณ: ต.ค.(เดือน10) - ก.ย.(เดือน9) → ถ้าเดือน >= 10 ปีงบฯ = ปี+1
         // repair: GIS_YYMMDD → คำนวณปีงบฯ จากเดือน
-        // pending: Repair_MM-YY → คำนวณปีงบฯ จากเดือน
+        // pending: ค้างซ่อม_MM-YY → คำนวณปีงบฯ จากเดือน
         // pressure: PRESSURE_สาขา_ปีงบYY → ปีงบฯ อยู่แล้ว
         function extractYear(slug, filename) {
             let m;
@@ -1292,7 +1289,7 @@
                     return 2500 + (mm >= 10 ? yy + 1 : yy);
                 }
             } else if (slug === 'pending') {
-                // Repair_MM-YY.xlsx → MM=เดือน, YY=ปี
+                // ค้างซ่อม_MM-YY.xlsx → MM=เดือน, YY=ปี
                 m = filename.match(/(\d{2})-(\d{2})/);
                 if (m) {
                     const mm = parseInt(m[1]);
@@ -1318,7 +1315,7 @@
                     return dd + '/' + mm;
                 }
             } else if (slug === 'pending') {
-                // Repair_03-69 → แสดงเดือน มี.ค.
+                // ค้างซ่อม_03-69 → แสดงเดือน มี.ค.
                 const MNAMES = ['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
                 const m = nameOnly.match(/(\d{2})-(\d{2})/);
                 if (m) return MNAMES[parseInt(m[1])] || nameOnly;
@@ -1490,110 +1487,6 @@
         }
         function hideRebuildOverlay() {
             document.getElementById('rebuildOverlay').classList.remove('active');
-        }
-
-        async function autoRebuildDashboard(slug, changedCategory, changedFiles) {
-            showRebuildOverlay(
-                '<div class="spinner"></div>' +
-                '<div class="msg">กำลังอัปเดตข้อมูล</div>' +
-                '<div class="sub">กรุณารอสักครู่...</div>'
-            );
-            const filesInfo = changedFiles ? changedFiles.join(', ') : '';
-            addLog('เริ่มสร้าง Dashboard ใหม่อัตโนมัติ (เฉพาะ ' + (changedCategory || 'ทั้งหมด') + (filesInfo ? ': ' + filesInfo : '') + ')...', 'info');
-            try {
-                const payload = {};
-                if (changedCategory) payload.only = changedCategory;
-                if (changedFiles && changedFiles.length) payload.files = changedFiles;
-                const body = Object.keys(payload).length ? JSON.stringify(payload) : null;
-                const response = await fetch(`${API_BASE}/api/rebuild`, {
-                    method: 'POST',
-                    headers: body ? { 'Content-Type': 'application/json' } : {},
-                    body: body
-                });
-                const result = await response.json();
-                if (result.ok) {
-                    const ur = window._lastUploadResult || { errors: [], successes: [], total: 0 };
-                    const hasErrors = ur.errors.length > 0;
-                    if (hasErrors) {
-                        // มีไฟล์ fail → แสดงสรุปใน overlay + status
-                        const failList = ur.errors.map(e => `<div style="color:#c62828;font-size:13px;margin:2px 0">❌ ${e.filename}: ${e.error}</div>`).join('');
-                        showRebuildOverlay(
-                            '<div class="icon-done">⚠️</div>' +
-                            '<div class="msg">อัปโหลดผ่าน ' + ur.successes.length + ' ไฟล์ / ไม่ผ่าน ' + ur.errors.length + ' ไฟล์</div>' +
-                            '<div style="max-height:200px;overflow:auto;margin:8px 0;text-align:left">' + failList + '</div>' +
-                            '<div class="sub">Dashboard อัปเดตเฉพาะไฟล์ที่ผ่านแล้ว</div>' +
-                            '<button class="btn-close-modal" onclick="hideRebuildOverlay()">ตกลง</button>'
-                        );
-                        showStatus(slug, `⚠️ ผ่าน ${ur.successes.length} ไฟล์ / ไม่ผ่าน ${ur.errors.length} ไฟล์ — Dashboard อัปเดตแล้ว`, 'error');
-                    } else {
-                        showRebuildOverlay(
-                            '<div class="icon-done">✅</div>' +
-                            '<div class="msg">อัปโหลดสำเร็จ ' + ur.successes.length + ' ไฟล์ — อัปเดตเรียบร้อย!</div>' +
-                            '<div class="sub">Dashboard ถูกสร้างใหม่พร้อมข้อมูลล่าสุด</div>' +
-                            '<button class="btn-close-modal" onclick="hideRebuildOverlay()">ตกลง</button>'
-                        );
-                        showStatus(slug, '✅ อัปโหลดสำเร็จ ' + ur.successes.length + ' ไฟล์ — Dashboard อัปเดตแล้ว', 'success');
-                    }
-                    addLog('สร้าง Dashboard สำเร็จ!', 'success');
-                } else {
-                    showRebuildOverlay(
-                        '<div class="icon-done">⚠️</div>' +
-                        '<div class="msg">อัปโหลดสำเร็จ แต่สร้าง Dashboard ล้มเหลว</div>' +
-                        '<div class="sub">' + (result.message || 'Unknown error') + '</div>' +
-                        '<button class="btn-close-modal" onclick="hideRebuildOverlay()">ปิด</button>'
-                    );
-                    showStatus(slug, '⚠️ อัปโหลดสำเร็จ แต่สร้าง Dashboard ล้มเหลว', 'error');
-                    addLog('Build Dashboard ล้มเหลว: ' + (result.message || 'Unknown error'), 'error');
-                    if (result.log) addLog(result.log, 'error');
-                }
-            } catch (error) {
-                showRebuildOverlay(
-                    '<div class="icon-done">❌</div>' +
-                    '<div class="msg">เกิดข้อผิดพลาด</div>' +
-                    '<div class="sub">' + error.message + '</div>' +
-                    '<button class="btn-close-modal" onclick="hideRebuildOverlay()">ปิด</button>'
-                );
-                showStatus(slug, '⚠️ อัปโหลดสำเร็จ แต่สร้าง Dashboard ล้มเหลว', 'error');
-                addLog('Build Dashboard error: ' + error.message, 'error');
-            }
-        }
-
-        async function fullRebuild() {
-            showRebuildOverlay(
-                '<div class="spinner"></div>' +
-                '<div class="msg">กำลังอัปเดตข้อมูลทั้งหมด</div>' +
-                '<div class="sub">อาจใช้เวลาสักครู่...</div>'
-            );
-            addLog('เริ่มสร้าง Dashboard ใหม่ทั้งหมด (Full Rebuild)...', 'info');
-            try {
-                const response = await fetch(`${API_BASE}/api/rebuild`, { method: 'POST' });
-                const result = await response.json();
-                if (result.ok) {
-                    showRebuildOverlay(
-                        '<div class="icon-done">✅</div>' +
-                        '<div class="msg">อัปเดตข้อมูลทั้งหมดเรียบร้อย!</div>' +
-                        '<div class="sub">Dashboard ถูกสร้างใหม่ด้วยข้อมูลทุกหมวด</div>' +
-                        '<button class="btn-close-modal" onclick="hideRebuildOverlay()">ตกลง</button>'
-                    );
-                    addLog('Full Rebuild สำเร็จ!', 'success');
-                } else {
-                    showRebuildOverlay(
-                        '<div class="icon-done">⚠️</div>' +
-                        '<div class="msg">สร้าง Dashboard ล้มเหลว</div>' +
-                        '<div class="sub">' + (result.message || 'Unknown error') + '</div>' +
-                        '<button class="btn-close-modal" onclick="hideRebuildOverlay()">ปิด</button>'
-                    );
-                    addLog('Full Rebuild ล้มเหลว: ' + (result.message || ''), 'error');
-                }
-            } catch (error) {
-                showRebuildOverlay(
-                    '<div class="icon-done">❌</div>' +
-                    '<div class="msg">เกิดข้อผิดพลาด</div>' +
-                    '<div class="sub">' + error.message + '</div>' +
-                    '<button class="btn-close-modal" onclick="hideRebuildOverlay()">ปิด</button>'
-                );
-                addLog('Full Rebuild error: ' + error.message, 'error');
-            }
         }
 
         // ─── Logging ──────────────────────────────────────────────────────────

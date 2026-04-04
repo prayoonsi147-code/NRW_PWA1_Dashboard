@@ -900,7 +900,6 @@
             </div>
             <div style="display:flex;align-items:center;gap:12px">
                 <a href="index.html" class="back-btn">← กลับหน้า Dashboard</a>
-                <button class="btn btn-primary" style="font-size:13px;padding:8px 16px;white-space:nowrap" onclick="fullRebuild()">🔄 Update All Data</button>
                 <div class="theme-toggle" onclick="toggleTheme()">
                     <span class="theme-icon">&#9788;</span>
                     <div class="theme-switch"></div>
@@ -1434,11 +1433,8 @@
                 renderFileList(slug);
 
                 await loadData();
-
-                if (successes.length > 0) {
-                    const uploadedFiles = successes.map(r => r.filename);
-                    await autoRebuildDashboard(slug, slug, uploadedFiles);
-                }
+                // ไม่ rebuild ฝังข้อมูลใน index.html — Local ใช้ API อย่างเดียว
+                // การฝังข้อมูลสำหรับ GitHub Pages ทำผ่าน push_to_github.bat เท่านั้น
                 try { localStorage.setItem('dashboard_updated', Date.now().toString()); } catch(e){}
             } catch (error) {
                 showStatus(slug, `ข้อผิดพลาด: ${error.message}`, 'error');
@@ -1874,112 +1870,9 @@
             document.getElementById('rebuildOverlay').classList.remove('active');
         }
 
-        async function autoRebuildDashboard(slug, changedCategory, changedFiles) {
-            showRebuildOverlay(
-                '<div class="spinner"></div>' +
-                '<div class="msg">กำลังอัปเดตข้อมูล</div>' +
-                '<div class="sub">กรุณารอสักครู่...</div>'
-            );
-            const filesInfo = changedFiles ? changedFiles.join(', ') : '';
-            addLog('เริ่มสร้าง Dashboard ใหม่อัตโนมัติ (เฉพาะ ' + (changedCategory || 'ทั้งหมด') + (filesInfo ? ': ' + filesInfo : '') + ')...', 'info');
-            try {
-                const payload = {};
-                if (changedCategory) payload.only = changedCategory;
-                if (changedFiles && changedFiles.length) payload.files = changedFiles;
-                const body = Object.keys(payload).length ? JSON.stringify(payload) : null;
-                const response = await fetch(`${API_BASE}/api/rebuild`, {
-                    method: 'POST',
-                    headers: body ? { 'Content-Type': 'application/json' } : {},
-                    body: body
-                });
-                const result = await response.json();
-                if (result.ok) {
-                    const ur = window._lastUploadResult || { errors: [], successes: [], total: 0 };
-                    const hasErrors = ur.errors.length > 0;
-                    if (hasErrors) {
-                        // มีไฟล์ fail → แสดงสรุปใน overlay + status
-                        const failList = ur.errors.map(e => `<div style="color:#c62828;font-size:13px;margin:2px 0">❌ ${e.filename}: ${e.error}</div>`).join('');
-                        showRebuildOverlay(
-                            '<div class="icon-done">⚠️</div>' +
-                            '<div class="msg">อัปโหลดผ่าน ' + ur.successes.length + ' ไฟล์ / ไม่ผ่าน ' + ur.errors.length + ' ไฟล์</div>' +
-                            '<div style="max-height:200px;overflow:auto;margin:8px 0;text-align:left">' + failList + '</div>' +
-                            '<div class="sub">Dashboard อัปเดตเฉพาะไฟล์ที่ผ่านแล้ว</div>' +
-                            '<button class="btn-close-modal" onclick="hideRebuildOverlay()">ตกลง</button>'
-                        );
-                        showStatus(slug, `⚠️ ผ่าน ${ur.successes.length} ไฟล์ / ไม่ผ่าน ${ur.errors.length} ไฟล์ — Dashboard อัปเดตแล้ว`, 'error');
-                    } else {
-                        showRebuildOverlay(
-                            '<div class="icon-done">✅</div>' +
-                            '<div class="msg">อัปโหลดสำเร็จ ' + ur.successes.length + ' ไฟล์ — อัปเดตเรียบร้อย!</div>' +
-                            '<div class="sub">Dashboard ถูกสร้างใหม่พร้อมข้อมูลล่าสุด</div>' +
-                            '<button class="btn-close-modal" onclick="hideRebuildOverlay()">ตกลง</button>'
-                        );
-                        showStatus(slug, '✅ อัปโหลดสำเร็จ ' + ur.successes.length + ' ไฟล์ — Dashboard อัปเดตแล้ว', 'success');
-                    }
-                    addLog('สร้าง Dashboard สำเร็จ!', 'success');
-                } else {
-                    showRebuildOverlay(
-                        '<div class="icon-done">⚠️</div>' +
-                        '<div class="msg">อัปโหลดสำเร็จ แต่สร้าง Dashboard ล้มเหลว</div>' +
-                        '<div class="sub">' + (result.message || 'Unknown error') + '</div>' +
-                        '<button class="btn-close-modal" onclick="hideRebuildOverlay()">ปิด</button>'
-                    );
-                    showStatus(slug, '⚠️ อัปโหลดสำเร็จ แต่สร้าง Dashboard ล้มเหลว', 'error');
-                    addLog('Build Dashboard ล้มเหลว: ' + (result.message || 'Unknown error'), 'error');
-                    if (result.log) addLog(result.log, 'error');
-                }
-            } catch (error) {
-                showRebuildOverlay(
-                    '<div class="icon-done">❌</div>' +
-                    '<div class="msg">เกิดข้อผิดพลาด</div>' +
-                    '<div class="sub">' + error.message + '</div>' +
-                    '<button class="btn-close-modal" onclick="hideRebuildOverlay()">ปิด</button>'
-                );
-                showStatus(slug, '⚠️ อัปโหลดสำเร็จ แต่สร้าง Dashboard ล้มเหลว', 'error');
-                addLog('Build Dashboard error: ' + error.message, 'error');
-            }
-        }
-
-        async function fullRebuild() {
-            showRebuildOverlay(
-                '<div class="spinner"></div>' +
-                '<div class="msg">กำลังอัปเดตข้อมูลทั้งหมด</div>' +
-                '<div class="sub">อาจใช้เวลาสักครู่...</div>'
-            );
-            addLog('เริ่มสร้าง Dashboard ใหม่ทั้งหมด (Full Rebuild)...', 'info');
-            try {
-                const response = await fetch(`${API_BASE}/api/rebuild`, { method: 'POST' });
-                const result = await response.json();
-                if (result.ok) {
-                    showRebuildOverlay(
-                        '<div class="icon-done">✅</div>' +
-                        '<div class="msg">อัปเดตข้อมูลทั้งหมดเรียบร้อย!</div>' +
-                        '<div class="sub">Dashboard ถูกสร้างใหม่ด้วยข้อมูลทุกหมวด</div>' +
-                        '<button class="btn-close-modal" onclick="hideRebuildOverlay()">ตกลง</button>'
-                    );
-                    addLog('Full Rebuild สำเร็จ!', 'success');
-                } else {
-                    showRebuildOverlay(
-                        '<div class="icon-done">⚠️</div>' +
-                        '<div class="msg">สร้าง Dashboard ล้มเหลว</div>' +
-                        '<div class="sub">' + (result.message || 'Unknown error') + '</div>' +
-                        '<button class="btn-close-modal" onclick="hideRebuildOverlay()">ปิด</button>'
-                    );
-                    addLog('Full Rebuild ล้มเหลว: ' + (result.message || ''), 'error');
-                }
-            } catch (error) {
-                showRebuildOverlay(
-                    '<div class="icon-done">❌</div>' +
-                    '<div class="msg">เกิดข้อผิดพลาด</div>' +
-                    '<div class="sub">' + error.message + '</div>' +
-                    '<button class="btn-close-modal" onclick="hideRebuildOverlay()">ปิด</button>'
-                );
-                addLog('Full Rebuild error: ' + error.message, 'error');
-            }
-        }
     </script>
 
-    <!-- Rebuild overlay modal -->
+    <!-- Rebuild overlay modal (ใช้เฉพาะตอน push_to_github.bat เท่านั้น) -->
     <div class="rebuild-overlay" id="rebuildOverlay">
         <div class="rebuild-modal" id="rebuildModal">
             <!-- content set by JS -->

@@ -22,6 +22,23 @@ ini_set('display_errors', '0');
 error_reporting(E_ALL);
 ini_set('log_errors', '1');
 
+// Catch fatal errors (e.g. memory exhaustion) and return JSON instead of empty response
+ob_start();
+register_shutdown_function(function() {
+    $error = error_get_last();
+    if ($error && in_array($error['type'], [E_ERROR, E_CORE_ERROR, E_COMPILE_ERROR])) {
+        ob_end_clean();
+        http_response_code(500);
+        header('Content-Type: application/json; charset=utf-8');
+        header('Access-Control-Allow-Origin: *');
+        $msg = 'PHP Fatal Error: ' . $error['message'];
+        if (stripos($error['message'], 'memory') !== false) {
+            $msg = 'หน่วยความจำไม่พอ — ลองอัปโหลดทีละน้อยไฟล์ (เช่น 2-3 ไฟล์ต่อครั้ง)';
+        }
+        echo json_encode(['ok' => false, 'error' => $msg], JSON_UNESCAPED_UNICODE);
+    }
+});
+
 // ─── Configuration ─────────────────────────────────────────────────────────
 
 define('BASE_DIR', __DIR__);
@@ -143,6 +160,62 @@ function parse_thai_date($val) {
 }
 
 /**
+ * Detect the dominant month/year from a pending (ซ่อมท่อค้างระบบ) Excel file.
+ * Uses ReadFilter to load only first ~50 data rows (saves RAM for large .xls files).
+ * Returns: ['mm' => int, 'yy' => int] (Buddhist Era 2-digit) or null
+ */
+function detect_pending_month($fpath) {
+    if (!class_exists('PhpOffice\\PhpSpreadsheet\\IOFactory')) return null;
+    try {
+        ini_set('memory_limit', '1024M');
+
+        $HEADER_ROWS = 8;
+        $SAMPLE_ROWS = 50; // Read only 50 data rows to detect month
+        $DATE_COL = 3; // 0-indexed → column D (1-indexed = 4)
+        $MAX_ROW = $HEADER_ROWS + $SAMPLE_ROWS;
+
+        // Use ReadFilter to limit rows loaded into memory
+        $filter = new class($MAX_ROW) implements \PhpOffice\PhpSpreadsheet\Reader\IReadFilter {
+            private $maxRow;
+            public function __construct($maxRow) { $this->maxRow = $maxRow; }
+            public function readCell(string $columnAddress, int $row, string $worksheetName = ''): bool {
+                return $row <= $this->maxRow;
+            }
+        };
+
+        $reader = \PhpOffice\PhpSpreadsheet\IOFactory::createReaderForFile($fpath);
+        $reader->setReadFilter($filter);
+        $reader->setReadDataOnly(true);
+        $spreadsheet = $reader->load($fpath);
+        $worksheet = $spreadsheet->getActiveSheet();
+
+        $month_counts = []; // "MM-YY" => count
+
+        for ($r = $HEADER_ROWS + 1; $r <= min($MAX_ROW, $worksheet->getHighestRow()); $r++) {
+            $val = $worksheet->getCell([$DATE_COL + 1, $r])->getValue(); // +1 for 1-indexed
+            [$dt, $by] = parse_thai_date($val);
+            if ($dt && $by) {
+                $key = sprintf('%02d-%02d', (int)$dt->format('m'), $by % 100);
+                $month_counts[$key] = ($month_counts[$key] ?? 0) + 1;
+            }
+        }
+
+        $spreadsheet->disconnectWorksheets();
+        unset($spreadsheet);
+
+        if (empty($month_counts)) return null;
+
+        // Find most frequent month
+        arsort($month_counts);
+        $top = array_key_first($month_counts);
+        [$mm, $yy] = explode('-', $top);
+        return ['mm' => (int)$mm, 'yy' => (int)$yy];
+    } catch (\Throwable $e) {
+        return null;
+    }
+}
+
+/**
  * Read Excel file into memory (cached)
  * Returns: array of rows, or null on error
  */
@@ -222,8 +295,13 @@ function row_get($row, $col) {
  * @param string $excel_filename - e.g. ค้างซ่อม_10-68_to_03-69.xlsx
  * @return string|false - path to .sqlite file or false on error
  */
-function build_pending_sqlite($all_data_rows, $folder_path, $excel_filename) {
-    $db_name = preg_replace('/\.xlsx?$/i', '.sqlite', $excel_filename);
+function build_pending_sqlite($all_data_rows, $folder_path, $db_or_excel_name) {
+    // Accept either .sqlite name directly or .xlsx name (for backward compat)
+    if (preg_match('/\.sqlite$/i', $db_or_excel_name)) {
+        $db_name = $db_or_excel_name;
+    } else {
+        $db_name = preg_replace('/\.xlsx?$/i', '.sqlite', $db_or_excel_name);
+    }
     $db_path = $folder_path . DIRECTORY_SEPARATOR . $db_name;
 
     // Delete old DB if exists
@@ -384,22 +462,58 @@ function find_pending_files($pending_dir) {
     foreach (scandir($pending_dir) as $fname) {
         // Look for Excel files to determine FY
         if (!preg_match('/\.xlsx?$/i', $fname)) continue;
-        if (!preg_match('/(\d{1,2})-(\d{2})_to_(\d{1,2})-(\d{2})/', $fname, $m)) continue;
 
         $fpath = $pending_dir . DIRECTORY_SEPARATOR . $fname;
-        $start_mm = (int)$m[1];
-        $start_yy = (int)$m[2];
-        $fy_be = ($start_mm >= 10) ? (2500 + $start_yy + 1) : (2500 + $start_yy);
 
-        // Check if SQLite version exists
-        $sqlite_name = preg_replace('/\.xlsx?$/i', '.sqlite', $fname);
-        $sqlite_path = $pending_dir . DIRECTORY_SEPARATOR . $sqlite_name;
+        // Format 1 (old merged): ค้างซ่อม_10-68_to_03-69.xlsx
+        if (preg_match('/(\d{1,2})-(\d{2})_to_(\d{1,2})-(\d{2})/', $fname, $m)) {
+            $start_mm = (int)$m[1];
+            $start_yy = (int)$m[2];
+            $fy_be = ($start_mm >= 10) ? (2500 + $start_yy + 1) : (2500 + $start_yy);
 
-        $fy_files[$fy_be] = [
-            'excel' => $fpath,
-            'sqlite' => file_exists($sqlite_path) ? $sqlite_path : null
-        ];
+            $sqlite_name = preg_replace('/\.xlsx?$/i', '.sqlite', $fname);
+            $sqlite_path = $pending_dir . DIRECTORY_SEPARATOR . $sqlite_name;
+
+            if (!isset($fy_files[$fy_be])) {
+                $fy_files[$fy_be] = ['excel_files' => [], 'sqlite' => null];
+            }
+            $fy_files[$fy_be]['excel_files'][] = $fpath;
+            if (file_exists($sqlite_path)) {
+                $fy_files[$fy_be]['sqlite'] = $sqlite_path;
+            }
+            continue;
+        }
+
+        // Format 2 (new per-month): ค้างซ่อม_MM-YY.xlsx
+        if (preg_match('/ค้างซ่อม_(\d{2})-(\d{2})\.xlsx?$/i', $fname, $m)) {
+            $mm = (int)$m[1];
+            $yy = (int)$m[2];
+            $fy_be = ($mm >= 10) ? (2500 + $yy + 1) : (2500 + $yy);
+
+            if (!isset($fy_files[$fy_be])) {
+                $fy_files[$fy_be] = ['excel_files' => [], 'sqlite' => null];
+            }
+            $fy_files[$fy_be]['excel_files'][] = $fpath;
+            continue;
+        }
     }
+
+    // Check for combined SQLite per FY (ค้างซ่อม_fy_XXXX.sqlite)
+    foreach ($fy_files as $fy_be => &$info) {
+        $combined_sqlite = $pending_dir . DIRECTORY_SEPARATOR . "ค้างซ่อม_fy_{$fy_be}.sqlite";
+        if (file_exists($combined_sqlite) && $info['sqlite'] === null) {
+            // Verify it's still fresh (newest Excel must not be newer than SQLite)
+            $sqlite_mtime = filemtime($combined_sqlite);
+            $newest_excel = 0;
+            foreach ($info['excel_files'] as $ef) {
+                $newest_excel = max($newest_excel, filemtime($ef));
+            }
+            if ($sqlite_mtime >= $newest_excel) {
+                $info['sqlite'] = $combined_sqlite;
+            }
+        }
+    }
+    unset($info);
 
     $fy_list = array_keys($fy_files);
     sort($fy_list);
@@ -419,7 +533,7 @@ function open_pending_db($pending_dir, $fy_files_info, $fy) {
     $info = $fy_files_info['fy_files'][$fy] ?? null;
     if (!$info) return null;
 
-    // If SQLite exists, use it
+    // If SQLite exists and is fresh, use it
     if ($info['sqlite'] && file_exists($info['sqlite'])) {
         try {
             $db = new SQLite3($info['sqlite'], SQLITE3_OPEN_READONLY);
@@ -429,21 +543,32 @@ function open_pending_db($pending_dir, $fy_files_info, $fy) {
         }
     }
 
-    // No SQLite — build from Excel cache or Excel file
-    $excel_path = $info['excel'];
-    if (!$excel_path || !file_exists($excel_path)) return null;
+    // No fresh SQLite — build from Excel files
+    $excel_files = $info['excel_files'] ?? [];
+    if (empty($excel_files)) return null;
 
-    // Try reading via cache
-    $rows = read_excel_cached($excel_path);
-    if ($rows === null) return null;
-
-    // Build SQLite from rows (skip header rows 0-7, data starts at row 8)
+    // Collect all data rows from all Excel files for this FY
+    $all_data_rows = [];
     $DATA_START = 8;
-    $data_rows = array_slice($rows, $DATA_START);
-    unset($rows); // free memory
 
-    $excel_filename = basename($excel_path);
-    $db_path = build_pending_sqlite($data_rows, $pending_dir, $excel_filename);
+    foreach ($excel_files as $excel_path) {
+        if (!file_exists($excel_path)) continue;
+        $rows = read_excel_cached($excel_path);
+        if ($rows === null) continue;
+
+        $data_rows = array_slice($rows, $DATA_START);
+        foreach ($data_rows as $dr) {
+            $all_data_rows[] = $dr;
+        }
+        unset($rows, $data_rows);
+    }
+
+    if (empty($all_data_rows)) return null;
+
+    // Build combined SQLite for this FY
+    $combined_name = "ค้างซ่อม_fy_{$fy}.sqlite";
+    $db_path = build_pending_sqlite($all_data_rows, $pending_dir, $combined_name);
+    unset($all_data_rows);
 
     if ($db_path) {
         try {
@@ -607,6 +732,30 @@ function validate_gis_file($tmp_path, $category) {
         return ['valid' => false, 'message' => 'PHP zip extension ไม่ได้เปิด — ไม่สามารถอ่านไฟล์ .xlsx ได้ (กรุณาเปิด extension=zip ใน php.ini แล้ว restart Apache)'];
     }
     try {
+        // Pending: use lightweight validation (skip full file load to save RAM)
+        if ($category === 'pending') {
+            $valFilter = new class implements \PhpOffice\PhpSpreadsheet\Reader\IReadFilter {
+                public function readCell(string $columnAddress, int $row, string $worksheetName = ''): bool {
+                    return $row <= 15;
+                }
+            };
+            $valReader = \PhpOffice\PhpSpreadsheet\IOFactory::createReaderForFile($tmp_path);
+            $valReader->setReadFilter($valFilter);
+            $valReader->setReadDataOnly(true);
+            $valSpreadsheet = $valReader->load($tmp_path);
+            $hasData = $valSpreadsheet->getActiveSheet()->getHighestRow() >= 2;
+            $valSpreadsheet->disconnectWorksheets();
+            unset($valSpreadsheet);
+
+            if (!$hasData) {
+                return [
+                    'valid' => false,
+                    'message' => 'ไฟล์ไม่มีข้อมูล (มีเฉพาะ header หรือว่างเปล่า)'
+                ];
+            }
+            return ['valid' => true, 'message' => ''];
+        }
+
         $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($tmp_path);
         // ╔══════════════════════════════════════════════════════════════╗
         // ║ [FILE VALIDATION] SCAN ALL SHEETS                           ║
@@ -666,26 +815,6 @@ function validate_gis_file($tmp_path, $category) {
                 return [
                     'valid' => false,
                     'message' => 'ไม่พบข้อมูล "ปีงบประมาณ" หรือ "สาขา/แรงดัน" ในไฟล์ — รูปแบบไฟล์ไม่ตรงกับที่ระบบรองรับ'
-                ];
-            }
-        } elseif ($category === 'pending') {
-            // Pending: ตรวจสอบว่ามีข้อมูลอย่างน้อย 1 แถว (สแกนทุกชีท)
-            $hasData = false;
-            for ($si = 0; $si < $spreadsheet->getSheetCount(); $si++) {
-                $ws = $spreadsheet->getSheet($si);
-                $wsName = mb_strtolower($ws->getTitle());
-                $skip = false;
-                foreach ($gis_skip_sheets as $sk) {
-                    if (mb_strpos($wsName, $sk) !== false) { $skip = true; break; }
-                }
-                if ($skip) continue;
-                if ($ws->getHighestRow() >= 2) { $hasData = true; break; }
-            }
-            $spreadsheet->disconnectWorksheets();
-            if (!$hasData) {
-                return [
-                    'valid' => false,
-                    'message' => 'ไฟล์ไม่มีข้อมูล (มีเฉพาะ header หรือว่างเปล่า)'
                 ];
             }
         } else {
@@ -897,10 +1026,27 @@ if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'pre-ch
             chmod($temp_path, 0644);
 
             if ($category === 'pending') {
-                // For pending, collect for merge preview
-                $pending_files_for_merge[] = [
-                    'filename' => $filename,
-                    'temp_path' => $temp_path
+                // For pending, detect month from data and generate per-file name
+                $detected = detect_pending_month($temp_path);
+                if ($detected) {
+                    $new_name = sprintf('ค้างซ่อม_%02d-%02d.xlsx', $detected['mm'], $detected['yy']);
+                } else {
+                    // Fallback: use current date
+                    $today = new DateTime();
+                    $new_name = sprintf('ค้างซ่อม_%02d-%02d.xlsx',
+                        (int)$today->format('m'), ((int)$today->format('Y') + 543) % 100);
+                }
+
+                $dest_path = $folder_path . DIRECTORY_SEPARATOR . $new_name;
+                $will_overwrite = file_exists($dest_path);
+
+                $preview[] = [
+                    'original' => $filename,
+                    'new_name' => $new_name,
+                    'valid' => true,
+                    'will_overwrite' => $will_overwrite,
+                    'overwrite_file' => $will_overwrite ? basename($dest_path) : null,
+                    'detected_month' => $detected ? sprintf('%02d/%02d', $detected['mm'], $detected['yy']) : null
                 ];
             } else {
                 // For repair/pressure, determine new filename
@@ -930,120 +1076,6 @@ if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'pre-ch
                 'filename' => $filename,
                 'error' => $e->getMessage()
             ];
-        }
-    }
-
-    // Handle pending category merge preview
-    if ($category === 'pending' && !empty($pending_files_for_merge)) {
-        try {
-            $HEADER_ROWS = 8;
-            $DATE_COL = 3;
-
-            $all_data_rows = [];
-            $header_rows = null;
-            $min_date = null;
-            $max_date = null;
-
-            global $phpSpreadsheet;
-            if ($phpSpreadsheet && class_exists('PhpOffice\\PhpSpreadsheet\\IOFactory')) {
-                foreach ($pending_files_for_merge as $item) {
-                    try {
-                        $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($item['temp_path']);
-                        $worksheet = $spreadsheet->getActiveSheet();
-
-                        // Capture header from first file
-                        if ($header_rows === null) {
-                            $header_rows = [];
-                            for ($r = 1; $r <= min($HEADER_ROWS, $worksheet->getHighestRow()); $r++) {
-                                $row_data = [];
-                                for ($c = 1; $c <= $worksheet->getHighestColumn(); $c++) {
-                                    $row_data[] = $worksheet->getCell([$c, $r])->getValue();
-                                }
-                                $header_rows[] = $row_data;
-                            }
-                        }
-
-                        // Capture data rows
-                        for ($r = $HEADER_ROWS + 1; $r <= $worksheet->getHighestRow(); $r++) {
-                            $row_data = [];
-                            for ($c = 1; $c <= $worksheet->getHighestColumn(); $c++) {
-                                $row_data[] = $worksheet->getCell([$c, $r])->getValue();
-                            }
-                            // Skip empty rows
-                            if (!empty($row_data[2])) {
-                                $all_data_rows[] = $row_data;
-                            }
-                        }
-
-                        $spreadsheet->disconnectWorksheets();
-                    } catch (\Throwable $e) {
-                        // Continue processing other files
-                    }
-                }
-
-                // Determine date range for merged filename
-                usort($all_data_rows, function($a, $b) use ($DATE_COL) {
-                    $dt_a = parse_thai_date($a[$DATE_COL] ?? '');
-                    $dt_b = parse_thai_date($b[$DATE_COL] ?? '');
-                    if ($dt_a[0] === null) return 1;
-                    if ($dt_b[0] === null) return -1;
-                    return $dt_a[0] <=> $dt_b[0];
-                });
-
-                foreach ($all_data_rows as $row) {
-                    [$dt, $by] = parse_thai_date($row[$DATE_COL] ?? '');
-                    if ($dt && $by) {
-                        $yy = $by % 100;
-                        $mm = $dt->format('m');
-
-                        if ($min_date === null || [$yy, $mm] < $min_date) {
-                            $min_date = [$yy, $mm];
-                        }
-                        if ($max_date === null || [$yy, $mm] > $max_date) {
-                            $max_date = [$yy, $mm];
-                        }
-                    }
-                }
-
-                // Determine final merged filename
-                $merged_filename = null;
-                if ($min_date && $max_date) {
-                    $merged_filename = sprintf('ค้างซ่อม_%02d-%02d_to_%02d-%02d.xlsx',
-                        $min_date[1], $min_date[0], $max_date[1], $max_date[0]);
-                } else {
-                    $today = new DateTime();
-                    $merged_filename = sprintf('ค้างซ่อม_%02d-%02d.xlsx',
-                        $today->format('m'), $today->format('y'));
-                }
-
-                $dest_path = $folder_path . DIRECTORY_SEPARATOR . $merged_filename;
-                $will_overwrite = file_exists($dest_path);
-                $overwrite_file = $will_overwrite ? basename($dest_path) : null;
-
-                // Create single preview entry for merged result
-                $preview[] = [
-                    'original' => implode(' + ', array_map(function($f) { return $f['filename']; }, $pending_files_for_merge)),
-                    'new_name' => $merged_filename,
-                    'valid' => true,
-                    'will_overwrite' => $will_overwrite,
-                    'overwrite_file' => $overwrite_file,
-                    'is_merge' => true,
-                    'merge_count' => count($pending_files_for_merge),
-                    'row_count' => count($all_data_rows)
-                ];
-            }
-        } catch (\Throwable $e) {
-            // If merge preview fails, show individual files with note
-            foreach ($pending_files_for_merge as $item) {
-                $preview[] = [
-                    'original' => $item['filename'],
-                    'new_name' => '(จะถูกรวมเป็นไฟล์เดียว)',
-                    'valid' => true,
-                    'will_overwrite' => false,
-                    'overwrite_file' => null,
-                    'is_merge_placeholder' => true
-                ];
-            }
         }
     }
 
@@ -1086,147 +1118,64 @@ if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'upload
     $results = [];
     $errors = [];
 
+    // Boost memory for merging multiple large .xls files
+    ini_set('memory_limit', '2048M');
+
     try {
         if ($category === 'pending') {
-            // Pending: merge all files from temp
+            // Pending: save each file separately with ค้างซ่อม_MM-YY naming
             $files_in_temp = array_diff(scandir($temp_dir), ['.', '..']);
 
             if (empty($files_in_temp)) {
                 $errors[] = ['filename' => 'pending', 'error' => 'ไม่พบไฟล์ในข้อมูลชั่วคราว'];
             } else {
-                $HEADER_ROWS = 8;
-                $DATE_COL = 3;
+                foreach ($files_in_temp as $fname) {
+                    $temp_path = $temp_dir . DIRECTORY_SEPARATOR . $fname;
+                    if (!is_file($temp_path)) continue;
 
-                $all_data_rows = [];
-                $header_rows = null;
-
-                global $phpSpreadsheet;
-                if ($phpSpreadsheet && class_exists('PhpOffice\\PhpSpreadsheet\\IOFactory')) {
-                    foreach ($files_in_temp as $fname) {
-                        $fpath = $temp_dir . DIRECTORY_SEPARATOR . $fname;
-                        if (!is_file($fpath)) continue;
-
-                        try {
-                            $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($fpath);
-                            $worksheet = $spreadsheet->getActiveSheet();
-
-                            // Capture header from first file
-                            if ($header_rows === null) {
-                                $header_rows = [];
-                                for ($r = 1; $r <= min($HEADER_ROWS, $worksheet->getHighestRow()); $r++) {
-                                    $row_data = [];
-                                    for ($c = 1; $c <= $worksheet->getHighestColumn(); $c++) {
-                                        $row_data[] = $worksheet->getCell([$c, $r])->getValue();
-                                    }
-                                    $header_rows[] = $row_data;
-                                }
-                            }
-
-                            // Capture data rows
-                            for ($r = $HEADER_ROWS + 1; $r <= $worksheet->getHighestRow(); $r++) {
-                                $row_data = [];
-                                for ($c = 1; $c <= $worksheet->getHighestColumn(); $c++) {
-                                    $row_data[] = $worksheet->getCell([$c, $r])->getValue();
-                                }
-                                // Skip empty rows
-                                if (!empty($row_data[2])) {
-                                    $all_data_rows[] = $row_data;
-                                }
-                            }
-
-                            $spreadsheet->disconnectWorksheets();
-                        } catch (\Throwable $e) {
-                            // Continue processing other files
-                        }
-                    }
-
-                    if (empty($all_data_rows)) {
-                        $errors[] = ['filename' => 'pending', 'error' => 'ไม่พบข้อมูลในไฟล์ที่อัปโหลด'];
-                    } else {
-                        // Sort by date
-                        usort($all_data_rows, function($a, $b) use ($DATE_COL) {
-                            $dt_a = parse_thai_date($a[$DATE_COL] ?? '');
-                            $dt_b = parse_thai_date($b[$DATE_COL] ?? '');
-                            if ($dt_a[0] === null) return 1;
-                            if ($dt_b[0] === null) return -1;
-                            return $dt_a[0] <=> $dt_b[0];
-                        });
-
-                        // Determine month range for filename
-                        $min_date = null;
-                        $max_date = null;
-
-                        foreach ($all_data_rows as $row) {
-                            [$dt, $by] = parse_thai_date($row[$DATE_COL] ?? '');
-                            if ($dt && $by) {
-                                $yy = $by % 100;
-                                $mm = $dt->format('m');
-
-                                if ($min_date === null || [$yy, $mm] < $min_date) {
-                                    $min_date = [$yy, $mm];
-                                }
-                                if ($max_date === null || [$yy, $mm] > $max_date) {
-                                    $max_date = [$yy, $mm];
-                                }
-                            }
-                        }
-
-                        // Create filename
-                        if ($min_date && $max_date) {
-                            $new_name = sprintf('ค้างซ่อม_%02d-%02d_to_%02d-%02d.xlsx',
-                                $min_date[1], $min_date[0], $max_date[1], $max_date[0]);
+                    try {
+                        // Detect month from data inside the file
+                        $detected = detect_pending_month($temp_path);
+                        if ($detected) {
+                            $new_name = sprintf('ค้างซ่อม_%02d-%02d.xlsx', $detected['mm'], $detected['yy']);
                         } else {
                             $today = new DateTime();
                             $new_name = sprintf('ค้างซ่อม_%02d-%02d.xlsx',
-                                $today->format('m'), $today->format('y'));
-                        }
-
-                        // Write merged Excel file
-                        $wb_out = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
-                        $ws_out = $wb_out->getActiveSheet();
-                        $ws_out->setTitle('ค้างซ่อม');
-
-                        // Write header
-                        if ($header_rows) {
-                            foreach ($header_rows as $r_idx => $row) {
-                                foreach ($row as $c_idx => $val) {
-                                    $ws_out->setCellValueByColumnAndRow($c_idx + 1, $r_idx + 1, $val);
-                                }
-                            }
-                        }
-
-                        // Write data
-                        foreach ($all_data_rows as $r_idx => $row) {
-                            foreach ($row as $c_idx => $val) {
-                                $ws_out->setCellValueByColumnAndRow($c_idx + 1, $HEADER_ROWS + $r_idx + 1, $val);
-                            }
+                                (int)$today->format('m'), ((int)$today->format('Y') + 543) % 100);
                         }
 
                         $dest_path = $folder_path . DIRECTORY_SEPARATOR . $new_name;
                         $overwritten = file_exists($dest_path);
 
-                        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($wb_out);
-                        $writer->save($dest_path);
-                        $wb_out->disconnectWorksheets();
+                        // Move file (keep original Excel, no merge)
+                        if (!copy($temp_path, $dest_path)) {
+                            throw new Exception('ไม่สามารถบันทึกไฟล์ได้');
+                        }
+                        chmod($dest_path, 0644);
 
-                        // Clear cache for new file
+                        // Clear caches
                         $cache_file = CACHE_DIR . DIRECTORY_SEPARATOR . md5($dest_path) . '.json';
                         if (file_exists($cache_file)) unlink($cache_file);
-                        // Clear Python-style cache too
                         $py_cache = $dest_path . '.cache.json';
                         if (file_exists($py_cache)) unlink($py_cache);
 
-                        // Build SQLite database for fast querying
-                        $sqlite_result = build_pending_sqlite($all_data_rows, $folder_path, $new_name);
-                        $sqlite_msg = $sqlite_result ? ' + SQLite OK' : ' (SQLite failed)';
+                        // Clear combined FY SQLite so it gets rebuilt with new data
+                        $det_mm = $detected ? $detected['mm'] : (int)(new DateTime())->format('m');
+                        $det_yy = $detected ? $detected['yy'] : (((int)(new DateTime())->format('Y') + 543) % 100);
+                        $det_fy = ($det_mm >= 10) ? (2500 + $det_yy + 1) : (2500 + $det_yy);
+                        $fy_sqlite = $folder_path . DIRECTORY_SEPARATOR . "ค้างซ่อม_fy_{$det_fy}.sqlite";
+                        if (file_exists($fy_sqlite)) unlink($fy_sqlite);
 
-                        $orig_names = implode(', ', $files_in_temp);
                         $results[] = [
                             'filename' => $new_name,
-                            'original' => $orig_names,
+                            'original' => $fname,
                             'status' => $overwritten ? 'overwrite' : 'success',
-                            'message' => sprintf('รวม %d ไฟล์ (%d แถว) → %s%s',
-                                count($files_in_temp), count($all_data_rows), $new_name, $sqlite_msg)
+                            'message' => $fname . ' → ' . $new_name
+                        ];
+                    } catch (\Throwable $e) {
+                        $errors[] = [
+                            'filename' => $fname,
+                            'error' => $e->getMessage()
                         ];
                     }
                 }

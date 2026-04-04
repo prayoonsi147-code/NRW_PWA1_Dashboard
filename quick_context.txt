@@ -1,7 +1,11 @@
 ================================================================================
   Quick Context — Dashboard กปภ.ข.1 (อ่านไฟล์นี้แทน README+prompt_history)
-  อัปเดตล่าสุด: 3 เม.ย. 2569 (Session 7)
+  อัปเดตล่าสุด: 4 เม.ย. 2569 (Session 9)
 ================================================================================
+
+*** ห้าม: ฝังข้อมูลลง index.html บน Local — ทุกกรณี ***
+Local ใช้ API อย่างเดียว ห้ามเรียก build_dashboard.php / api/rebuild จาก manage.html
+การฝังข้อมูลทำเฉพาะ push_to_github.bat (ชั่วคราว แล้ว restore กลับทันที)
 
 *** สำคัญ: อ่าน NAMING_RULES.md ก่อนแก้โค้ด upload/rename ***
 กฎตั้งชื่อไฟล์อัตโนมัติทุกหมวดทุก Dashboard อยู่ใน NAMING_RULES.md
@@ -624,6 +628,95 @@ Dashboard_Meter   | 5003 | ม่วง #4a148c    | ~22KB
   - User ต้องรัน push_to_github.bat เพื่อ rebuild + push ขึ้น GitHub Pages
   - เพิ่ม safety checks ให้ PR + GIS build_dashboard.php
   - แก้ normalize_size() ใน Meter build ที่ใช้ eval()
+  - AON values ยังเป็น 0
+
+================================================================================
+  Session 8 Work Log (4 เม.ย. 2569)
+================================================================================
+
+งานที่ทำ:
+
+  1. ★ เพิ่มลบข้อมูลเป็นกลุ่ม (Group Delete) ในหน้าจัดการข้อมูลทุก Dashboard:
+     - ดูตัวอย่างจาก Dashboard_Leak หมวด P3 (มีปุ่ม ✕ บน group header)
+     - Dashboard_PR/manage.html:
+       เพิ่ม deleteYearGroup(type, monthKeys) — ลบทุกเดือนในปีงบฯ ทีเดียว
+       แก้ yearLabel ให้มีปุ่ม ✕ พร้อม onclick เรียก deleteYearGroup
+     - Dashboard_GIS/manage.html:
+       เพิ่ม deleteGroup(slug, filesJson) — ลบทุกไฟล์ในกลุ่มปี
+       แก้ year label ให้มีปุ่ม ✕
+     - Dashboard_Meter/manage.html:
+       เพิ่ม deleteGroup() เหมือน GIS
+       แก้ "สาขา" group label ให้มีปุ่ม ✕
+
+  2. ★ แก้ bug กราฟ "จำนวนข้อร้องเรียนด้านบุคลากร" ว่างเปล่า (ข้อมูลเป็น 0 ทั้งหมด):
+     - อาการ: กราฟด้านบุคลากรแสดงค่า 0 ทุกสาขา ทั้งที่ Excel มีข้อมูลจริง
+     - สาเหตุหลัก (Root Cause): Non-breaking space (\xa0, UTF-8: \xC2\xA0) ใน Excel cells
+       เช่น cell เก็บ "\xa01" (non-breaking space + เลข 1) เป็น string type
+       PHP is_numeric("\xa01") → FALSE, trim() ไม่ตัด \xa0, floatval("\xa01") → 0
+     - มี 2 parser ที่มี bug เดียวกัน:
+       a) Dashboard_PR/api.php → parse_num(): แก้ใช้ preg_replace('/[\xC2\xA0\s,]+/', '', ...)
+       b) Dashboard_PR/build_dashboard.php → clean_num(): เดิมใช้ single-quote '\xa0'
+          (PHP single quotes = literal 4 chars ไม่ใช่ byte) → แก้เป็น preg_replace เหมือนกัน
+     - หลังแก้ + ล้าง cache (.cache/pr_data.json) + rebuild:
+       ด้านบุคลากร เพิ่มจาก 3 เรื่อง → 7 เรื่อง (0.09%)
+       chart-staff1 มีข้อมูล [9, 1, 1, 1, 0, ...] (ไม่ใช่ 0 หมดเหมือนก่อน)
+
+  3. ตรวจสอบ + ยืนยัน:
+     - PR Report summary: 7 เรื่อง 0.09% ด้านบุคลากร ✓
+     - Chart.js data verified: chart-staff1 มี non-zero data ✓
+     - API cache regenerated: 217 non-zero ด้านบุคลากร records (จากเดิม 4) ✓
+
+ไฟล์ที่แก้:
+  - Dashboard_PR/api.php (parse_num + deleteYearGroup support)
+  - Dashboard_PR/build_dashboard.php (clean_num)
+  - Dashboard_PR/manage.html (deleteYearGroup + ปุ่ม ✕)
+  - Dashboard_GIS/manage.html (deleteGroup + ปุ่ม ✕)
+  - Dashboard_Meter/manage.html (deleteGroup + ปุ่ม ✕)
+
+งานค้าง:
+  - ★ User ต้องรัน push_to_github.bat เพื่อ rebuild + push ขึ้น GitHub Pages
+  - แก้ JS error: updateLSUsageBar is not defined (line 6758 ใน rebuilt index.html)
+  - เพิ่ม safety checks ให้ PR + GIS build_dashboard.php
+  - แก้ normalize_size() ใน Meter build ที่ใช้ eval()
+  - AON values ยังเป็น 0
+
+================================================================================
+Session 8-9 (4 เม.ย. 2569): GIS Pending Upload Refactor + Dashboard Fix
+================================================================================
+
+สิ่งที่ทำ:
+  1. Refactor GIS pending upload — ไม่รวมไฟล์อีกต่อไป:
+     - เปลี่ยนจาก merge ทุกไฟล์เป็น ค้างซ่อม_MM-YY_to_MM-YY.xlsx 1 ไฟล์
+       → เป็นบันทึกแยกเดือน ค้างซ่อม_MM-YY.xlsx (เช่น ค้างซ่อม_01-69.xlsx)
+     - detect_pending_month() — ReadFilter อ่านแค่ 50 แถวแรก หาเดือนที่มากสุด
+     - validate_gis_file() สำหรับ pending ใช้ ReadFilter อ่าน 15 แถว (ไม่โหลดทั้งไฟล์)
+     - shutdown handler จับ PHP memory crash → return JSON error
+
+  2. แก้ find_pending_files() + open_pending_db() ใน api.php:
+     - รองรับทั้ง format เก่า (MM-YY_to_MM-YY) และใหม่ (ค้างซ่อม_MM-YY.xlsx)
+     - รวมหลายไฟล์ต่อปีงบฯ เป็น SQLite เดียว (ค้างซ่อม_fy_XXXX.sqlite)
+     - SQLite cache auto-invalidate เมื่ออัปโหลดไฟล์ใหม่
+
+  3. แก้ read_pending_data() ใน build_dashboard.php:
+     - รองรับหลายไฟล์ต่อปีงบฯ (array แทน single path)
+     - อ่าน Excel ทุกไฟล์แล้วรวม records
+
+  4. แก้ GIS Dashboard index.html ว่างเปล่า (charts ไม่แสดง):
+     - ไฟล์ถูกตัด 654 บรรทัด (5092→4438) — thresholdLinePlugin,
+       pressureInit, pd3Initialized หายไป
+     - กู้คืนจาก git HEAD กลับมาครบ 5092 บรรทัด
+
+ไฟล์ที่แก้:
+  - Dashboard_GIS/api.php (find_pending_files, open_pending_db, build_pending_sqlite,
+    detect_pending_month, validate_gis_file, upload routes)
+  - Dashboard_GIS/build_dashboard.php (read_pending_data — multi-file support)
+  - Dashboard_GIS/index.html (restored from git — ไม่ได้แก้ content)
+  - Dashboard_GIS/manage.html (hint text update)
+
+งานค้าง:
+  - ★ User ต้องรัน push_to_github.bat เพื่อ rebuild + push
+  - ทดสอบ pending-chart, pending-table API หลังแก้ multi-file
+  - แก้ JS error: updateLSUsageBar (PR index.html)
   - AON values ยังเป็น 0
 
 ================================================================================

@@ -5,6 +5,16 @@
 
 ---
 
+## *** ห้าม: ฝังข้อมูลลง index.html บน Local ***
+
+การฝังข้อมูล (embed data) ลง index.html ห้ามทำในกระบวนการทำงานปกติทุกกรณี
+- Local ใช้ API อย่างเดียว — Dashboard fetch ข้อมูลจาก api.php โดยตรง
+- ห้ามเรียก build_dashboard.php จาก manage.html หรือ api.php/rebuild บน local
+- ห้ามสร้างปุ่ม/ฟังก์ชัน rebuild ใดๆ ใน manage.html
+- การฝังข้อมูลทำเฉพาะขั้นตอนชั่วคราวตอน Push Git เท่านั้น (push_to_github.bat Step 2) แล้ว restore กลับทันที (Step 9)
+
+---
+
 ## ข้อตกลงการพัฒนา (Development Conventions)
 
 ### กราฟ (Chart)
