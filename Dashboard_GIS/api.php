@@ -96,6 +96,92 @@ if (file_exists($composerAutoload)) {
     error_log("Warning: Composer vendor/ not found at " . dirname(BASE_DIR));
 }
 
+// ─── SQLite3 compatibility wrapper using PDO ─────────────────────────────────
+// The php_sqlite3 extension is not enabled, but PDO with sqlite driver is available.
+// This wrapper lets existing code work unchanged.
+if (!class_exists('SQLite3')) {
+    define('SQLITE3_OPEN_READONLY', 1);
+    define('SQLITE3_OPEN_READWRITE', 2);
+    define('SQLITE3_OPEN_CREATE', 4);
+    define('SQLITE3_INTEGER', 1);
+    define('SQLITE3_TEXT', 3);
+    define('SQLITE3_ASSOC', 1);
+    define('SQLITE3_NUM', 2);
+    define('SQLITE3_BOTH', 3);
+    define('SQLITE3_BLOB', 4);
+    define('SQLITE3_NULL', 5);
+
+    class SQLite3 {
+        private $pdo;
+
+        public function __construct($filename, $flags = 6) {
+            // flags: 6 = READWRITE|CREATE (default), 1 = READONLY
+            if ($flags === 1) {
+                // Readonly
+                $this->pdo = new PDO('sqlite:' . $filename, null, null, [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
+                ]);
+            } else {
+                $this->pdo = new PDO('sqlite:' . $filename, null, null, [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
+                ]);
+            }
+        }
+
+        public function exec($sql) {
+            return $this->pdo->exec($sql);
+        }
+
+        public function prepare($sql) {
+            $stmt = $this->pdo->prepare($sql);
+            return new class($stmt) {
+                private $stmt;
+                public function __construct($stmt) { $this->stmt = $stmt; }
+                public function bindValue($param, $value, $type = null) {
+                    $pdoType = PDO::PARAM_STR;
+                    if ($type === 1) $pdoType = PDO::PARAM_INT; // SQLITE3_INTEGER
+                    return $this->stmt->bindValue($param, $value, $pdoType);
+                }
+                public function execute() { return $this->stmt->execute(); }
+                public function reset() { $this->stmt->closeCursor(); return true; }
+            };
+        }
+
+        public function querySingle($sql, $entireRow = false) {
+            $stmt = $this->pdo->query($sql);
+            if (!$stmt) return null;
+            if ($entireRow) {
+                return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+            }
+            $row = $stmt->fetch(PDO::FETCH_NUM);
+            return $row ? $row[0] : null;
+        }
+
+        public function query($sql) {
+            $stmt = $this->pdo->query($sql);
+            if (!$stmt) return false;
+            return new class($stmt) {
+                private $stmt;
+                public function __construct($stmt) { $this->stmt = $stmt; }
+                public function fetchArray($mode = 1) {
+                    // mode 1=ASSOC, 2=NUM, 3=BOTH
+                    if ($mode === 2) {
+                        $row = $this->stmt->fetch(PDO::FETCH_NUM);
+                    } elseif ($mode === 3) {
+                        $row = $this->stmt->fetch(PDO::FETCH_BOTH);
+                    } else {
+                        $row = $this->stmt->fetch(PDO::FETCH_ASSOC);
+                    }
+                    return $row ?: false;
+                }
+            };
+        }
+
+        public function close() { $this->pdo = null; return true; }
+        public function lastInsertRowID() { return $this->pdo->lastInsertId(); }
+    }
+}
+
 // ─── Setup ─────────────────────────────────────────────────────────────────
 
 // Create directories
@@ -543,42 +629,222 @@ function open_pending_db($pending_dir, $fy_files_info, $fy) {
         }
     }
 
-    // No fresh SQLite — build from Excel files
+    // No fresh SQLite — build from cached data (JSON caches or old merged cache)
+    ini_set('memory_limit', '2048M');
+    set_time_limit(600);
     $excel_files = $info['excel_files'] ?? [];
     if (empty($excel_files)) return null;
 
-    // Collect all data rows from all Excel files for this FY
-    $all_data_rows = [];
     $DATA_START = 8;
-
-    foreach ($excel_files as $excel_path) {
-        if (!file_exists($excel_path)) continue;
-        $rows = read_excel_cached($excel_path);
-        if ($rows === null) continue;
-
-        $data_rows = array_slice($rows, $DATA_START);
-        foreach ($data_rows as $dr) {
-            $all_data_rows[] = $dr;
-        }
-        unset($rows, $data_rows);
-    }
-
-    if (empty($all_data_rows)) return null;
-
-    // Build combined SQLite for this FY
     $combined_name = "ค้างซ่อม_fy_{$fy}.sqlite";
-    $db_path = build_pending_sqlite($all_data_rows, $pending_dir, $combined_name);
-    unset($all_data_rows);
+    $db_path = $pending_dir . DIRECTORY_SEPARATOR . $combined_name;
 
-    if ($db_path) {
-        try {
-            return new SQLite3($db_path, SQLITE3_OPEN_READONLY);
-        } catch (\Throwable $e) {
-            error_log("SQLite open after build error: " . $e->getMessage());
+    // Delete old/empty DB if exists
+    if (file_exists($db_path)) @unlink($db_path);
+
+    try {
+        $db = new SQLite3($db_path);
+        $db->exec('PRAGMA journal_mode=WAL');
+        $db->exec('PRAGMA synchronous=NORMAL');
+
+        $db->exec('CREATE TABLE pending_rows (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            row_num INTEGER, notify_no TEXT, date_val TEXT, date_ce TEXT,
+            date_by INTEGER, month_key TEXT, finish_val TEXT, finish_ce TEXT,
+            job_no TEXT, type_val TEXT, side TEXT, topic TEXT, detail TEXT,
+            branch TEXT, team TEXT, tech TEXT, pipe TEXT, status TEXT
+        )');
+        $db->exec('CREATE INDEX idx_branch ON pending_rows(branch)');
+        $db->exec('CREATE INDEX idx_month_key ON pending_rows(month_key)');
+        $db->exec('CREATE INDEX idx_status ON pending_rows(status)');
+        $db->exec('CREATE INDEX idx_side ON pending_rows(side)');
+        $db->exec('CREATE INDEX idx_job_no ON pending_rows(job_no)');
+        $db->exec('CREATE INDEX idx_date_ce ON pending_rows(date_ce)');
+        $db->exec('CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)');
+
+        $C_NOTIFY = 2; $C_DATE = 3; $C_FINISH = 5; $C_JOB = 6;
+        $C_TYPE = 7; $C_SIDE = 8; $C_TOPIC = 9; $C_DETAIL = 10;
+        $C_BRANCH = 19; $C_TEAM = 20; $C_TECH = 21; $C_PIPE = 25; $C_STATUS = 26;
+
+        $stmt = $db->prepare('INSERT INTO pending_rows
+            (row_num, notify_no, date_val, date_ce, date_by, month_key,
+             finish_val, finish_ce, job_no, type_val, side, topic, detail,
+             branch, team, tech, pipe, status)
+            VALUES (:row_num, :notify_no, :date_val, :date_ce, :date_by, :month_key,
+                    :finish_val, :finish_ce, :job_no, :type_val, :side, :topic, :detail,
+                    :branch, :team, :tech, :pipe, :status)');
+
+        $last_report_dt = null;
+        $row_count = 0;
+        $global_idx = 0;
+
+        // === STRATEGY: Use fastest available data source ===
+        // Priority: 1) Per-file .cache.json  2) Old merged cache  3) Skip (don't read raw xlsx)
+
+        // Load old merged cache if available (covers months 10-68 to 03-69)
+        $old_merged_rows = null;
+        foreach (glob($pending_dir . DIRECTORY_SEPARATOR . '*.cache.json') as $cache_path) {
+            if (preg_match('/_to_/', basename($cache_path))) {
+                $cached = json_decode(file_get_contents($cache_path), true);
+                if (isset($cached['rows'])) {
+                    $old_merged_rows = array_slice($cached['rows'], $DATA_START);
+                }
+                unset($cached);
+                break;
+            }
         }
-    }
 
-    return null;
+        // Collect data rows: per-file caches first
+        $all_data_chunks = [];
+        $files_with_cache = 0;
+
+        foreach ($excel_files as $excel_path) {
+            if (!file_exists($excel_path)) continue;
+
+            $py_cache = $excel_path . '.cache.json';
+            $php_cache = CACHE_DIR . DIRECTORY_SEPARATOR . md5($excel_path) . '.json';
+
+            $rows = null;
+            if (file_exists($py_cache)) {
+                $c = json_decode(file_get_contents($py_cache), true);
+                if (isset($c['rows'])) $rows = $c['rows'];
+                unset($c);
+            } elseif (file_exists($php_cache)) {
+                $c = json_decode(file_get_contents($php_cache), true);
+                if (isset($c['rows'])) $rows = $c['rows'];
+                unset($c);
+            }
+
+            if ($rows !== null) {
+                $all_data_chunks[] = array_slice($rows, $DATA_START);
+                $files_with_cache++;
+                unset($rows);
+            }
+        }
+
+        // If not ALL files have caches, use old merged cache instead of per-file (it has complete data)
+        if ($files_with_cache < count($excel_files) && $old_merged_rows !== null) {
+            // Old merged cache has months 10-03, per-file caches may have 04+
+            // Use merged cache as base, keep only per-file caches for months NOT in merged
+            $all_data_chunks = [$old_merged_rows]; // Start with merged data
+            // Add per-file caches for files not covered by merged (e.g., month 04+)
+            foreach ($excel_files as $excel_path) {
+                if (!file_exists($excel_path)) continue;
+                // Only add if this is a month NOT in the merged cache (04-69 onward)
+                if (preg_match('/ค้างซ่อม_(\d{2})-/', basename($excel_path), $mm)) {
+                    $month_num = (int)$mm[1];
+                    if ($month_num >= 4 && $month_num <= 9) {
+                        // This month is NOT in the old merged cache (which covers 10-03)
+                        $py_cache = $excel_path . '.cache.json';
+                        if (file_exists($py_cache)) {
+                            $c = json_decode(file_get_contents($py_cache), true);
+                            if (isset($c['rows'])) {
+                                $all_data_chunks[] = array_slice($c['rows'], $DATA_START);
+                            }
+                            unset($c);
+                        }
+                    }
+                }
+            }
+        }
+        unset($old_merged_rows);
+
+        if (empty($all_data_chunks)) return null;
+
+        // Insert all data into SQLite
+        foreach ($all_data_chunks as &$data_rows) {
+            $db->exec('BEGIN TRANSACTION');
+
+            foreach ($data_rows as $row) {
+                $date_val = isset($row[$C_DATE]) ? $row[$C_DATE] : null;
+                if (!$date_val) { $global_idx++; continue; }
+
+                [$dt, $by] = parse_thai_date($date_val);
+                if (!$dt || !$by) { $global_idx++; continue; }
+
+                $date_ce = $dt->format('Y-m-d');
+                $yy = $by % 100;
+                $mm = (int)$dt->format('m');
+                $month_key = sprintf('%02d-%02d', $yy, $mm);
+
+                if ($last_report_dt === null || $dt > $last_report_dt) {
+                    $last_report_dt = $dt;
+                }
+
+                $finish_val = isset($row[$C_FINISH]) ? (string)($row[$C_FINISH] ?? '') : '';
+                $finish_ce = '';
+                if ($finish_val) {
+                    [$fdt, $_] = parse_thai_date($finish_val);
+                    if ($fdt) {
+                        $finish_ce = $fdt->format('Y-m-d');
+                    } elseif (is_string($finish_val) && strlen($finish_val) >= 10) {
+                        [$fdt, $_] = parse_thai_date(substr($finish_val, 0, 10));
+                        if ($fdt) $finish_ce = $fdt->format('Y-m-d');
+                    }
+                }
+
+                $branch = trim((string)(isset($row[$C_BRANCH]) ? $row[$C_BRANCH] : ''));
+                if (!$branch) { $global_idx++; continue; }
+
+                $stmt->bindValue(':row_num', $global_idx, SQLITE3_INTEGER);
+                $stmt->bindValue(':notify_no', (string)(isset($row[$C_NOTIFY]) ? $row[$C_NOTIFY] : ''), SQLITE3_TEXT);
+                $stmt->bindValue(':date_val', is_string($date_val) ? $date_val : $dt->format('d/m/Y'), SQLITE3_TEXT);
+                $stmt->bindValue(':date_ce', $date_ce, SQLITE3_TEXT);
+                $stmt->bindValue(':date_by', $by, SQLITE3_INTEGER);
+                $stmt->bindValue(':month_key', $month_key, SQLITE3_TEXT);
+                $stmt->bindValue(':finish_val', $finish_val, SQLITE3_TEXT);
+                $stmt->bindValue(':finish_ce', $finish_ce, SQLITE3_TEXT);
+                $stmt->bindValue(':job_no', trim((string)(isset($row[$C_JOB]) ? $row[$C_JOB] : '')), SQLITE3_TEXT);
+                $stmt->bindValue(':type_val', (string)(isset($row[$C_TYPE]) ? $row[$C_TYPE] : ''), SQLITE3_TEXT);
+                $stmt->bindValue(':side', (string)(isset($row[$C_SIDE]) ? $row[$C_SIDE] : ''), SQLITE3_TEXT);
+                $stmt->bindValue(':topic', (string)(isset($row[$C_TOPIC]) ? $row[$C_TOPIC] : ''), SQLITE3_TEXT);
+                $stmt->bindValue(':detail', (string)(isset($row[$C_DETAIL]) ? $row[$C_DETAIL] : ''), SQLITE3_TEXT);
+                $stmt->bindValue(':branch', $branch, SQLITE3_TEXT);
+                $stmt->bindValue(':team', (string)(isset($row[$C_TEAM]) ? $row[$C_TEAM] : ''), SQLITE3_TEXT);
+                $stmt->bindValue(':tech', (string)(isset($row[$C_TECH]) ? $row[$C_TECH] : ''), SQLITE3_TEXT);
+                $stmt->bindValue(':pipe', (string)(isset($row[$C_PIPE]) ? $row[$C_PIPE] : ''), SQLITE3_TEXT);
+                $stmt->bindValue(':status', (string)(isset($row[$C_STATUS]) ? $row[$C_STATUS] : ''), SQLITE3_TEXT);
+                $stmt->execute();
+                $stmt->reset();
+                $row_count++;
+                $global_idx++;
+            }
+
+            $db->exec('COMMIT');
+        }
+        unset($all_data_chunks); // Free memory
+
+        if ($row_count === 0) {
+            $db->close();
+            @unlink($db_path);
+            return null;
+        }
+
+        // Save meta
+        $meta_stmt = $db->prepare('INSERT INTO meta (key, value) VALUES (:k, :v)');
+        $meta_stmt->bindValue(':k', 'row_count', SQLITE3_TEXT);
+        $meta_stmt->bindValue(':v', (string)$row_count, SQLITE3_TEXT);
+        $meta_stmt->execute();
+
+        if ($last_report_dt) {
+            $by_lrd = $last_report_dt->format('Y') + 543;
+            $meta_stmt->reset();
+            $meta_stmt->bindValue(':k', 'update_date', SQLITE3_TEXT);
+            $meta_stmt->bindValue(':v', sprintf('%02d-%02d-%02d',
+                $last_report_dt->format('d'), $last_report_dt->format('m'), $by_lrd % 100), SQLITE3_TEXT);
+            $meta_stmt->execute();
+        }
+
+        $db->close();
+
+        // Re-open as readonly
+        return new SQLite3($db_path, SQLITE3_OPEN_READONLY);
+
+    } catch (\Throwable $e) {
+        error_log("Pending DB build error: " . $e->getMessage());
+        if (file_exists($db_path)) @unlink($db_path);
+        return null;
+    }
 }
 
 // ─── Route Handling ────────────────────────────────────────────────────────

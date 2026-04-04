@@ -26,6 +26,15 @@ php_value post_max_size 200M
 php_value max_execution_time 600
 php_value memory_limit 512M
 
+# ห้าม cache HTML และ JSON — Local ใช้ API อย่างเดียว ต้องได้ไฟล์ล่าสุดเสมอ
+<IfModule mod_headers.c>
+    <FilesMatch "\.(html|json)$">
+        Header set Cache-Control "no-cache, no-store, must-revalidate"
+        Header set Pragma "no-cache"
+        Header set Expires "0"
+    </FilesMatch>
+</IfModule>
+
 # UTF-8 support
 AddDefaultCharset UTF-8
 AddType application/json .json

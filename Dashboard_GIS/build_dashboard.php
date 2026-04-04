@@ -539,10 +539,19 @@ function read_pending_data($PENDING_DIR, $BRANCH_LIST) {
         unset($fy_files[0]);
     }
 
-    // Column indices (0-based)
+    // Column indices (0-based) — ตรงกับ api.php build_pending_sqlite()
+    $col_notify = 2;    // เลขที่แจ้ง
     $col_date = 3;      // วันที่แจ้ง
     $col_finish = 5;    // วันเวลาเสร็จสิ้น
+    $col_job = 6;       // เลขที่งาน
+    $col_type = 7;      // ประเภท
+    $col_side = 8;      // ด้าน
+    $col_topic = 9;     // หัวข้อ
+    $col_detail = 10;   // รายละเอียด
     $col_branch = 19;   // สาขา
+    $col_team = 20;     // ทีม
+    $col_tech = 21;     // ช่าง
+    $col_pipe = 25;     // ท่อ
     $col_status = 26;   // สถานะ
     $data_start = 8;    // row 9 = index 8
 
@@ -602,12 +611,43 @@ function read_pending_data($PENDING_DIR, $BRANCH_LIST) {
 
                     if (!$branch) continue;
 
+                    // อ่านคอลัมน์เพิ่มสำหรับ PD4/PD5 fallback
+                    $notify_no = trim((string)($worksheet->getCell([$col_notify + 1, $r])->getValue() ?? ''));
+                    $job_no    = trim((string)($worksheet->getCell([$col_job + 1, $r])->getValue() ?? ''));
+                    $type_val  = trim((string)($worksheet->getCell([$col_type + 1, $r])->getValue() ?? ''));
+                    $side      = trim((string)($worksheet->getCell([$col_side + 1, $r])->getValue() ?? ''));
+                    $topic     = trim((string)($worksheet->getCell([$col_topic + 1, $r])->getValue() ?? ''));
+                    $detail    = trim((string)($worksheet->getCell([$col_detail + 1, $r])->getValue() ?? ''));
+                    $team      = trim((string)($worksheet->getCell([$col_team + 1, $r])->getValue() ?? ''));
+                    $tech      = trim((string)($worksheet->getCell([$col_tech + 1, $r])->getValue() ?? ''));
+                    $pipe      = trim((string)($worksheet->getCell([$col_pipe + 1, $r])->getValue() ?? ''));
+
+                    // สร้าง month_key (YY-MM)
+                    $yy_rec = $by % 100;
+                    $mm_rec = (int)$dt->format('m');
+                    $month_key = sprintf("%02d-%02d", $yy_rec, $mm_rec);
+
+                    // สร้าง date string สำหรับแสดงผล (DD/MM/YYYY พ.ศ.)
+                    $date_display = sprintf("%02d/%02d/%04d",
+                        (int)$dt->format('d'), (int)$dt->format('m'), $by);
+
                     $records[] = [
                         'dt' => $dt,
                         'by' => $by,
                         'finish_dt' => $finish_dt,
                         'status' => $status,
-                        'branch' => $branch
+                        'branch' => $branch,
+                        'notify_no' => $notify_no,
+                        'job_no' => $job_no,
+                        'type' => $type_val,
+                        'side' => $side,
+                        'topic' => $topic,
+                        'detail' => $detail,
+                        'team' => $team,
+                        'tech' => $tech,
+                        'pipe' => $pipe,
+                        'month_key' => $month_key,
+                        'date_display' => $date_display
                     ];
                 }
 
@@ -751,7 +791,63 @@ function read_pending_data($PENDING_DIR, $BRANCH_LIST) {
                 }
             }
 
-            echo "  ปีงบฯ {$fy_be}: records=" . count($records) . ", pd2_months=" . count($pd2_months) . ", update={$update_date}\n";
+            // --- PENDING_REPAIR_DATA: นับจำนวนงานซ่อมค้างต่อเดือน×สาขา ---
+            // (ใช้ข้อมูลเดียวกับ pd2 = snapshot ค้างซ่อม ณ สิ้นเดือน)
+            $pending_repair_data = $pd2_data; // format เดียวกัน {mk: {branch: count}}
+            $pending_months = $pd2_months;    // ["68-10","68-11",...]
+
+            // --- PD4_FALLBACK: รายละเอียดงานค้างซ่อม (สถานะ "ซ่อมไม่เสร็จ") ---
+            $pd4_fallback = [];
+            foreach ($records as $rec) {
+                if (mb_strpos($rec['status'], 'ซ่อมไม่เสร็จ') === false) continue;
+                $pd4_fallback[] = [
+                    'branch'    => $rec['branch'],
+                    'notify_no' => $rec['notify_no'],
+                    'date'      => $rec['date_display'],
+                    'job_no'    => $rec['job_no'],
+                    'type'      => $rec['type'],
+                    'aspect'    => $rec['side'],
+                    'team'      => $rec['team'],
+                    'tech'      => $rec['tech'],
+                    'pipe'      => $rec['pipe'],
+                    'status'    => $rec['status'],
+                    'month'     => $rec['month_key']
+                ];
+            }
+
+            // --- PD5_FALLBACK: งานรับแจ้งท่อแตกรั่วยังไม่เปิดงานซ่อม ---
+            // เงื่อนไข: เดือนล่าสุด + ด้านท่อแตกรั่ว + ไม่มีเลขที่งาน + ยังไม่เสร็จ
+            $latest_mk = !empty($pd2_months) ? $pd2_months[count($pd2_months) - 1] : '';
+            $pd5_by_branch = [];
+            $pd5_records = [];
+            foreach ($records as $rec) {
+                if ($rec['month_key'] !== $latest_mk) continue;
+                // ต้องเป็นด้านท่อแตกรั่ว (หรือหัวข้อ/รายละเอียดมีคำว่า ท่อแตก/ท่อรั่ว/แตกรั่ว)
+                $is_pipe = ($rec['side'] === 'ด้านท่อแตกรั่ว')
+                    || (mb_strpos($rec['topic'], 'ท่อแตก') !== false)
+                    || (mb_strpos($rec['topic'], 'ท่อรั่ว') !== false)
+                    || (mb_strpos($rec['topic'], 'แตกรั่ว') !== false)
+                    || (mb_strpos($rec['detail'], 'ท่อแตก') !== false)
+                    || (mb_strpos($rec['detail'], 'ท่อรั่ว') !== false)
+                    || (mb_strpos($rec['detail'], 'แตกรั่ว') !== false);
+                if (!$is_pipe) continue;
+                // ไม่มีเลขที่งาน
+                if ($rec['job_no'] !== '') continue;
+                // ยังไม่เสร็จ
+                if (mb_strpos($rec['status'], 'ดำเนินการแล้วเสร็จ') !== false) continue;
+
+                $pd5_by_branch[$rec['branch']] = ($pd5_by_branch[$rec['branch']] ?? 0) + 1;
+                $pd5_records[] = [
+                    'branch'    => $rec['branch'],
+                    'notify_no' => $rec['notify_no'],
+                    'date'      => $rec['date_display'],
+                    'side'      => $rec['side'],
+                    'status'    => $rec['status']
+                ];
+            }
+
+            echo "  ปีงบฯ {$fy_be}: records=" . count($records) . ", pd2_months=" . count($pd2_months)
+                . ", pd4=" . count($pd4_fallback) . ", pd5=" . count($pd5_records) . ", update={$update_date}\n";
 
             $all_fy_results[(string)$fy_be] = [
                 'update_date' => $update_date,
@@ -765,7 +861,13 @@ function read_pending_data($PENDING_DIR, $BRANCH_LIST) {
                     'data' => $pd3_data,
                     'col_totals' => $col_totals,
                     'grand_total' => $grand_total
-                ]
+                ],
+                'pending_repair_data' => $pending_repair_data,
+                'pending_months' => $pending_months,
+                'pd4_fallback' => $pd4_fallback,
+                'pd5_by_branch' => $pd5_by_branch,
+                'pd5_records' => $pd5_records,
+                'pd5_month' => $latest_mk
             ];
 
         } catch (\Throwable $e) {
@@ -902,7 +1004,68 @@ function embed_all($html, $repair_data, $pressure_data, $pressure_months, $pendi
                     'var PD3_FALLBACK=' . $pd3_json . ';');
             }
 
-            $changes[] = "TAB 3 Pending (ปีงบฯ " . implode(',', $fy_list) . ", update={$update_date})";
+            $changes[] = "TAB 3 PD1-PD3 (ปีงบฯ " . implode(',', $fy_list) . ", update={$update_date})";
+
+            // --- PENDING_REPAIR_DATA + PENDING_MONTHS (กราฟจำนวนงานซ่อมค้างรายเดือน) ---
+            if (isset($latest['pending_repair_data']) && isset($latest['pending_months'])) {
+                $prd_json = json_encode($latest['pending_repair_data'], JSON_UNESCAPED_UNICODE);
+                $pm_json = json_encode($latest['pending_months'], JSON_UNESCAPED_UNICODE);
+
+                $html = replace_js_var($html,
+                    '/^const PENDING_REPAIR_DATA=\{.*\};$/m',
+                    'const PENDING_REPAIR_DATA=' . $prd_json . ';');
+                $html = replace_js_var($html,
+                    '/^const PENDING_MONTHS=\[.*\];$/m',
+                    'const PENDING_MONTHS=' . $pm_json . ';');
+
+                $changes[] = "PENDING_REPAIR_DATA (" . count($latest['pending_months']) . " เดือน)";
+            }
+
+            // --- PD4_FALLBACK (ตาราง Card 4 รายละเอียดงานค้างซ่อม) ---
+            // ใช้ marker /*FALLBACK_PD4_START*/.../*FALLBACK_PD4_END*/
+            if (isset($latest['pd4_fallback'])) {
+                $pd4_json = json_encode($latest['pd4_fallback'], JSON_UNESCAPED_UNICODE);
+                $pd4_content = 'var PD4_FALLBACK=' . $pd4_json . ';';
+
+                $pd4_start = '/*FALLBACK_PD4_START*/';
+                $pd4_end = '/*FALLBACK_PD4_END*/';
+                $pos_start = strpos($html, $pd4_start);
+                $pos_end = strpos($html, $pd4_end);
+
+                if ($pos_start !== false && $pos_end !== false && $pos_end > $pos_start) {
+                    $before = substr($html, 0, $pos_start + strlen($pd4_start));
+                    $after = substr($html, $pos_end);
+                    $html = $before . $pd4_content . $after;
+                    $changes[] = "PD4_FALLBACK (" . count($latest['pd4_fallback']) . " records)";
+                } else {
+                    echo "  [WARNING] PD4 markers ไม่พบใน index.html\n";
+                }
+            }
+
+            // --- PD5 FALLBACK (Card 5 ท่อแตกรั่วยังไม่เปิดงานซ่อม) ---
+            // ใช้ marker /*FALLBACK_PD5_START*/.../*FALLBACK_PD5_END*/
+            if (isset($latest['pd5_by_branch'])) {
+                $pd5_bb_json = json_encode($latest['pd5_by_branch'], JSON_UNESCAPED_UNICODE);
+                $pd5_rec_json = json_encode($latest['pd5_records'], JSON_UNESCAPED_UNICODE);
+                $pd5_month = $latest['pd5_month'];
+                $pd5_content = 'var PD5_BY_BRANCH_FALLBACK=' . $pd5_bb_json . ';'
+                    . 'var PD5_RECORDS_FALLBACK=' . $pd5_rec_json . ';'
+                    . 'var PD5_MONTH_FALLBACK="' . $pd5_month . '";';
+
+                $pd5_start = '/*FALLBACK_PD5_START*/';
+                $pd5_end = '/*FALLBACK_PD5_END*/';
+                $pos_start = strpos($html, $pd5_start);
+                $pos_end = strpos($html, $pd5_end);
+
+                if ($pos_start !== false && $pos_end !== false && $pos_end > $pos_start) {
+                    $before = substr($html, 0, $pos_start + strlen($pd5_start));
+                    $after = substr($html, $pos_end);
+                    $html = $before . $pd5_content . $after;
+                    $changes[] = "PD5_FALLBACK (" . count($latest['pd5_records']) . " records, month=" . $pd5_month . ")";
+                } else {
+                    echo "  [WARNING] PD5 markers ไม่พบใน index.html\n";
+                }
+            }
         }
     }
 
