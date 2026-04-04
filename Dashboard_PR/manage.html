@@ -1518,7 +1518,11 @@
 
                 const yearLabel = document.createElement('span');
                 yearLabel.className = `year-label ${yearClass}`;
-                yearLabel.textContent = 'ปีงบฯ ' + fy;
+                yearLabel.style.display = 'inline-flex';
+                yearLabel.style.alignItems = 'center';
+                yearLabel.style.gap = '6px';
+                const mkList = byFiscal[fy];
+                yearLabel.innerHTML = `ปีงบฯ ${fy} <span style="cursor:pointer;opacity:0.7;font-size:12px;margin-left:2px" title="ลบทั้งกลุ่ม ปีงบฯ ${fy}" onclick="event.stopPropagation();deleteYearGroup('${type}',${JSON.stringify(mkList)})">\u2715</span>`;
                 yearGroup.appendChild(yearLabel);
 
                 byFiscal[fy].forEach(mk => {
@@ -1752,6 +1756,26 @@
             document.getElementById('aonEditTable').classList.remove('active');
             currentEditingMk = null;
             currentEditingType = null;
+        }
+
+        // Delete year group (all months in a fiscal year)
+        function deleteYearGroup(type, monthKeys) {
+            showConfirmDialog(
+                'ยืนยันการลบทั้งกลุ่ม',
+                `คุณต้องการลบข้อมูลทั้งหมด ${monthKeys.length} เดือนในกลุ่มนี้หรือไม่?`,
+                async () => {
+                    let ok = 0, fail = 0;
+                    for (const mk of monthKeys) {
+                        try {
+                            const r = await fetch(`${API_BASE}/api/data/${type}/${mk}`, { method: 'DELETE' });
+                            if (r.ok) ok++; else fail++;
+                        } catch (e) { fail++; }
+                    }
+                    if (ok > 0) addLog(`ลบสำเร็จ ${ok} เดือน` + (fail ? `, ล้มเหลว ${fail} เดือน` : ''), fail ? 'warning' : 'success');
+                    await loadData();
+                    try { localStorage.setItem('dashboard_updated', Date.now().toString()); } catch(e){}
+                }
+            );
         }
 
         // Delete month

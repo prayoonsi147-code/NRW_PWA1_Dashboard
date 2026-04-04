@@ -1384,7 +1384,11 @@
                         const yearLabel = document.createElement('span');
                         yearLabel.className = 'year-label';
                         yearLabel.style.background = cat.dark || cat.color;
-                        yearLabel.textContent = 'ปีงบฯ ' + (year - 2500);
+                        yearLabel.style.display = 'inline-flex';
+                        yearLabel.style.alignItems = 'center';
+                        yearLabel.style.gap = '6px';
+                        const filesInYear = byYear[year];
+                        yearLabel.innerHTML = `ปีงบฯ ${year - 2500} <span style="cursor:pointer;opacity:0.7;font-size:12px;margin-left:2px" title="ลบทั้งกลุ่ม ปีงบฯ ${year - 2500}" onclick="event.stopPropagation();deleteGroup('${slug}',${JSON.stringify(filesInYear).replace(/'/g,"\\'").replace(/"/g,'&quot;')})">\u2715</span>`;
                         group.appendChild(yearLabel);
 
                         byYear[year].forEach(filename => {
@@ -1422,6 +1426,26 @@
             if (!hasData) {
                 container.innerHTML = '<div class="empty-state">📭 ไม่มีไฟล์ข้อมูลอยู่</div>';
             }
+        }
+
+        async function deleteGroup(slug, filesJson) {
+            const files = (typeof filesJson === 'string') ? JSON.parse(filesJson) : filesJson;
+            showConfirmDialog(
+                'ยืนยันการลบทั้งกลุ่ม',
+                `คุณต้องการลบไฟล์ทั้งหมด ${files.length} ไฟล์ในกลุ่มนี้หรือไม่?`,
+                async () => {
+                    let ok = 0, fail = 0;
+                    for (const f of files) {
+                        try {
+                            const r = await fetch(`${API_BASE}/api/data/${slug}/${encodeURIComponent(f)}`, { method: 'DELETE' });
+                            if (r.ok) ok++; else fail++;
+                        } catch (e) { fail++; }
+                    }
+                    if (ok > 0) addLog(`ลบสำเร็จ ${ok} ไฟล์` + (fail ? `, ล้มเหลว ${fail} ไฟล์` : ''), fail ? 'warning' : 'success');
+                    await loadData();
+                    try { localStorage.setItem('dashboard_updated', Date.now().toString()); } catch(e){}
+                }
+            );
         }
 
         async function deleteFile(slug, filename) {
