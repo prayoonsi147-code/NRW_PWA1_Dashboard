@@ -947,6 +947,8 @@ function initMonthSelect(){
             sel.appendChild(opt);
         }
     }
+    // default = latest month WITH data (ไม่ใช่ N/A)
+    if(MONTHS.length>0) sel.value=MONTHS[MONTHS.length-1];
 }
 
 // ==================== CHART ====================
