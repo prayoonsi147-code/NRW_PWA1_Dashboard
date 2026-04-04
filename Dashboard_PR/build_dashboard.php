@@ -34,7 +34,8 @@ function clean_num($val) {
     if (is_numeric($val)) {
         return floatval($val);
     }
-    $s = str_replace(',', '', str_replace('\xa0', '', trim((string)$val)));
+    // Strip non-breaking space (UTF-8: \xC2\xA0) + regular whitespace + commas
+    $s = preg_replace('/[\xC2\xA0\s,]+/', '', (string)$val);
     if ($s === '' || $s === '-') {
         return 0;
     }

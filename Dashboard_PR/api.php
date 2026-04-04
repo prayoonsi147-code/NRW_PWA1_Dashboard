@@ -238,13 +238,17 @@ function parse_num($val) {
     if (is_numeric($val)) {
         return floatval($val);
     }
-    $s = str_replace(',', '', trim((string)$val));
+    // Strip non-breaking space (\xC2\xA0 in UTF-8) + regular whitespace + commas
+    $s = preg_replace('/[\xC2\xA0\s,]+/', '', (string)$val);
     if ($s === '') return 0;
-    try {
+    if (is_numeric($s)) {
         return floatval($s);
-    } catch (\Throwable $e) {
-        return 0;
     }
+    // Fallback: extract number from string
+    if (preg_match('/-?[\d.]+/', $s, $m)) {
+        return floatval($m[0]);
+    }
+    return 0;
 }
 
 /**
