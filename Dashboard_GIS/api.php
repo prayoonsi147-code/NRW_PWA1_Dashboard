@@ -223,6 +223,26 @@ function parse_thai_date($val) {
         return [$val, $by];
     }
 
+    // Handle numeric Excel serial dates (PhpSpreadsheet getValue() returns these for date cells)
+    // Excel serial dates: ~40000 = ~2009, ~50000 = ~2036 — valid range for our data
+    if (is_numeric($val) && $val > 30000 && $val < 100000) {
+        try {
+            if (class_exists('PhpOffice\\PhpSpreadsheet\\Shared\\Date')) {
+                $dt = \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject((float)$val);
+            } else {
+                // Manual: Excel epoch = Dec 30, 1899 = Unix day -25569
+                $unix = ((float)$val - 25569) * 86400;
+                $dt = new DateTime('@' . (int)$unix);
+                $dt->setTimezone(new DateTimeZone('Asia/Bangkok'));
+            }
+            // Excel stores CE dates; convert to Buddhist Era
+            $by = (int)$dt->format('Y') + 543;
+            return [$dt, $by];
+        } catch (\Throwable $e) {
+            return [null, null];
+        }
+    }
+
     if (is_string($val) && strpos($val, '/') !== false) {
         try {
             $parts = explode('/', trim($val));
@@ -679,37 +699,37 @@ function open_pending_db($pending_dir, $fy_files_info, $fy) {
         $global_idx = 0;
 
         // === STRATEGY: Use fastest available data source ===
-        // Priority: 1) Per-file .cache.json  2) Old merged cache  3) Skip (don't read raw xlsx)
+        // Priority: 1) Per-file .cache.json (if fresh)  2) Read Excel directly  3) Old merged cache (last resort)
+        // IMPORTANT: Always check cache freshness vs Excel mtime to avoid stale data!
 
-        // Load old merged cache if available (covers months 10-68 to 03-69)
-        $old_merged_rows = null;
-        foreach (glob($pending_dir . DIRECTORY_SEPARATOR . '*.cache.json') as $cache_path) {
-            if (preg_match('/_to_/', basename($cache_path))) {
-                $cached = json_decode(file_get_contents($cache_path), true);
-                if (isset($cached['rows'])) {
-                    $old_merged_rows = array_slice($cached['rows'], $DATA_START);
-                }
-                unset($cached);
-                break;
-            }
+        // Find newest Excel mtime for merged-cache freshness check
+        $newest_excel_mtime = 0;
+        foreach ($excel_files as $ep) {
+            if (file_exists($ep)) $newest_excel_mtime = max($newest_excel_mtime, filemtime($ep));
         }
 
-        // Collect data rows: per-file caches first
+        // Collect data rows: per-file caches first (with freshness check)
         $all_data_chunks = [];
         $files_with_cache = 0;
+        $files_needing_read = []; // Excel files with stale/missing cache
 
         foreach ($excel_files as $excel_path) {
             if (!file_exists($excel_path)) continue;
 
+            $excel_mtime = filemtime($excel_path);
             $py_cache = $excel_path . '.cache.json';
             $php_cache = CACHE_DIR . DIRECTORY_SEPARATOR . md5($excel_path) . '.json';
 
             $rows = null;
-            if (file_exists($py_cache)) {
+
+            // Check per-file cache (Python-style) — only use if cache is newer than Excel
+            if (file_exists($py_cache) && filemtime($py_cache) >= $excel_mtime) {
                 $c = json_decode(file_get_contents($py_cache), true);
                 if (isset($c['rows'])) $rows = $c['rows'];
                 unset($c);
-            } elseif (file_exists($php_cache)) {
+            }
+            // Check per-file cache (PHP-style) — only use if cache is newer than Excel
+            if ($rows === null && file_exists($php_cache) && filemtime($php_cache) >= $excel_mtime) {
                 $c = json_decode(file_get_contents($php_cache), true);
                 if (isset($c['rows'])) $rows = $c['rows'];
                 unset($c);
@@ -719,35 +739,90 @@ function open_pending_db($pending_dir, $fy_files_info, $fy) {
                 $all_data_chunks[] = array_slice($rows, $DATA_START);
                 $files_with_cache++;
                 unset($rows);
+            } else {
+                // Cache missing or stale — need to read Excel directly
+                $files_needing_read[] = $excel_path;
             }
         }
 
-        // If not ALL files have caches, use old merged cache instead of per-file (it has complete data)
-        if ($files_with_cache < count($excel_files) && $old_merged_rows !== null) {
-            // Old merged cache has months 10-03, per-file caches may have 04+
-            // Use merged cache as base, keep only per-file caches for months NOT in merged
-            $all_data_chunks = [$old_merged_rows]; // Start with merged data
-            // Add per-file caches for files not covered by merged (e.g., month 04+)
-            foreach ($excel_files as $excel_path) {
-                if (!file_exists($excel_path)) continue;
-                // Only add if this is a month NOT in the merged cache (04-69 onward)
-                if (preg_match('/ค้างซ่อม_(\d{2})-/', basename($excel_path), $mm)) {
-                    $month_num = (int)$mm[1];
-                    if ($month_num >= 4 && $month_num <= 9) {
-                        // This month is NOT in the old merged cache (which covers 10-03)
+        // Read Excel directly for files without fresh cache (using PhpSpreadsheet)
+        // IMPORTANT: Use setReadDataOnly(true) to avoid memory exhaustion on large OLE2 files
+        if (!empty($files_needing_read) && class_exists('PhpOffice\\PhpSpreadsheet\\IOFactory')) {
+            foreach ($files_needing_read as $excel_path) {
+                try {
+                    error_log("pending: Reading Excel directly: " . basename($excel_path));
+                    $reader = \PhpOffice\PhpSpreadsheet\IOFactory::createReaderForFile($excel_path);
+                    $reader->setReadDataOnly(true);
+                    $spreadsheet = $reader->load($excel_path);
+                    $worksheet = $spreadsheet->getActiveSheet();
+                    $rows = [];
+                    foreach ($worksheet->getRowIterator() as $row) {
+                        $row_data = [];
+                        foreach ($row->getCellIterator() as $cell) {
+                            $row_data[] = $cell->getValue();
+                        }
+                        $rows[] = $row_data;
+                    }
+                    $spreadsheet->disconnectWorksheets();
+                    unset($spreadsheet);
+
+                    if (!empty($rows)) {
+                        $all_data_chunks[] = array_slice($rows, $DATA_START);
+                        $files_with_cache++;
+
+                        // Save cache for next time
                         $py_cache = $excel_path . '.cache.json';
-                        if (file_exists($py_cache)) {
-                            $c = json_decode(file_get_contents($py_cache), true);
-                            if (isset($c['rows'])) {
-                                $all_data_chunks[] = array_slice($c['rows'], $DATA_START);
+                        $cache_data = ['mtime' => filemtime($excel_path), 'rows' => $rows];
+                        @file_put_contents($py_cache, json_encode($cache_data, JSON_UNESCAPED_UNICODE));
+                    }
+                    unset($rows);
+                } catch (\Throwable $e) {
+                    error_log("pending: Failed to read Excel " . basename($excel_path) . ": " . $e->getMessage());
+                }
+            }
+        }
+
+        // Last resort: if still missing files, try old merged cache (but only if newer than all Excel)
+        if ($files_with_cache < count($excel_files)) {
+            $old_merged_rows = null;
+            foreach (glob($pending_dir . DIRECTORY_SEPARATOR . '*.cache.json') as $cache_path) {
+                if (preg_match('/_to_/', basename($cache_path))) {
+                    // Only use merged cache if it's newer than all Excel files
+                    if (filemtime($cache_path) >= $newest_excel_mtime) {
+                        $cached = json_decode(file_get_contents($cache_path), true);
+                        if (isset($cached['rows'])) {
+                            $old_merged_rows = array_slice($cached['rows'], $DATA_START);
+                        }
+                        unset($cached);
+                    } else {
+                        error_log("pending: Skipping stale merged cache: " . basename($cache_path));
+                    }
+                    break;
+                }
+            }
+
+            if ($old_merged_rows !== null) {
+                // Use merged cache as base, keep per-file caches for months NOT in merged
+                $all_data_chunks = [$old_merged_rows];
+                foreach ($excel_files as $excel_path) {
+                    if (!file_exists($excel_path)) continue;
+                    if (preg_match('/ค้างซ่อม_(\d{2})-/', basename($excel_path), $mm)) {
+                        $month_num = (int)$mm[1];
+                        if ($month_num >= 4 && $month_num <= 9) {
+                            $py_cache = $excel_path . '.cache.json';
+                            if (file_exists($py_cache)) {
+                                $c = json_decode(file_get_contents($py_cache), true);
+                                if (isset($c['rows'])) {
+                                    $all_data_chunks[] = array_slice($c['rows'], $DATA_START);
+                                }
+                                unset($c);
                             }
-                            unset($c);
                         }
                     }
                 }
             }
+            unset($old_merged_rows);
         }
-        unset($old_merged_rows);
 
         if (empty($all_data_chunks)) return null;
 
@@ -771,15 +846,21 @@ function open_pending_db($pending_dir, $fy_files_info, $fy) {
                     $last_report_dt = $dt;
                 }
 
-                $finish_val = isset($row[$C_FINISH]) ? (string)($row[$C_FINISH] ?? '') : '';
+                $raw_finish = isset($row[$C_FINISH]) ? $row[$C_FINISH] : null;
+                $finish_val = '';
                 $finish_ce = '';
-                if ($finish_val) {
-                    [$fdt, $_] = parse_thai_date($finish_val);
+                if ($raw_finish) {
+                    [$fdt, $fby] = parse_thai_date($raw_finish);
                     if ($fdt) {
                         $finish_ce = $fdt->format('Y-m-d');
-                    } elseif (is_string($finish_val) && strlen($finish_val) >= 10) {
-                        [$fdt, $_] = parse_thai_date(substr($finish_val, 0, 10));
-                        if ($fdt) $finish_ce = $fdt->format('Y-m-d');
+                        // If numeric, format as Thai date string for display
+                        $finish_val = is_string($raw_finish) ? (string)$raw_finish : $fdt->format('d/m/') . $fby;
+                    } else {
+                        $finish_val = (string)$raw_finish;
+                        if (is_string($raw_finish) && strlen($raw_finish) >= 10) {
+                            [$fdt2, $_] = parse_thai_date(substr($raw_finish, 0, 10));
+                            if ($fdt2) $finish_ce = $fdt2->format('Y-m-d');
+                        }
                     }
                 }
 
@@ -788,7 +869,9 @@ function open_pending_db($pending_dir, $fy_files_info, $fy) {
 
                 $stmt->bindValue(':row_num', $global_idx, SQLITE3_INTEGER);
                 $stmt->bindValue(':notify_no', (string)(isset($row[$C_NOTIFY]) ? $row[$C_NOTIFY] : ''), SQLITE3_TEXT);
-                $stmt->bindValue(':date_val', is_string($date_val) ? $date_val : $dt->format('d/m/Y'), SQLITE3_TEXT);
+                // If date_val was numeric (Excel serial), format as Thai date dd/mm/YYYY(BE)
+                $date_val_str = is_string($date_val) ? $date_val : $dt->format('d/m/') . $by;
+                $stmt->bindValue(':date_val', $date_val_str, SQLITE3_TEXT);
                 $stmt->bindValue(':date_ce', $date_ce, SQLITE3_TEXT);
                 $stmt->bindValue(':date_by', $by, SQLITE3_INTEGER);
                 $stmt->bindValue(':month_key', $month_key, SQLITE3_TEXT);
@@ -1419,18 +1502,26 @@ if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'upload
                         }
                         chmod($dest_path, 0644);
 
-                        // Clear caches
+                        // Clear ALL caches: per-file, merged, and SQLite
                         $cache_file = CACHE_DIR . DIRECTORY_SEPARATOR . md5($dest_path) . '.json';
-                        if (file_exists($cache_file)) unlink($cache_file);
+                        if (file_exists($cache_file)) @unlink($cache_file);
                         $py_cache = $dest_path . '.cache.json';
-                        if (file_exists($py_cache)) unlink($py_cache);
+                        if (file_exists($py_cache)) @unlink($py_cache);
+
+                        // Clear old merged caches (_to_ pattern) — stale data!
+                        foreach (glob($folder_path . DIRECTORY_SEPARATOR . '*.cache.json') as $mc) {
+                            if (preg_match('/_to_/', basename($mc))) {
+                                @unlink($mc);
+                                error_log("pending upload: deleted stale merged cache: " . basename($mc));
+                            }
+                        }
 
                         // Clear combined FY SQLite so it gets rebuilt with new data
                         $det_mm = $detected ? $detected['mm'] : (int)(new DateTime())->format('m');
                         $det_yy = $detected ? $detected['yy'] : (((int)(new DateTime())->format('Y') + 543) % 100);
                         $det_fy = ($det_mm >= 10) ? (2500 + $det_yy + 1) : (2500 + $det_yy);
                         $fy_sqlite = $folder_path . DIRECTORY_SEPARATOR . "ค้างซ่อม_fy_{$det_fy}.sqlite";
-                        if (file_exists($fy_sqlite)) unlink($fy_sqlite);
+                        if (file_exists($fy_sqlite)) @unlink($fy_sqlite);
 
                         $results[] = [
                             'filename' => $new_name,
