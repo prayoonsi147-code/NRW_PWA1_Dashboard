@@ -1926,10 +1926,11 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'pending
     $res = $db->querySingle("SELECT value FROM meta WHERE key='update_date'");
     if ($res) $update_date = $res;
 
-    // Fiscal year CE range
+    // Fiscal year CE range (ปีงบเริ่ม ต.ค. ของปี CE ก่อนหน้า)
     $fy_be = $fy > 0 ? $fy : 2569;
     $fy_ce = $fy_be - 543;
-    $count_start = "$fy_ce-01-01";
+    $fy_start_ce = $fy_ce - 1;
+    $count_start = "$fy_start_ce-10-01";
 
     // Get all records with parsed dates for chart calculation
     $records = [];
@@ -2057,6 +2058,7 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'pending
 
     // Query: count by branch × month where status contains 'ซ่อมไม่เสร็จ'
     $fy_months_sql = "'" . implode("','", $fy_months) . "'";
+    // Query status-based (safe) + try finish_ce-based (extra)
     $sql = "SELECT branch, month_key, COUNT(*) as cnt
             FROM pending_rows
             WHERE status LIKE '%ซ่อมไม่เสร็จ%'
@@ -2073,11 +2075,32 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'pending
         }
     }
 
-    while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
-        $b = $row['branch'];
-        $mk = $row['month_key'];
-        if (isset($data[$b]) && isset($data[$b][$mk])) {
-            $data[$b][$mk] = (int)$row['cnt'];
+    if ($result) {
+        while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+            $b = $row['branch'];
+            $mk = $row['month_key'];
+            if (isset($data[$b]) && isset($data[$b][$mk])) {
+                $data[$b][$mk] = (int)$row['cnt'];
+            }
+        }
+    }
+
+    // เพิ่มเรคอร์ดที่เสร็จหลังสิ้นเดือน (safe: ใช้ @suppress error ถ้า column ไม่มี)
+    $today_eom = date('Y-m-t');
+    $extra_sql = "SELECT branch, month_key, COUNT(*) as cnt
+                  FROM pending_rows
+                  WHERE status NOT LIKE '%ซ่อมไม่เสร็จ%'
+                    AND finish_ce IS NOT NULL AND finish_ce != '' AND finish_ce > '$today_eom'
+                    AND month_key IN ($fy_months_sql)
+                  GROUP BY branch, month_key";
+    $extra_result = @$db->query($extra_sql);
+    if ($extra_result) {
+        while ($row = $extra_result->fetchArray(SQLITE3_ASSOC)) {
+            $b = $row['branch'];
+            $mk = $row['month_key'];
+            if (isset($data[$b]) && isset($data[$b][$mk])) {
+                $data[$b][$mk] += (int)$row['cnt'];
+            }
         }
     }
 
@@ -2118,6 +2141,7 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'pending
 
 // Route: GET /api/pending-detail
 if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'pending-detail') {
+  try {
     $pending_dir = RAW_DATA_DIR . DIRECTORY_SEPARATOR . CATEGORY_MAP['pending'];
 
     if (!is_dir($pending_dir)) {
@@ -2140,10 +2164,15 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'pending
         json_response(['ok' => false, 'error' => 'ไม่สามารถเปิดฐานข้อมูล'], 500);
     }
 
-    // Build query with filters
+    // Get update_date from meta
+    $update_date = '';
+    $ud_res = $db->querySingle("SELECT value FROM meta WHERE key='update_date'");
+    if ($ud_res) $update_date = $ud_res;
+
+    // Query: ซ่อมไม่เสร็จ records (direct query — same approach as pending-table)
     $where = ["status LIKE '%ซ่อมไม่เสร็จ%'"];
-    if ($req_month) $where[] = "month_key = '" . SQLite3::escapeString($req_month) . "'";
-    if ($req_branch) $where[] = "branch = '" . SQLite3::escapeString($req_branch) . "'";
+    if ($req_month) { $safe_month = str_replace("'", "''", $req_month); $where[] = "month_key = '$safe_month'"; }
+    if ($req_branch) { $safe_branch = str_replace("'", "''", $req_branch); $where[] = "branch = '$safe_branch'"; }
 
     $where_sql = implode(' AND ', $where);
     $sql = "SELECT branch, notify_no, date_val, job_no, type_val, side, team, tech, pipe, status, month_key
@@ -2152,20 +2181,50 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'pending
     $result = $db->query($sql);
     $records = [];
 
-    while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
-        $records[] = [
-            'branch' => $row['branch'],
-            'notify_no' => $row['notify_no'],
-            'date' => $row['date_val'],
-            'job_no' => $row['job_no'],
-            'type' => $row['type_val'],
-            'aspect' => $row['side'],
-            'team' => $row['team'],
-            'tech' => $row['tech'],
-            'pipe' => $row['pipe'],
-            'status' => $row['status'],
-            'month' => $row['month_key']
-        ];
+    if ($result) {
+        while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+            $records[] = [
+                'branch' => $row['branch'],
+                'notify_no' => $row['notify_no'],
+                'date' => $row['date_val'],
+                'job_no' => $row['job_no'],
+                'type' => $row['type_val'],
+                'aspect' => $row['side'],
+                'team' => $row['team'],
+                'tech' => $row['tech'],
+                'pipe' => $row['pipe'],
+                'status' => $row['status'],
+                'month' => $row['month_key']
+            ];
+        }
+    }
+
+    // เพิ่มเรคอร์ดที่เสร็จหลังสิ้นเดือน (ตรงกับ pending-chart logic)
+    $today_eom = date('Y-m-t');
+    $extra_where = ["(finish_ce IS NOT NULL AND finish_ce != '' AND finish_ce > '$today_eom')"];
+    $extra_where[] = "status NOT LIKE '%ซ่อมไม่เสร็จ%'";
+    if ($req_month) { $extra_where[] = "month_key = '$safe_month'"; }
+    if ($req_branch) { $extra_where[] = "branch = '$safe_branch'"; }
+
+    $extra_sql = "SELECT branch, notify_no, date_val, job_no, type_val, side, team, tech, pipe, status, month_key
+                  FROM pending_rows WHERE " . implode(' AND ', $extra_where) . " ORDER BY date_ce";
+    $extra_result = @$db->query($extra_sql);
+    if ($extra_result) {
+        while ($row = $extra_result->fetchArray(SQLITE3_ASSOC)) {
+            $records[] = [
+                'branch' => $row['branch'],
+                'notify_no' => $row['notify_no'],
+                'date' => $row['date_val'],
+                'job_no' => $row['job_no'],
+                'type' => $row['type_val'],
+                'aspect' => $row['side'],
+                'team' => $row['team'],
+                'tech' => $row['tech'],
+                'pipe' => $row['pipe'],
+                'status' => $row['status'],
+                'month' => $row['month_key']
+            ];
+        }
     }
 
     $db->close();
@@ -2173,12 +2232,17 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'pending
     json_response([
         'ok' => true,
         'records' => $records,
-        'total' => count($records)
+        'total' => count($records),
+        'update_date' => $update_date
     ]);
+  } catch (\Throwable $e) {
+    json_response(['ok' => false, 'error' => 'pending-detail: ' . $e->getMessage() . ' at line ' . $e->getLine()], 500);
+  }
 }
 
 // Route: GET /api/pending-nojob
 if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'pending-nojob') {
+  try {
     $pending_dir = RAW_DATA_DIR . DIRECTORY_SEPARATOR . CATEGORY_MAP['pending'];
 
     if (!is_dir($pending_dir)) {
@@ -2213,9 +2277,10 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'pending
     }
 
     // Query with all filters: latest month + pipe complaint + no job + not done
+    $safe_mk = str_replace("'", "''", $latest_mk);
     $sql = "SELECT branch, notify_no, date_val, side, topic, detail, status
             FROM pending_rows
-            WHERE month_key = :mk
+            WHERE month_key = '$safe_mk'
               AND (side = 'ด้านท่อแตกรั่ว'
                    OR topic LIKE '%ท่อแตก%' OR topic LIKE '%ท่อรั่ว%' OR topic LIKE '%แตกรั่ว%'
                    OR detail LIKE '%ท่อแตก%' OR detail LIKE '%ท่อรั่ว%' OR detail LIKE '%แตกรั่ว%')
@@ -2223,25 +2288,24 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'pending
               AND status NOT LIKE '%ดำเนินการแล้วเสร็จ%'
             ORDER BY branch, date_ce";
 
-    $stmt = $db->prepare($sql);
-    $stmt->bindValue(':mk', $latest_mk, SQLITE3_TEXT);
-    $result = $stmt->execute();
-
+    $result = $db->query($sql);
     $by_branch = [];
     $records = [];
 
-    while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
-        $branch = $row['branch'];
-        $by_branch[$branch] = ($by_branch[$branch] ?? 0) + 1;
-        $records[] = [
-            'branch' => $branch,
-            'notify_no' => $row['notify_no'],
-            'date' => $row['date_val'],
-            'side' => $row['side'],
-            'topic' => $row['topic'],
-            'detail' => mb_substr($row['detail'], 0, 100),
-            'status' => $row['status']
-        ];
+    if ($result) {
+        while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+            $branch = $row['branch'];
+            $by_branch[$branch] = ($by_branch[$branch] ?? 0) + 1;
+            $records[] = [
+                'branch' => $branch,
+                'notify_no' => $row['notify_no'],
+                'date' => $row['date_val'],
+                'side' => $row['side'] ?? '',
+                'topic' => $row['topic'] ?? '',
+                'detail' => mb_substr($row['detail'] ?? '', 0, 100),
+                'status' => $row['status']
+            ];
+        }
     }
 
     $db->close();
@@ -2255,6 +2319,9 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'pending
         'month_key' => $latest_mk,
         'fy' => $fy
     ]);
+  } catch (\Throwable $e) {
+    json_response(['ok' => false, 'error' => 'pending-nojob: ' . $e->getMessage() . ' at line ' . $e->getLine()], 500);
+  }
 }
 
 // Route: DELETE /api/data/<category>/<filename>
