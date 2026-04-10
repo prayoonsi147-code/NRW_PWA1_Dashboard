@@ -2778,6 +2778,664 @@ var PD3_FALLBACK={
         }
     }
 };
+var PD3_FY_MONTHS=[];
+var PD3_DATA={};
+var PD3_UPDATE_DATE='';
+var PD3_FY=0;
+var pd3ChartObj=null;
+var pd3Initialized=false;
+var pd3Mode='table';
+var pd3Loading=false;
+var pd3IsLive=false; // true = ข้อมูลจาก API, false = fallback
+
+function pd3UseFallback(fyKey){
+    var fb=PD3_FALLBACK[fyKey||'2569']||PD3_FALLBACK['2569'];
+    PD3_FY_MONTHS=fb.months;
+    PD3_DATA=fb.data;
+    PD3_UPDATE_DATE=fb.update_date;
+    PD3_FY=parseInt(fyKey)||2569;
+    pd3IsLive=false;
+
+    pd3UpdateTitle();
+    if(pd3Mode==='table') pd3BuildTable();
+    else pd3RenderChart();
+}
+
+function pd3UpdateTitle(){
+    var titleEl=document.getElementById('pd3CardTitle');
+    if(titleEl) titleEl.textContent='📋 ตารางที่ 3 : งานซ่อมที่ยังไม่ปิดในระบบ ปีงบประมาณ '+PD3_FY+' / วันที่รับแจ้ง (Update ณ วันที่ '+(PD3_UPDATE_DATE||PENDING_UPDATE_DATE)+')';
+}
+
+function pd3Init(){
+    pd3Initialized=true;
+    pd3LoadFY(true);
+}
+
+function pd3LoadFY(){
+    if(pd3Loading)return;
+    pd3Loading=true;
+    var fy=PENDING_FY||2569; // อ้างอิงปีงบจาก Card 1
+    var url='api.php/pending-table?fy='+fy+'&_t='+Date.now();
+
+    // Show loading
+    var tblContainer=document.getElementById('pd3TableContainer');
+    if(tblContainer && pd3Mode==='table') tblContainer.innerHTML='<div style="text-align:center;padding:40px;color:var(--sub)">กำลังโหลดข้อมูล...</div>';
+
+    fetch(url).then(function(r){return r.json();}).then(function(res){
+        pd3Loading=false;
+        if(!res.ok){
+            pd3UseFallback(fy);
+            return;
+        }
+
+        PD3_FY_MONTHS=res.months||[];
+        PD3_DATA=res.data||{};
+        PD3_UPDATE_DATE=res.update_date||'';
+        PD3_FY=res.fy||0;
+        pd3IsLive=true;
+
+        pd3UpdateTitle();
+        if(pd3Mode==='table') pd3BuildTable();
+        else pd3RenderChart();
+    }).catch(function(err){
+        pd3Loading=false;
+        // Fallback: file:// mode or server not running → use hardcoded data
+        pd3UseFallback(String(fy));
+    });
+}
+
+function pd3SetMode(mode,btn){
+    pd3Mode=mode;
+    var btns=btn.parentElement.querySelectorAll('.ymb');
+    btns.forEach(function(b){b.classList.remove('active');});
+    btn.classList.add('active');
+    var chartWrap=document.getElementById('pd3ChartWrap');
+    var tableContainer=document.getElementById('pd3TableContainer');
+    if(mode==='chart'){
+        chartWrap.style.display='block';
+        tableContainer.style.display='none';
+        pd3RenderChart();
+        setTimeout(function(){if(pd3ChartObj)pd3ChartObj.resize();},100);
+    } else {
+        chartWrap.style.display='none';
+        tableContainer.style.display='block';
+        pd3BuildTable();
+    }
+}
+
+function pd3GetVisibleMonths(){
+    var selMk=getSelectedMonth();
+    if(!selMk)return PD3_FY_MONTHS.slice();
+    var selIdx=PD3_FY_MONTHS.indexOf(selMk);
+    if(selIdx>=0) return PD3_FY_MONTHS.slice(0,selIdx+1);
+    // Selected month might be in PD2 format (same key) — find position
+    // PD3_FY_MONTHS uses same yy-mm format
+    for(var i=0;i<PD3_FY_MONTHS.length;i++){
+        if(PD3_FY_MONTHS[i]===selMk) return PD3_FY_MONTHS.slice(0,i+1);
+    }
+    return PD3_FY_MONTHS.slice();
+}
+
+function pd3BuildTable(){
+    var isDark=document.body.classList.contains('dark');
+    var thBg=isDark?'#00332d':'#004d40';
+    var thBorder=isDark?'#00695c':'#00695c';
+    var borderColor=isDark?'#444':'#e0e0e0';
+    var rowAltBg=isDark?'rgba(255,255,255,0.04)':'#f9f9f9';
+    var branchBg=isDark?'rgba(255,255,255,0.08)':'#f5f5f5';
+    var totalRowBg=isDark?'#1a3a36':'#e0f2f1';
+
+    var visibleMonths=pd3GetVisibleMonths();
+    var allMonths=PD3_FY_MONTHS.slice(); // always show all 12 months columns
+    // Build a set of visible month keys for quick lookup
+    var visibleSet={};
+    visibleMonths.forEach(function(mk){visibleSet[mk]=true;});
+
+    var thStyle='padding:8px 6px;background:'+thBg+';color:#fff;text-align:center;font-size:12px;border:1px solid '+thBorder+';font-weight:700;white-space:nowrap';
+    var thStyleLeft='padding:8px 10px;background:'+thBg+';color:#fff;text-align:center;font-size:12px;border:1px solid '+thBorder+';font-weight:700';
+    var tdBase='padding:6px 8px;border:1px solid '+borderColor+';font-size:12px;text-align:center;color:var(--text)';
+    var tdBranch='padding:6px 10px;border:1px solid '+borderColor+';font-size:12px;text-align:center;font-weight:600;color:var(--text)';
+    var tdDimmed='padding:6px 8px;border:1px solid '+borderColor+';font-size:12px;text-align:center;color:'+(isDark?'#555':'#ccc')+';background:'+(isDark?'rgba(255,255,255,0.02)':'#fafafa');
+
+    var html='<table style="width:100%;border-collapse:collapse;border:2px solid '+thBorder+'">';
+
+    // Header row 1: กปภ.สาขา + ข้อมูล ณ
+    html+='<thead>';
+    html+='<tr><th style="'+thStyle+'" rowspan="2">กปภ.สาขา</th>';
+    html+='<th colspan="'+allMonths.length+'" style="'+thStyle+';font-size:13px">งานซ่อมที่ยังไม่ปิดในระบบ  ปีงบประมาณ '+(PD3_FY||'')+' (ค่าสะสมตั้งแต่ ต้นปีงบฯ) Update ข้อมูล ณ วันที่ '+(PD3_UPDATE_DATE||PENDING_UPDATE_DATE)+'</th>';
+    html+='<th style="'+thStyle+'" rowspan="2">รวมรายสาขา</th></tr>';
+
+    // Header row 2: months — always all 12
+    html+='<tr>';
+    allMonths.forEach(function(mk){
+        var p=mk.split('-');var mm=parseInt(p[1],10);var yy=parseInt(p[0],10);
+        html+='<th style="'+thStyle+'">'+MONTH_NAMES[mm<10?'0'+mm:''+mm]+yy+'</th>';
+    });
+    html+='</tr>';
+    html+='</thead><tbody>';
+
+    // Data rows
+    var colTotals={};
+    allMonths.forEach(function(mk){colTotals[mk]=0;});
+    var grandTotal=0;
+
+    BRANCHES.forEach(function(branch,i){
+        var branchData=PD3_DATA[branch]||{};
+        var rowTotal=0;
+        var rowBg=(i%2===1)?'background:'+rowAltBg+';':'';
+
+        html+='<tr>';
+        html+='<td style="'+tdBranch+';'+rowBg+'background:'+branchBg+'">'+branch+'</td>';
+
+        allMonths.forEach(function(mk){
+            if(visibleSet[mk]){
+                var v=branchData[mk]||0;
+                rowTotal+=v;
+                colTotals[mk]+=v;
+                if(v>0){
+                    html+='<td style="'+tdBase+';'+rowBg+'font-weight:600;color:#d32f2f">'+v.toLocaleString('th-TH')+'</td>';
+                } else {
+                    html+='<td style="'+tdBase+';'+rowBg+'color:var(--sub2)"></td>';
+                }
+            } else {
+                // Month beyond selected — show empty dimmed cell
+                html+='<td style="'+tdDimmed+';'+rowBg+'"></td>';
+            }
+        });
+
+        grandTotal+=rowTotal;
+        if(rowTotal>0){
+            html+='<td style="'+tdBase+';'+rowBg+'font-weight:700;background:'+branchBg+';color:#d32f2f">'+rowTotal.toLocaleString('th-TH')+'</td>';
+        } else {
+            html+='<td style="'+tdBase+';'+rowBg+'color:var(--sub2);background:'+branchBg+'"></td>';
+        }
+        html+='</tr>';
+    });
+
+    // Total row
+    html+='<tr style="background:'+totalRowBg+';font-weight:700">';
+    html+='<td style="'+tdBase+';font-weight:800;background:'+totalRowBg+'">รวมรายเดือน</td>';
+    allMonths.forEach(function(mk){
+        if(visibleSet[mk]){
+            var v=colTotals[mk];
+            if(v>0){
+                html+='<td style="'+tdBase+';font-weight:800;background:'+totalRowBg+';color:#d32f2f">'+v.toLocaleString('th-TH')+'</td>';
+            } else {
+                html+='<td style="'+tdBase+';background:'+totalRowBg+'"></td>';
+            }
+        } else {
+            html+='<td style="'+tdDimmed+'"></td>';
+        }
+    });
+    html+='<td style="'+tdBase+';font-weight:800;background:'+totalRowBg+';color:#d32f2f">'+grandTotal.toLocaleString('th-TH')+'</td>';
+    html+='</tr></tbody></table>';
+
+    document.getElementById('pd3TableContainer').innerHTML=html;
+
+    // Update summary
+    var sumEl=document.getElementById('pd3Summary');
+    if(sumEl){
+        sumEl.innerHTML='<div style="display:flex;align-items:center;gap:14px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 20px;box-shadow:0 1px 4px var(--card-shadow)">'
+            +'<div style="text-align:center"><div style="font-size:11px;color:var(--sub);font-weight:600">รวมทั้งหมด</div><div style="font-size:26px;font-weight:900;color:#004d40">'+grandTotal.toLocaleString('th-TH')+'</div><div style="font-size:11px;color:var(--sub2)">งาน</div></div>'
+            +'</div>';
+    }
+}
+
+function pd3RenderChart(){
+    var isDark=document.body.classList.contains('dark');
+    var textColor=isDark?'#e0e0e0':'#333';
+
+    // Filter to visible months, then only those with data
+    var visibleMonths=pd3GetVisibleMonths();
+    var monthsWithData=visibleMonths.filter(function(mk){
+        var total=0;
+        BRANCHES.forEach(function(b){total+=((PD3_DATA[b]||{})[mk]||0);});
+        return total>0;
+    });
+
+    var monthBarColors=['#e53935','#ff6d00','#43a047','#1e88e5','#8e24aa','#00acc1','#ec407a','#6d4c41','#546e7a','#d81b60','#00897b','#7cb342'];
+    var datasets=[];
+
+    monthsWithData.forEach(function(mk,mi){
+        var p=mk.split('-');var mm=parseInt(p[1],10);var yy=parseInt(p[0],10);
+        var monthLabel=MONTH_NAMES[mm<10?'0'+mm:''+mm]+yy;
+        var col=monthBarColors[mi%monthBarColors.length];
+        var data=BRANCHES.map(function(b){return (PD3_DATA[b]||{})[mk]||0;});
+        datasets.push({
+            label:monthLabel,
+            data:data,
+            backgroundColor:col+'cc',
+            borderColor:col,
+            borderWidth:1,
+            barPercentage:1.0,
+            categoryPercentage:0.68
+        });
+    });
+
+    var canvas=document.getElementById('pd3Chart');
+    if(!canvas)return;
+
+    var config={
+        type:'bar',
+        data:{labels:BRANCHES,datasets:datasets},
+        options:{
+            responsive:true,maintainAspectRatio:false,
+            interaction:{mode:'index',intersect:false},
+            plugins:{
+                legend:{display:true,position:'bottom',labels:{font:{size:11},boxWidth:12}},
+                tooltip:{
+                    backgroundColor:'rgba(0,0,0,0.85)',titleColor:'#fff',bodyColor:'#fff',
+                    borderColor:'#888',borderWidth:1,padding:12,displayColors:true,
+                    callbacks:{
+                        afterTitle:function(ctx){
+                            var bi=ctx[0].dataIndex;
+                            var branch=BRANCHES[bi];
+                            var total=0;
+                            visibleMonths.forEach(function(mk){total+=((PD3_DATA[branch]||{})[mk]||0);});
+                            return 'รวม: '+total.toLocaleString('th-TH')+' งาน';
+                        },
+                        label:function(ctx){
+                            var v=ctx.parsed.y;
+                            if(v===undefined||v===null||v===0)return null;
+                            return (ctx.dataset.label||'')+': '+v.toLocaleString('th-TH')+' งาน';
+                        }
+                    }
+                },
+                datalabels:{
+                    display:function(ctx){
+                        var cb=document.getElementById('pd3ShowValues');
+                        if(!cb||!cb.checked)return false;
+                        return ctx.dataset.data[ctx.dataIndex]>0;
+                    },
+                    anchor:'end',align:'end',
+                    font:{size:10,weight:'bold'},
+                    color:textColor,
+                    formatter:function(v){return v>0?v.toLocaleString('th-TH'):'';}
+                },
+                title:{display:true,text:'งานซ่อมที่ยังไม่ปิดในระบบ ปีงบประมาณ '+(PD3_FY||'')+' / วันที่รับแจ้ง (ข้อมูล ณ '+(PD3_UPDATE_DATE||PENDING_UPDATE_DATE)+')',font:{size:14,weight:'bold'},color:textColor,padding:{bottom:16}}
+            },
+            scales:{
+                y:{
+                    stacked:true,beginAtZero:true,
+                    ticks:{color:textColor,font:{size:12},callback:function(v){return v.toLocaleString('th-TH');}},
+                    grid:{color:isDark?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.05)'},
+                    title:{display:true,text:'จำนวน (งาน)',color:textColor,font:{size:13}}
+                },
+                x:{
+                    stacked:true,
+                    ticks:{color:textColor,font:{size:11},maxRotation:45,minRotation:30},
+                    grid:{display:false}
+                }
+            }
+        }
+    };
+
+    config.plugins=[zebrahBgPlugin];
+    if(pd3ChartObj)pd3ChartObj.destroy();
+    pd3ChartObj=new Chart(canvas,config);
+}
+
+function pd3ResetChart(){
+    if(pd3ChartObj)pd3ChartObj.resetZoom();
+}
+
+function pd3ExportPNG(){
+    if(pd3Mode==='chart'){
+        var canvas=document.getElementById('pd3Chart');
+        if(!canvas)return;
+        var link=document.createElement('a');
+        link.download='งานซ่อมที่ยังไม่ปิดในระบบ_ปีงบ2569.png';
+        link.href=canvas.toDataURL('image/png');
+        link.click();
+    } else {
+        // Export table as image using html2canvas if available, else alert
+        var tbl=document.getElementById('pd3TableContainer');
+        if(typeof html2canvas!=='undefined'){
+            html2canvas(tbl).then(function(c){
+                var link=document.createElement('a');
+                link.download='งานซ่อมที่ยังไม่ปิดในระบบ_ปีงบ2569.png';
+                link.href=c.toDataURL('image/png');
+                link.click();
+            });
+        } else {
+            alert('กรุณาสลับเป็นโหมดกราฟก่อน export PNG');
+        }
+    }
+}
+
+function pd3CopyChart(){
+    if(pd3Mode==='chart'){
+        var canvas=document.getElementById('pd3Chart');
+        if(!canvas)return;
+        canvas.toBlob(function(blob){
+            navigator.clipboard.write([
+                new ClipboardItem({'image/png':blob})
+            ]).then(function(){alert('คัดลอกแล้ว');}).catch(function(){alert('คัดลอกไม่ได้');});
+        });
+    } else {
+        var tbl=document.getElementById('pd3TableContainer');
+        if(typeof html2canvas!=='undefined'){
+            html2canvas(tbl).then(function(c){
+                c.toBlob(function(blob){
+                    navigator.clipboard.write([new ClipboardItem({'image/png':blob})]).then(function(){alert('คัดลอกแล้ว');}).catch(function(){alert('คัดลอกไม่ได้');});
+                });
+            });
+        } else {
+            alert('กรุณาสลับเป็นโหมดกราฟก่อนคัดลอก');
+        }
+    }
+}
+
+function pd3ExportExcel(){
+    var visibleMonths=pd3GetVisibleMonths();
+
+    var wb=new ExcelJS.Workbook();
+    var ws=wb.addWorksheet('งานซ่อมที่ยังไม่ปิดในระบบ');
+
+    // Title row
+    ws.addRow(['งานซ่อมที่ยังไม่ปิดในระบบ ปีงบ '+(PD3_FY||'')+' / วันที่รับแจ้ง','','','','','','','','','','','','','ข้อมูล ณ '+(PD3_UPDATE_DATE||PENDING_UPDATE_DATE)]);
+    ws.mergeCells('A1:L1');
+
+    // Header
+    var header=['กปภ.สาขา'];
+    visibleMonths.forEach(function(mk){
+        var p=mk.split('-');var mm=parseInt(p[1],10);var yy=parseInt(p[0],10);
+        header.push(MONTH_NAMES[mm<10?'0'+mm:''+mm]+yy);
+    });
+    header.push('รวมรายสาขา');
+    ws.addRow(header);
+
+    // Data rows
+    BRANCHES.forEach(function(branch){
+        var branchData=PD3_DATA[branch]||{};
+        var row=[branch];
+        var total=0;
+        visibleMonths.forEach(function(mk){
+            var v=branchData[mk]||0;
+            total+=v;
+            row.push(v||'');
+        });
+        row.push(total||'');
+        ws.addRow(row);
+    });
+
+    // Total row
+    var totalRow=['รวมรายเดือน'];
+    var grandTotal=0;
+    visibleMonths.forEach(function(mk){
+        var t=0;
+        BRANCHES.forEach(function(b){t+=((PD3_DATA[b]||{})[mk]||0);});
+        grandTotal+=t;
+        totalRow.push(t||'');
+    });
+    totalRow.push(grandTotal);
+    ws.addRow(totalRow);
+
+    ws.getRow(1).font={bold:true,size:14};
+    ws.getRow(2).font={bold:true};
+    ws.getRow(ws.rowCount).font={bold:true};
+    ws.columns.forEach(function(c,i){c.width=i===0?18:10;});
+
+    wb.xlsx.writeBuffer().then(function(buf){
+        var blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+        var link=document.createElement('a');
+        link.download='งานซ่อมที่ยังไม่ปิดในระบบ_ปีงบ2569.xlsx';
+        link.href=URL.createObjectURL(blob);
+        link.click();
+    });
+}
+
+function pd3ExportPPTX(){
+    if(typeof PptxGenJS==='undefined'){alert('PptxGenJS ยังโหลดไม่เสร็จ');return;}
+    if(pd3Mode==='chart'){
+        var canvas=document.getElementById('pd3Chart');
+        if(!canvas)return;
+        var pptx=new PptxGenJS();
+        var slide=pptx.addSlide();
+        slide.addImage({data:canvas.toDataURL('image/png'),x:0.3,y:0.3,w:9.4,h:5.4});
+        pptx.writeFile({fileName:'งานซ่อมที่ยังไม่ปิดในระบบ_ปีงบ2569.pptx'});
+    } else {
+        var tbl=document.getElementById('pd3TableContainer');
+        if(typeof html2canvas!=='undefined'){
+            html2canvas(tbl).then(function(c){
+                var pptx=new PptxGenJS();
+                var slide=pptx.addSlide();
+                slide.addImage({data:c.toDataURL('image/png'),x:0.2,y:0.2,w:9.6,h:5.6});
+                pptx.writeFile({fileName:'งานซ่อมที่ยังไม่ปิดในระบบ_ปีงบ2569.pptx'});
+            });
+        } else {
+            alert('กรุณาสลับเป็นโหมดกราฟก่อน export PPTX');
+        }
+    }
+}
+
+// ==================== CARD 4 : รายละเอียดงานค้างซ่อม ====================
+/*FALLBACK_PD4_START*/var PD4_FALLBACK=[{"branch":"บางคล้า","notify_no":"NG20260301071530","date":"01/03/2569","job_no":"R202603000078","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"พนมสารคาม","notify_no":"S2026030300088","date":"03/03/2569","job_no":"R202603002647","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"สาครเซอร์วิส","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"พนมสารคาม","notify_no":"S2026030402233","date":"04/03/2569","job_no":"R202603005970","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"สาครเซอร์วิส","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"พนมสารคาม","notify_no":"S2026030600689","date":"06/03/2569","job_no":"R202603008933","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"สาครเซอร์วิส","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"พนมสารคาม","notify_no":"S2026030601809","date":"06/03/2569","job_no":"R202603010157","type":"ข้อร้องเรียน","aspect":"ด้านปริมาณน้ำ","team":"สาครเซอร์วิส","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"พัทยา","notify_no":"NG20260308060116","date":"08/03/2569","job_no":"R202603011522","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"พัทยา","notify_no":"NG20260308112126","date":"08/03/2569","job_no":"R202603014231","type":"ข้อร้องเรียน","aspect":"ด้านปริมาณน้ำ","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"พัทยา","notify_no":"S2026031001103","date":"10/03/2569","job_no":"R202603015838","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"ตรวจสอบ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"พัทยา","notify_no":"S2026031201008","date":"12/03/2569","job_no":"R202603020347","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"พนมสารคาม","notify_no":"S2026031400225","date":"14/03/2569","job_no":"R202603023835","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"สาครเซอร์วิส","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"พัทยา","notify_no":"NG20260317150103","date":"17/03/2569","job_no":"R202603029127","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"พัทยา","notify_no":"S2026031901343","date":"19/03/2569","job_no":"R202603033111","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"ตรวจสอบ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"พนมสารคาม","notify_no":"S2026032000474","date":"20/03/2569","job_no":"R202603034292","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บริษัท เจบี ซัคเซส จำกัด","tech":"","pipe":"  มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"ศรีราชา","notify_no":"S2026032301678","date":"23/03/2569","job_no":"R202603039095","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"หจก.พ.ทวีทรัพย์","tech":"พิสิษฐ์ โมรา","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"ระยอง","notify_no":"S2026032400671","date":"24/03/2569","job_no":"R202603040362","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"นิธิศ ประมวล","tech":"นิธิศ ประมวล","pipe":"HDPE 110 มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"ระยอง","notify_no":"S2026032400713","date":"24/03/2569","job_no":"R202603040401","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"ฉัตรเทพ สอนสระเกษ","tech":"ฉัตรเทพ สอนสระเกษ","pipe":"PB 50 มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"ระยอง","notify_no":"S2026032401805","date":"24/03/2569","job_no":"R202603041484","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"อานนท์ เชิดชู","tech":"อานนท์ เชิดชู","pipe":"PB 50 มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"ระยอง","notify_no":"S2026032401920","date":"24/03/2569","job_no":"R202603041590","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"นิธิศ ประมวล","tech":"นิธิศ ประมวล","pipe":"PVC 100 มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"ระยอง","notify_no":"S2026032401953","date":"24/03/2569","job_no":"R202603041606","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"นิธิศ ประมวล","tech":"นิธิศ ประมวล","pipe":"PVC 100 มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"ระยอง","notify_no":"S2026032401960","date":"24/03/2569","job_no":"R202603041614","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"นิธิศ ประมวล","tech":"นิธิศ ประมวล","pipe":"PVC 100 มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"ระยอง","notify_no":"S2026032401984","date":"24/03/2569","job_no":"R202603041646","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"นิธิศ ประมวล","tech":"นิธิศ ประมวล","pipe":"PVC 100 มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"ระยอง","notify_no":"S2026032402002","date":"24/03/2569","job_no":"R202603041670","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"อานนท์ เชิดชู","tech":"อานนท์ เชิดชู","pipe":"PB 50 มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"ระยอง","notify_no":"S2026032402040","date":"24/03/2569","job_no":"R202603041712","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"นิธิศ ประมวล","tech":"นิธิศ ประมวล","pipe":"PVC 100 มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"ระยอง","notify_no":"S2026032402059","date":"24/03/2569","job_no":"R202603041743","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"นิธิศ ประมวล","tech":"นิธิศ ประมวล","pipe":"PVC 100 มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"ระยอง","notify_no":"S2026032402066","date":"24/03/2569","job_no":"R202603041754","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"นิธิศ ประมวล","tech":"นิธิศ ประมวล","pipe":"PB 50 มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"บางคล้า","notify_no":"S2026032501395","date":"25/03/2569","job_no":"R202603043677","type":"ข้อร้องเรียน","aspect":"ด้านปริมาณน้ำ","team":"บริษัท วรรณศิริการโยธา จำกัด","tech":"","pipe":"  มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"พนมสารคาม","notify_no":"S2026032501884","date":"25/03/2569","job_no":"R202603044201","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"สาครเซอร์วิส","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"พัทยา","notify_no":"S2026032502345","date":"25/03/2569","job_no":"R202603044697","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"ตรวจสอบ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"อรัญประเทศ","notify_no":"S2026032600149","date":"26/03/2569","job_no":"R202603044938","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"HDPE 225 มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"อรัญประเทศ","notify_no":"S2026032600164","date":"26/03/2569","job_no":"R202603044951","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"PB 20 มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"พนมสารคาม","notify_no":"S2026032601284","date":"26/03/2569","job_no":"R202603046164","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"บริษัท ทองธนัฏ","tech":"","pipe":"  มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"พนมสารคาม","notify_no":"S2026032601480","date":"26/03/2569","job_no":"R202603046344","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"สาครเซอร์วิส","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"พัทยา","notify_no":"NG20260326135755","date":"26/03/2569","job_no":"R202603046858","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"พนมสารคาม","notify_no":"S2026032800578","date":"28/03/2569","job_no":"R202603049384","type":"ข้อร้องเรียน","aspect":"ด้านปริมาณน้ำ","team":"สาครเซอร์วิส","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"พนมสารคาม","notify_no":"S2026032800582","date":"28/03/2569","job_no":"R202603049389","type":"ข้อร้องเรียน","aspect":"ด้านปริมาณน้ำ","team":"สาครเซอร์วิส","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"พนมสารคาม","notify_no":"S2026032800613","date":"28/03/2569","job_no":"R202603049421","type":"ข้อร้องเรียน","aspect":"ด้านปริมาณน้ำ","team":"สาครเซอร์วิส","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"พนมสารคาม","notify_no":"S2026032800704","date":"28/03/2569","job_no":"R202603049518","type":"ข้อร้องเรียน","aspect":"ด้านปริมาณน้ำ","team":"สาครเซอร์วิส","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"พนมสารคาม","notify_no":"S2026032800705","date":"28/03/2569","job_no":"R202603049519","type":"ข้อร้องเรียน","aspect":"ด้านปริมาณน้ำ","team":"สาครเซอร์วิส","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"พัทยา","notify_no":"S2026032800771","date":"28/03/2569","job_no":"R202603049599","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"พัทยา","notify_no":"S2026032900189","date":"29/03/2569","job_no":"R202603049880","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"พัทยา","notify_no":"S2026032900194","date":"29/03/2569","job_no":"R202603049883","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"พนมสารคาม","notify_no":"S2026033000615","date":"30/03/2569","job_no":"R202603051020","type":"ข้อร้องเรียน","aspect":"ด้านปริมาณน้ำ","team":"สาครเซอร์วิส","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"บางคล้า","notify_no":"S2026033001245","date":"30/03/2569","job_no":"R202603051558","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บริษัท วรรณศิริการโยธา จำกัด","tech":"","pipe":"  มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"พัทยา","notify_no":"S2026033002074","date":"30/03/2569","job_no":"R202603052439","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"ตรวจสอบ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"พัทยา","notify_no":"S2026033100156","date":"31/03/2569","job_no":"R202603052824","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"พัทยา","notify_no":"NG20260331123211","date":"31/03/2569","job_no":"R202603054475","type":"ข้อร้องเรียน","aspect":"ด้านปริมาณน้ำ","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"แหลมฉบัง","notify_no":"NG20260331150716","date":"31/03/2569","job_no":"R202603054050","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บริษัท บีบีเอ็ม วอเตอร์ เอ็นจีเนียริ่ง จำกัด","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"ระยอง","notify_no":"NG20260331131009","date":"31/03/2569","job_no":"R202604001254","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"นิธิศ ประมวล","tech":"นิธิศ ประมวล","pipe":"  มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"แหลมฉบัง","notify_no":"NG20260331154520","date":"31/03/2569","job_no":"R202604000074","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บริษัท บีบีเอ็ม วอเตอร์ เอ็นจีเนียริ่ง จำกัด","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-03"},{"branch":"แหลมฉบัง","notify_no":"NG20260401014737","date":"01/04/2569","job_no":"R202604000824","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บริษัท บีบีเอ็ม วอเตอร์ เอ็นจีเนียริ่ง จำกัด","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านฉาง","notify_no":"S2026040100248","date":"01/04/2569","job_no":"R202604000215","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"  มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บางคล้า","notify_no":"S2026040100386","date":"01/04/2569","job_no":"R202604000374","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บริษัท วรรณศิริการโยธา จำกัด","tech":"","pipe":"  มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บางคล้า","notify_no":"S2026040100389","date":"01/04/2569","job_no":"R202604000382","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บริษัท วรรณศิริการโยธา จำกัด","tech":"","pipe":"  มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"NG20260401100353","date":"01/04/2569","job_no":"R202604002722","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านฉาง","notify_no":"S2026040100622","date":"01/04/2569","job_no":"R202604000595","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"แหลมฉบัง","notify_no":"NG20260401103027","date":"01/04/2569","job_no":"R202604000634","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บริษัท บีบีเอ็ม วอเตอร์ เอ็นจีเนียริ่ง จำกัด","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"S2026040100794","date":"01/04/2569","job_no":"R202604000753","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"ระยอง","notify_no":"S2026040101474","date":"01/04/2569","job_no":"R202604001476","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"นิธิศ ประมวล","tech":"นิธิศ ประมวล","pipe":"HDPE 110 มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"ระยอง","notify_no":"S2026040101491","date":"01/04/2569","job_no":"R202604001493","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"อานนท์ เชิดชู","tech":"อานนท์ เชิดชู","pipe":"PB 50 มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040101627","date":"01/04/2569","job_no":"R202604001656","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.พี.เจ.2016","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040101640","date":"01/04/2569","job_no":"R202604001668","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040101652","date":"01/04/2569","job_no":"R202604001675","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.พี.เจ.2016","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040101661","date":"01/04/2569","job_no":"R202604001683","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.พี.เจ.2016","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040101667","date":"01/04/2569","job_no":"R202604001711","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.พี.เจ.2016","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040101677","date":"01/04/2569","job_no":"R202604001695","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.พี.เจ.2016","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"ระยอง","notify_no":"NG20260401160130","date":"01/04/2569","job_no":"R202604002745","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"อานนท์ เชิดชู","tech":"อานนท์ เชิดชู","pipe":"PB 50 มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040101685","date":"01/04/2569","job_no":"R202604001702","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.พี.เจ.2016","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040101706","date":"01/04/2569","job_no":"R202604001721","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.พี.เจ.2016","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040101711","date":"01/04/2569","job_no":"R202604001743","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.พี.เจ.2016","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040101724","date":"01/04/2569","job_no":"R202604001765","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.พี.เจ.2016","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040101744","date":"01/04/2569","job_no":"R202604001789","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.พี.เจ.2016","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040101749","date":"01/04/2569","job_no":"R202604001797","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.พี.เจ.2016","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040101754","date":"01/04/2569","job_no":"R202604001802","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.พี.เจ.2016","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040101758","date":"01/04/2569","job_no":"R202604001807","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.พี.เจ.2016","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040101761","date":"01/04/2569","job_no":"R202604001810","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.พี.เจ.2016","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040101763","date":"01/04/2569","job_no":"R202604001812","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.พี.เจ.2016","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040101766","date":"01/04/2569","job_no":"R202604001814","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.พี.เจ.2016","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040101778","date":"01/04/2569","job_no":"R202604001830","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040101781","date":"01/04/2569","job_no":"R202604001832","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.พี.เจ.2016","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนมสารคาม","notify_no":"S2026040200504","date":"02/04/2569","job_no":"R202604002642","type":"ข้อร้องเรียน","aspect":"ด้านปริมาณน้ำ","team":"สาครเซอร์วิส","tech":"","pipe":"  มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนมสารคาม","notify_no":"S2026040200510","date":"02/04/2569","job_no":"R202604002645","type":"ข้อร้องเรียน","aspect":"ด้านปริมาณน้ำ","team":"สาครเซอร์วิส","tech":"","pipe":"  มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"แหลมฉบัง","notify_no":"NG20260402101431","date":"02/04/2569","job_no":"R202604002810","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"หจก. เคที 999 วิศกรรม","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040200633","date":"02/04/2569","job_no":"R202604002830","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บริษัท SPลักกี้ 2024 จำกัด","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040200641","date":"02/04/2569","job_no":"R202604002839","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บริษัท SPลักกี้ 2024 จำกัด","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040200650","date":"02/04/2569","job_no":"R202604002847","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บริษัท SPลักกี้ 2024 จำกัด","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040200653","date":"02/04/2569","job_no":"R202604002852","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"บริษัท SPลักกี้ 2024 จำกัด","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040200664","date":"02/04/2569","job_no":"R202604002862","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บริษัท SPลักกี้ 2024 จำกัด","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"แหลมฉบัง","notify_no":"NG20260402040002","date":"02/04/2569","job_no":"R202604003163","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บจก.สุขเกษม 2513","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040200668","date":"02/04/2569","job_no":"R202604002867","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บริษัท SPลักกี้ 2024 จำกัด","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040200677","date":"02/04/2569","job_no":"R202604002881","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บริษัท SPลักกี้ 2024 จำกัด","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บางคล้า","notify_no":"S2026040200687","date":"02/04/2569","job_no":"R202604002883","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บริษัท วรรณศิริการโยธา จำกัด","tech":"","pipe":"  มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040200693","date":"02/04/2569","job_no":"R202604002891","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บริษัท SPลักกี้ 2024 จำกัด","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040200705","date":"02/04/2569","job_no":"R202604002902","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บริษัท SPลักกี้ 2024 จำกัด","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040200767","date":"02/04/2569","job_no":"R202604002949","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บริษัท SPลักกี้ 2024 จำกัด","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040200777","date":"02/04/2569","job_no":"R202604002965","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บริษัท SPลักกี้ 2024 จำกัด","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040200799","date":"02/04/2569","job_no":"R202604002980","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บริษัท SPลักกี้ 2024 จำกัด","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040200818","date":"02/04/2569","job_no":"R202604002994","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บริษัท SPลักกี้ 2024 จำกัด","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"S2026040200821","date":"02/04/2569","job_no":"R202604003337","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040200824","date":"02/04/2569","job_no":"R202604003001","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บริษัท SPลักกี้ 2024 จำกัด","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนมสารคาม","notify_no":"S2026040201001","date":"02/04/2569","job_no":"R202604003159","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"บริษัท ทองธนัฏ","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"NG20260402134414","date":"02/04/2569","job_no":"R202604007071","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"S2026040201122","date":"02/04/2569","job_no":"R202604003332","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"ตรวจสอบ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"แหลมฉบัง","notify_no":"NG20260402084150","date":"02/04/2569","job_no":"R202604004187","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บริษัท บีบีเอ็ม วอเตอร์ เอ็นจีเนียริ่ง จำกัด","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"แหลมฉบัง","notify_no":"NG20260402084852","date":"02/04/2569","job_no":"R202604004186","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บจก.สุขเกษม 2513","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"แหลมฉบัง","notify_no":"NG20260402172731","date":"02/04/2569","job_no":"R202604004184","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บริษัท บีบีเอ็ม วอเตอร์ เอ็นจีเนียริ่ง จำกัด","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040300091","date":"03/04/2569","job_no":"R202604004420","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.รรินทร์ธารา","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040300096","date":"03/04/2569","job_no":"R202604004421","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.รรินทร์ธารา","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040300103","date":"03/04/2569","job_no":"R202604004424","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.รรินทร์ธารา","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"S2026040300406","date":"03/04/2569","job_no":"R202604004713","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040300424","date":"03/04/2569","job_no":"R202604004698","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.รรินทร์ธารา","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040300433","date":"03/04/2569","job_no":"R202604004708","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.รรินทร์ธารา","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040300442","date":"03/04/2569","job_no":"R202604004716","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.รรินทร์ธารา","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040300468","date":"03/04/2569","job_no":"R202604004732","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.รรินทร์ธารา","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040300485","date":"03/04/2569","job_no":"R202604004743","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.รรินทร์ธารา","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040300499","date":"03/04/2569","job_no":"R202604004752","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.รรินทร์ธารา","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040300508","date":"03/04/2569","job_no":"R202604004757","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.รรินทร์ธารา","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040300520","date":"03/04/2569","job_no":"R202604004764","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.รรินทร์ธารา","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040300527","date":"03/04/2569","job_no":"R202604004773","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.รรินทร์ธารา","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040300536","date":"03/04/2569","job_no":"R202604004777","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.รรินทร์ธารา","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"S2026040300539","date":"03/04/2569","job_no":"R202604004784","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"ตรวจสอบ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040300546","date":"03/04/2569","job_no":"R202604004785","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.รรินทร์ธารา","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040300563","date":"03/04/2569","job_no":"R202604004806","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.รรินทร์ธารา","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040300572","date":"03/04/2569","job_no":"R202604004813","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.รรินทร์ธารา","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040300595","date":"03/04/2569","job_no":"R202604004830","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.รรินทร์ธารา","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040300603","date":"03/04/2569","job_no":"R202604004839","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.รรินทร์ธารา","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040300639","date":"03/04/2569","job_no":"R202604004868","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.รรินทร์ธารา","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040300660","date":"03/04/2569","job_no":"R202604004878","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.รรินทร์ธารา","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040300666","date":"03/04/2569","job_no":"R202604004881","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.รรินทร์ธารา","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040300674","date":"03/04/2569","job_no":"R202604004888","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.รรินทร์ธารา","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040300706","date":"03/04/2569","job_no":"R202604004917","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.รรินทร์ธารา","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040300720","date":"03/04/2569","job_no":"R202604004926","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.รรินทร์ธารา","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040300728","date":"03/04/2569","job_no":"R202604004931","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.รรินทร์ธารา","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040300741","date":"03/04/2569","job_no":"R202604004943","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.รรินทร์ธารา","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040300744","date":"03/04/2569","job_no":"R202604004948","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.รรินทร์ธารา","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040300748","date":"03/04/2569","job_no":"R202604004951","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.รรินทร์ธารา","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"S2026040300751","date":"03/04/2569","job_no":"R202604005386","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บ้านบึง","notify_no":"S2026040300764","date":"03/04/2569","job_no":"R202604004964","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.รรินทร์ธารา","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนมสารคาม","notify_no":"S2026040300871","date":"03/04/2569","job_no":"R202604005093","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"สาครเซอร์วิส","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"ปราจีนบุรี","notify_no":"S2026040301031","date":"03/04/2569","job_no":"R202604005656","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"ห้างหุ้นส่วนจำกัด ปาสาณพงศ์","tech":"สิทธิ์วโรจน์ ปาสาณพงศ์","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บางคล้า","notify_no":"S2026040301256","date":"03/04/2569","job_no":"R202604005475","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"นายเฉลิมศักดิ์ ชัยยะ","tech":"นายเฉลิมศักดิ์ ชัยยะ","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บางคล้า","notify_no":"S2026040301266","date":"03/04/2569","job_no":"R202604005483","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"นายเฉลิมศักดิ์ ชัยยะ","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"S2026040301327","date":"03/04/2569","job_no":"R202604005573","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"ตรวจสอบ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"แหลมฉบัง","notify_no":"NG20260403080912","date":"03/04/2569","job_no":"R202604006486","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"บจก.สุขเกษม 2513","tech":"","pipe":"","status":"ตรวจสอบ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"แหลมฉบัง","notify_no":"NG20260403153527","date":"03/04/2569","job_no":"R202604006484","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก. เคที 999 วิศกรรม","tech":"","pipe":"","status":"ตรวจสอบ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"S2026040301478","date":"03/04/2569","job_no":"R202604005769","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"S2026040301485","date":"03/04/2569","job_no":"R202604005801","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนมสารคาม","notify_no":"S2026040301489","date":"03/04/2569","job_no":"R202604005785","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"ทีมบอม","tech":"","pipe":"  มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนมสารคาม","notify_no":"S2026040301672","date":"03/04/2569","job_no":"R202604005992","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"ทีมบอม","tech":"","pipe":"  มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"S2026040301729","date":"03/04/2569","job_no":"R202604006051","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"S2026040301737","date":"03/04/2569","job_no":"R202604006060","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"NG20260403222715","date":"03/04/2569","job_no":"R202604006221","type":"ข้อร้องเรียน","aspect":"ด้านปริมาณน้ำ","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"สระแก้ว","notify_no":"NG20260403232245","date":"04/04/2569","job_no":"R202604006892","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"สำลี เหลาคำ","tech":"สำลี เหลาคำ","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"แหลมฉบัง","notify_no":"NG20260404024459","date":"04/04/2569","job_no":"R202604006560","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บริษัท บีบีเอ็ม วอเตอร์ เอ็นจีเนียริ่ง จำกัด","tech":"","pipe":"","status":"ตรวจสอบ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"NG20260404102230","date":"04/04/2569","job_no":"R202604006538","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"สระแก้ว","notify_no":"NG20260404114621","date":"04/04/2569","job_no":"R202604006890","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"สำลี เหลาคำ","tech":"สำลี เหลาคำ","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"NG20260404120528","date":"04/04/2569","job_no":"R202604006939","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"S2026040400412","date":"04/04/2569","job_no":"R202604006729","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"ตรวจสอบ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนมสารคาม","notify_no":"S2026040400569","date":"04/04/2569","job_no":"R202604006904","type":"ข้อร้องเรียน","aspect":"ด้านปริมาณน้ำ","team":"สาครเซอร์วิส","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"แหลมฉบัง","notify_no":"NG20260404183950","date":"04/04/2569","job_no":"R202604006968","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"บริษัท บีบีเอ็ม วอเตอร์ เอ็นจีเนียริ่ง จำกัด","tech":"","pipe":"","status":"ตรวจสอบ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"S2026040400678","date":"04/04/2569","job_no":"R202604007001","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"NG20260405073226","date":"05/04/2569","job_no":"R202604007803","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนมสารคาม","notify_no":"S2026040500066","date":"05/04/2569","job_no":"R202604007212","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บริษัท ทองธนัฏ","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนมสารคาม","notify_no":"S2026040500155","date":"05/04/2569","job_no":"R202604007307","type":"ข้อร้องเรียน","aspect":"ด้านปริมาณน้ำ","team":"สาครเซอร์วิส","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนมสารคาม","notify_no":"S2026040500160","date":"05/04/2569","job_no":"R202604007311","type":"ข้อร้องเรียน","aspect":"ด้านปริมาณน้ำ","team":"สาครเซอร์วิส","tech":"","pipe":"  มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนมสารคาม","notify_no":"S2026040500163","date":"05/04/2569","job_no":"R202604007316","type":"ข้อร้องเรียน","aspect":"ด้านปริมาณน้ำ","team":"บริษัท ทองธนัฏ","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนมสารคาม","notify_no":"S2026040500247","date":"05/04/2569","job_no":"R202604007404","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"ทีมงานประปา ชนะกานต์","tech":"","pipe":"  มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"NG20260405134425","date":"05/04/2569","job_no":"R202604008933","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนมสารคาม","notify_no":"S2026040500326","date":"05/04/2569","job_no":"R202604007481","type":"ข้อร้องเรียน","aspect":"ด้านปริมาณน้ำ","team":"สาครเซอร์วิส","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนมสารคาม","notify_no":"S2026040500412","date":"05/04/2569","job_no":"R202604007578","type":"ข้อร้องเรียน","aspect":"ด้านปริมาณน้ำ","team":"บริษัท ทองธนัฏ","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนัสนิคม","notify_no":"S2026040500439","date":"05/04/2569","job_no":"R202604007603","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"ศรัณยู  ทองคำ2","tech":"หจก. หนองปรือวิศวกรรม","pipe":"PB 20 มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"S2026040500442","date":"05/04/2569","job_no":"R202604007631","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนัสนิคม","notify_no":"S2026040500446","date":"05/04/2569","job_no":"R202604007610","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"ศรัณยู  ทองคำ1","tech":"หจก. หนองปรือวิศวกรรม","pipe":"PB 20 มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"กบินทร์บุรี","notify_no":"S2026040500450","date":"05/04/2569","job_no":"R202604007613","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บริษัท สีสมุทร์ เอ็นจิเนียริ่ง จำกัด","tech":"","pipe":"PB 50 มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนัสนิคม","notify_no":"S2026040500452","date":"05/04/2569","job_no":"R202604007616","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"ศรัณยู  ทองคำ2","tech":"หจก. หนองปรือวิศวกรรม","pipe":"PB 20 มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนัสนิคม","notify_no":"S2026040500453","date":"05/04/2569","job_no":"R202604007618","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"ศรัณยู  ทองคำ1","tech":"หจก. หนองปรือวิศวกรรม","pipe":"PB 20 มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนัสนิคม","notify_no":"S2026040500457","date":"05/04/2569","job_no":"R202604007623","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"ศรัณยู  ทองคำ1","tech":"หจก. หนองปรือวิศวกรรม","pipe":"HDPE 110 มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"S2026040500459","date":"05/04/2569","job_no":"R202604007628","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนัสนิคม","notify_no":"S2026040500462","date":"05/04/2569","job_no":"R202604007627","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"ศรัณยู  ทองคำ2","tech":"หจก. หนองปรือวิศวกรรม","pipe":"PB 20 มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนัสนิคม","notify_no":"S2026040500463","date":"05/04/2569","job_no":"R202604007629","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"ศรัณยู  ทองคำ2","tech":"หจก. หนองปรือวิศวกรรม","pipe":"PB 20 มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนัสนิคม","notify_no":"S2026040500466","date":"05/04/2569","job_no":"R202604007633","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"ศรัณยู  ทองคำ2","tech":"หจก. หนองปรือวิศวกรรม","pipe":"PB 20 มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนัสนิคม","notify_no":"S2026040500468","date":"05/04/2569","job_no":"R202604007634","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"ศรัณยู  ทองคำ1","tech":"หจก. หนองปรือวิศวกรรม","pipe":"PB 20 มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนัสนิคม","notify_no":"S2026040500475","date":"05/04/2569","job_no":"R202604007639","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"ศรัณยู  ทองคำ2","tech":"หจก. หนองปรือวิศวกรรม","pipe":"HDPE 160 มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนัสนิคม","notify_no":"S2026040500481","date":"05/04/2569","job_no":"R202604007640","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"ศรัณยู  ทองคำ2","tech":"หจก. หนองปรือวิศวกรรม","pipe":"HDPE 160 มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บางคล้า","notify_no":"S2026040500482","date":"05/04/2569","job_no":"R202604007641","type":"ข้อร้องเรียน","aspect":"ด้านการบริการ","team":"บจก.ธนเลิศการโยธา","tech":"","pipe":"  มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนัสนิคม","notify_no":"S2026040500485","date":"05/04/2569","job_no":"R202604007644","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"ศรัณยู  ทองคำ2","tech":"หจก. หนองปรือวิศวกรรม","pipe":"HDPE 160 มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บางคล้า","notify_no":"S2026040500487","date":"05/04/2569","job_no":"R202604007646","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บจก.ธนเลิศการโยธา","tech":"","pipe":"  มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนัสนิคม","notify_no":"S2026040500488","date":"05/04/2569","job_no":"R202604007649","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"ศรัณยู  ทองคำ1","tech":"หจก. หนองปรือวิศวกรรม","pipe":"HDPE 110 มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บางคล้า","notify_no":"S2026040500489","date":"05/04/2569","job_no":"R202604007650","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บจก.ธนเลิศการโยธา","tech":"","pipe":"  มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บางคล้า","notify_no":"S2026040500491","date":"05/04/2569","job_no":"R202604007653","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บจก.ธนเลิศการโยธา","tech":"","pipe":"  มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บางคล้า","notify_no":"S2026040500494","date":"05/04/2569","job_no":"R202604007657","type":"ข้อร้องเรียน","aspect":"ด้านการบริการ","team":"บจก.ธนเลิศการโยธา","tech":"","pipe":"  มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บางคล้า","notify_no":"S2026040500498","date":"05/04/2569","job_no":"R202604007661","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บริษัท วรรณศิริการโยธา จำกัด","tech":"","pipe":"  มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บางคล้า","notify_no":"S2026040500501","date":"05/04/2569","job_no":"R202604007664","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.นารายณ์เสริมกิจการประปา","tech":"","pipe":"  มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บางคล้า","notify_no":"S2026040500504","date":"05/04/2569","job_no":"R202604007666","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"หจก.นารายณ์เสริมกิจการประปา","tech":"","pipe":"  มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บางคล้า","notify_no":"S2026040500508","date":"05/04/2569","job_no":"R202604007670","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บริษัท วรรณศิริการโยธา จำกัด","tech":"","pipe":"  มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"ชลบุรี","notify_no":"S2026040500529","date":"05/04/2569","job_no":"R202604007693","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"ชลบุรี","notify_no":"NG20260405100840","date":"05/04/2569","job_no":"R202604007771","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนมสารคาม","notify_no":"S2026040500532","date":"05/04/2569","job_no":"R202604007696","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"ทีมงานประปา ชนะกานต์","tech":"","pipe":"  มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนมสารคาม","notify_no":"S2026040500578","date":"05/04/2569","job_no":"R202604007846","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"ทีมงานประปา ชนะกานต์","tech":"","pipe":"  มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"แหลมฉบัง","notify_no":"NG20260405115303","date":"05/04/2569","job_no":"R202604008085","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บจก.สุขเกษม 2513","tech":"","pipe":"","status":"ตรวจสอบ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"แหลมฉบัง","notify_no":"NG20260406020551","date":"06/04/2569","job_no":"R202604008297","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บริษัท บีบีเอ็ม วอเตอร์ เอ็นจีเนียริ่ง จำกัด","tech":"","pipe":"","status":"ตรวจสอบ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"บางคล้า","notify_no":"NG20260405231432","date":"06/04/2569","job_no":"R202604008107","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"นายอดิศักดิ์ แสงสว่างเจริญ","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"NG20260406075844","date":"06/04/2569","job_no":"R202604008643","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนมสารคาม","notify_no":"NG20260406080032","date":"06/04/2569","job_no":"R202604008695","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"ทีมเอ","tech":"","pipe":"  มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"ระยอง","notify_no":"NG20260406081056","date":"06/04/2569","job_no":"R202604008317","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"นิธิศ ประมวล","tech":"นิธิศ ประมวล","pipe":"","status":"ตรวจสอบ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"แหลมฉบัง","notify_no":"NG20260406081022","date":"06/04/2569","job_no":"R202604008143","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"บริษัท บีบีเอ็ม วอเตอร์ เอ็นจีเนียริ่ง จำกัด","tech":"","pipe":"","status":"ตรวจสอบ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"NG20260406095658","date":"06/04/2569","job_no":"R202604008369","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"NG20260406095707","date":"06/04/2569","job_no":"R202604008177","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"NG20260406104842","date":"06/04/2569","job_no":"R202604008892","type":"ข้อร้องเรียน","aspect":"ด้านปริมาณน้ำ","team":"","tech":"","pipe":"","status":"ตรวจสอบ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"S2026040600236","date":"06/04/2569","job_no":"R202604008104","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"NG20260406112021","date":"06/04/2569","job_no":"R202604008814","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"","tech":"","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"S2026040600331","date":"06/04/2569","job_no":"R202604008225","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"S2026040600332","date":"06/04/2569","job_no":"R202604008227","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"แหลมฉบัง","notify_no":"S2026040600365","date":"06/04/2569","job_no":"R202604008252","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บริษัท บีบีเอ็ม วอเตอร์ เอ็นจีเนียริ่ง จำกัด","tech":"","pipe":"","status":"ตรวจสอบ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนัสนิคม","notify_no":"S2026040600390","date":"06/04/2569","job_no":"R202604008271","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"รัฐณัฐ  มารคทรัพย์1","tech":"หจก. รรินทร์ธารา","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"NG20260406143240","date":"06/04/2569","job_no":"R202604008549","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"S2026040600518","date":"06/04/2569","job_no":"R202604008409","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"S2026040600520","date":"06/04/2569","job_no":"R202604008496","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"S2026040600525","date":"06/04/2569","job_no":"R202604008410","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"S2026040600539","date":"06/04/2569","job_no":"R202604008458","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนัสนิคม","notify_no":"S2026040600565","date":"06/04/2569","job_no":"R202604008463","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"รัฐณัฐ  มารคทรัพย์1","tech":"หจก. รรินทร์ธารา","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"S2026040600568","date":"06/04/2569","job_no":"R202604008466","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนัสนิคม","notify_no":"S2026040600573","date":"06/04/2569","job_no":"R202604008471","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"รัฐณัฐ  มารคทรัพย์2","tech":"หจก. รรินทร์ธารา","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนัสนิคม","notify_no":"S2026040600577","date":"06/04/2569","job_no":"R202604008477","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"รัฐณัฐ  มารคทรัพย์2","tech":"หจก. รรินทร์ธารา","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนัสนิคม","notify_no":"S2026040600582","date":"06/04/2569","job_no":"R202604008483","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"รัฐณัฐ  มารคทรัพย์2","tech":"หจก. รรินทร์ธารา","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนัสนิคม","notify_no":"S2026040600584","date":"06/04/2569","job_no":"R202604008487","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"รัฐณัฐ  มารคทรัพย์2","tech":"หจก. รรินทร์ธารา","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนัสนิคม","notify_no":"S2026040600585","date":"06/04/2569","job_no":"R202604008497","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"รัฐณัฐ  มารคทรัพย์2","tech":"หจก. รรินทร์ธารา","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนัสนิคม","notify_no":"S2026040600599","date":"06/04/2569","job_no":"R202604008502","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"รัฐณัฐ  มารคทรัพย์1","tech":"หจก. รรินทร์ธารา","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนัสนิคม","notify_no":"S2026040600614","date":"06/04/2569","job_no":"R202604008517","type":"การแจ้งเหตุ","aspect":"การแจ้งเหตุ","team":"รัฐณัฐ  มารคทรัพย์1","tech":"หจก. รรินทร์ธารา","pipe":"","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"S2026040600751","date":"06/04/2569","job_no":"R202604008635","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"S2026040600780","date":"06/04/2569","job_no":"R202604008658","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนมสารคาม","notify_no":"S2026040600800","date":"06/04/2569","job_no":"R202604008686","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"ทีมงานประปา ชนะกานต์","tech":"","pipe":"  มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนมสารคาม","notify_no":"S2026040600802","date":"06/04/2569","job_no":"R202604008689","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"ทีมงานประปา ชนะกานต์","tech":"","pipe":"  มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนมสารคาม","notify_no":"S2026040600804","date":"06/04/2569","job_no":"R202604008702","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"ทีมงานประปา ชนะกานต์","tech":"","pipe":"  มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนมสารคาม","notify_no":"S2026040600806","date":"06/04/2569","job_no":"R202604008694","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"ทีมเอ","tech":"","pipe":"  มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนมสารคาม","notify_no":"S2026040600860","date":"06/04/2569","job_no":"R202604008736","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"บริษัท เจบี ซัคเซส จำกัด","tech":"","pipe":"PB 20 มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พนมสารคาม","notify_no":"S2026040600876","date":"06/04/2569","job_no":"R202604008744","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"ทีมงานประปา ชนะกานต์","tech":"","pipe":"  มม.","status":"ดำเนินการแล้วเสร็จ / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"S2026040600882","date":"06/04/2569","job_no":"R202604008816","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-04"},{"branch":"พัทยา","notify_no":"S2026040600898","date":"06/04/2569","job_no":"R202604008893","type":"ข้อร้องเรียน","aspect":"ด้านท่อแตกรั่ว","team":"","tech":"","pipe":"","status":"อยู่ระหว่างซ่อม / ซ่อมไม่เสร็จ","month":"69-04"}];/*FALLBACK_PD4_END*/
+var pd4Initialized=false;
+var PD4_RECORDS=[];
+var PD4_UPDATE_DATE='';
+
+function pd4Init(){
+    pd4Initialized=true;
+    // Populate branch selector
+    var sel=document.getElementById('pd4BranchSel');
+    if(sel){
+        sel.innerHTML='<option value="">ทุกสาขา</option>';
+        BRANCHES.forEach(function(b){
+            var opt=document.createElement('option');
+            opt.value=b; opt.textContent=b;
+            sel.appendChild(opt);
+        });
+    }
+    pd4Load();
+}
+
+function pd4Load(){
+    var fy=PENDING_FY||2569;
+    var branch=document.getElementById('pd4BranchSel')?document.getElementById('pd4BranchSel').value:'';
+    var qs='?fy='+fy;
+    if(branch) qs+='&branch='+encodeURIComponent(branch);
+
+    var relUrl='api.php/pending-detail'+qs+'&_t='+Date.now();
+    var absUrl='api.php/pending-detail'+qs+'&_t='+Date.now();
+    var tryUrl=(location.protocol==='file:')?absUrl:relUrl;
+
+    fetch(tryUrl).then(function(r){return r.json();}).then(function(res){
+        if(res.ok){
+            PD4_RECORDS=res.records||[];
+            if(res.update_date) PD4_UPDATE_DATE=res.update_date;
+        } else {
+            pd4UseFallback();
+        }
+        pd4Render();
+    }).catch(function(){
+        if(tryUrl===relUrl){
+            fetch(absUrl).then(function(r){return r.json();}).then(function(res){
+                if(res.ok){ PD4_RECORDS=res.records||[]; if(res.update_date) PD4_UPDATE_DATE=res.update_date; } else { pd4UseFallback(); }
+                pd4Render();
+            }).catch(function(){ pd4UseFallback(); pd4Render(); });
+        } else {
+            pd4UseFallback(); pd4Render();
+        }
+    });
+}
+function pd4UseFallback(){
+    if(typeof PD4_FALLBACK!=='undefined'&&PD4_FALLBACK.length>0){
+        PD4_RECORDS=PD4_FALLBACK;
+        console.log('[pd4] Using fallback data: '+PD4_FALLBACK.length+' records');
+    } else { PD4_RECORDS=[]; }
+}
+
+function pd4Render(){
+    var isDark=document.body.classList.contains('dark');
+    var thBg=isDark?'#00332d':'#004d40';
+    var thBorder=isDark?'#00695c':'#00695c';
+    var borderColor=isDark?'#444':'#e0e0e0';
+    var rowAltBg=isDark?'rgba(255,255,255,0.04)':'#f9f9f9';
+
+    var thStyle='padding:8px 6px;background:'+thBg+';color:#fff;text-align:center;font-size:12px;border:1px solid '+thBorder+';font-weight:700;white-space:nowrap';
+    var tdBase='padding:6px 8px;border:1px solid '+borderColor+';font-size:12px;color:var(--text)';
+
+    var mk=getSelectedMonth();
+    var mLabel=mk?pd4FmtMonth(mk):'ทุกเดือน';
+    var branchSel=document.getElementById('pd4BranchSel');
+    var bLabel=(branchSel&&branchSel.value)?branchSel.value:'ทุกสาขา';
+
+    // Update title
+    var titleEl=document.getElementById('pd4CardTitle');
+    if(titleEl) titleEl.textContent='📝 ตารางที่ 4 : รายละเอียดงานค้างซ่อม — '+mLabel+(bLabel!=='ทุกสาขา'?' — '+bLabel:'')+' (Update ณ วันที่ '+(PD4_UPDATE_DATE||PENDING_UPDATE_DATE)+')';
+
+    var records=PD4_RECORDS;
+    // Client-side branch filter (fallback mode ไม่มี server filter)
+    if(bLabel!=='ทุกสาขา'){
+        records=records.filter(function(r){return r.branch===bLabel;});
+    }
+
+    // Summary
+    var sumEl=document.getElementById('pd4Summary');
+    if(sumEl){
+        sumEl.innerHTML='<div style="display:flex;align-items:center;gap:14px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 20px;box-shadow:0 1px 4px var(--card-shadow)">'
+            +'<div style="text-align:center"><div style="font-size:11px;color:var(--sub);font-weight:600">จำนวนรายการ</div><div style="font-size:26px;font-weight:900;color:#e65100">'+records.length.toLocaleString('th-TH')+'</div><div style="font-size:11px;color:var(--sub2)">งาน</div></div>'
+            +'</div>';
+    }
+
+    if(records.length===0){
+        document.getElementById('pd4TableContainer').innerHTML='<div style="text-align:center;padding:40px;color:var(--sub2);font-size:14px">ไม่พบข้อมูลค้างซ่อม'+(mk?' เดือน '+mLabel:'')+' — กรุณาตรวจสอบว่า server ทำงานอยู่</div>';
+        return;
+    }
+
+    var html='<table style="width:100%;border-collapse:collapse;border:2px solid '+thBorder+'">';
+    html+='<thead><tr>';
+    var cols=['ลำดับ','สาขา','เลขแจ้ง','วันที่แจ้ง','เลขที่งาน','ประเภทงาน','ด้านข้อร้องเรียน','ทีมซ่อม','ช่างซ่อม','ขนาดท่อ (มม.)','สถานะ'];
+    cols.forEach(function(c){ html+='<th style="'+thStyle+';position:sticky;top:0;z-index:2">'+c+'</th>'; });
+    html+='</tr></thead><tbody>';
+
+    records.forEach(function(rec,i){
+        var rowBg=(i%2===1)?'background:'+rowAltBg+';':'';
+        html+='<tr>';
+        html+='<td style="'+tdBase+';text-align:center;'+rowBg+'">'+(i+1)+'</td>';
+        html+='<td style="'+tdBase+';text-align:center;font-weight:600;'+rowBg+'">'+(rec.branch||'')+'</td>';
+        html+='<td style="'+tdBase+';'+rowBg+';font-size:11px">'+(rec.notify_no||'')+'</td>';
+        html+='<td style="'+tdBase+';text-align:center;'+rowBg+';white-space:nowrap">'+(rec.date||'')+'</td>';
+        html+='<td style="'+tdBase+';'+rowBg+'">'+(rec.job_no||'')+'</td>';
+        html+='<td style="'+tdBase+';text-align:center;'+rowBg+'">'+(rec.type||'')+'</td>';
+        html+='<td style="'+tdBase+';text-align:center;'+rowBg+'">'+(rec.aspect||'')+'</td>';
+        html+='<td style="'+tdBase+';text-align:center;'+rowBg+'">'+(rec.team||'')+'</td>';
+        html+='<td style="'+tdBase+';text-align:center;'+rowBg+'">'+(rec.tech||'')+'</td>';
+        html+='<td style="'+tdBase+';text-align:center;'+rowBg+'">'+(rec.pipe||'')+'</td>';
+        html+='<td style="'+tdBase+';text-align:center;'+rowBg+'">'+(rec.status||'')+'</td>';
+        html+='</tr>';
+    });
+
+    html+='</tbody></table>';
+    document.getElementById('pd4TableContainer').innerHTML=html;
+}
+
+function pd4FmtMonth(mk){
+    var p=mk.split('-');var mm=parseInt(p[1],10);var yy=parseInt(p[0],10);
+    return MONTH_NAMES[mm<10?'0'+mm:''+mm]+yy;
+}
+
+function pd4ExportExcel(){
+    if(typeof ExcelJS==='undefined'){alert('ExcelJS ยังโหลดไม่เสร็จ');return;}
+    var records=PD4_RECORDS;
+    var branchSel=document.getElementById('pd4BranchSel');
+    var bVal=(branchSel&&branchSel.value)?branchSel.value:'';
+    if(bVal) records=records.filter(function(r){return r.branch===bVal;});
+    if(!records||records.length===0){alert('ไม่มีข้อมูล');return;}
+
+    var wb=new ExcelJS.Workbook();
+    var ws=wb.addWorksheet('งานค้างซ่อม');
+    var cols=['ลำดับ','สาขา','เลขแจ้ง','วันที่แจ้ง','เลขที่งาน','ประเภทงาน','ด้านข้อร้องเรียน','ทีมซ่อม','ช่างซ่อม','ขนาดท่อ (มม.)','สถานะ'];
+    var headerRow=ws.addRow(cols);
+    headerRow.eachCell(function(cell){
+        cell.font={bold:true,color:{argb:'FFFFFFFF'}};
+        cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF004D40'}};
+        cell.alignment={horizontal:'center',vertical:'middle'};
+        cell.border={top:{style:'thin'},bottom:{style:'thin'},left:{style:'thin'},right:{style:'thin'}};
+    });
+
+    records.forEach(function(rec,i){
+        var row=ws.addRow([i+1,rec.branch,rec.notify_no,rec.date,rec.job_no,rec.type,rec.aspect,rec.team,rec.tech,rec.pipe,rec.status]);
+        row.eachCell(function(cell){
+            cell.border={top:{style:'thin'},bottom:{style:'thin'},left:{style:'thin'},right:{style:'thin'}};
+            cell.alignment={vertical:'middle'};
+        });
+    });
+
+    // Auto width
+    ws.columns.forEach(function(col){
+        var maxLen=10;
+        col.eachCell({includeEmpty:true},function(cell){
+            var len=cell.value?String(cell.value).length:0;
+            if(len>maxLen) maxLen=len;
+        });
+        col.width=Math.min(maxLen+4,40);
+    });
+
+    var mk=getSelectedMonth();
+    var fname='งานค้างซ่อม_'+(mk||'ทุกเดือน')+'.xlsx';
+    wb.xlsx.writeBuffer().then(function(buf){
+        var blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+        var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fname;a.click();
+    });
+}
+
+function pressureInit(){
+    pressureInitialized=true;
+    var sel=document.getElementById('pressureMonth');
+    sel.innerHTML='';
+    PRESSURE_MONTHS.forEach(function(mk){
+        var p=mk.split('-');
+        var yy=parseInt(p[0],10);
+        var mm=parseInt(p[1],10);
+        var opt=document.createElement('option');
+        opt.value=mk;
+        opt.textContent=MONTH_NAMES[mm<10?'0'+mm:''+mm]+yy;
+        sel.appendChild(opt);
+    });
+    if(PRESSURE_MONTHS.length>0)sel.value=PRESSURE_MONTHS[PRESSURE_MONTHS.length-1];
+    pressureRender();
+    _storeChartDefaults(document.getElementById('pressureChart').closest('.chart-card'));
+}
+
+function getMonthDisplayName(monthKey){
+    if(!monthKey||monthKey.indexOf('-')<0)return'';
+    var p=monthKey.split('-');
+    var yy=parseInt(p[0],10);
+    var mm=parseInt(p[1],10);
+    return MONTH_NAMES[mm<10?'0'+mm:''+mm]+yy;
+}
+
+// Horizontal line annotation plugin for threshold
+var thresholdLinePlugin={
+    id:'thresholdLine',
+    afterDraw:function(chart){
+        if(!chart.options.plugins.thresholdLine)return;
+        var threshold=chart.options.plugins.thresholdLine.value;
+        if(threshold===undefined||threshold===null)return;
+        var ctx=chart.ctx;
+        var yScale=chart.scales.y;
+        if(!yScale)return;
+        var yPixel=yScale.getPixelForValue(threshold);
+        var chartArea=chart.chartArea;
+        ctx.save();
+        ctx.strokeStyle='#e53935';
+        ctx.lineWidth=3;
+        ctx.setLineDash([5,5]);
+        ctx.beginPath();
+        ctx.moveTo(chartArea.left,yPixel);
+        ctx.lineTo(chartArea.right,yPixel);
+        ctx.stroke();
+        // Draw threshold label
+        ctx.fillStyle='#e53935';
+        ctx.font='bold 12px Segoe UI,sans-serif';
+        ctx.textAlign='left';
+        ctx.textBaseline='bottom';
+        ctx.fillText('เกณฑ์ '+threshold.toFixed(2),chartArea.left+6,yPixel-4);
+        ctx.restore();
+    }
+};
 Chart.register(thresholdLinePlugin);
 
 function pressureRender(){

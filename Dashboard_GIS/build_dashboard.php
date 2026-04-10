@@ -419,7 +419,7 @@ $pd3_lines .= "    }\n";
 $pd3_lines .= "};";
 
 $html = preg_replace(
-    '/var PD3_FALLBACK=\{.*?\n\};/s',
+    '/var PD3_FALLBACK=\{.*?\};/s',
     $pd3_lines,
     $html, 1, $cnt
 );
