@@ -2016,7 +2016,112 @@ function extract_existing_var($content, $varName) {
     return null;
 }
 
-function build_dashboard($all_data, $rl_data, $eu_data, $mnf_data, $kpi_data, $p3_data) {
+/**
+ * Process Activities Excel files from ข้อมูลดิบ/Activities/
+ * Returns: ['months' => [...], 'branches' => {branch: {total:[p,c,t], m:{month:[p,c,t]}}}]
+ */
+function process_activities_files($only_files = []) {
+    $folder = RAW_DATA_DIR . DIRECTORY_SEPARATOR . 'Activities';
+    if (!is_dir($folder)) {
+        echo "\n⏭️  Activities: ไม่พบโฟลเดอร์\n";
+        return [];
+    }
+
+    $files = [];
+    foreach (scandir($folder) as $fname) {
+        if ($fname[0] === '.') continue;
+        if (!preg_match('/ACT[-_](\d{4})\.xlsx?$/i', $fname, $m)) continue;
+        if (!empty($only_files) && !in_array($fname, $only_files)) continue;
+        $files[$m[1]] = $fname;
+    }
+    if (empty($files)) {
+        echo "\n⏭️  Activities: ไม่พบไฟล์ ACT_YYYY.xlsx\n";
+        return [];
+    }
+    krsort($files);
+    $latest_year = array_key_first($files);
+    $fname = $files[$latest_year];
+    $fpath = $folder . DIRECTORY_SEPARATOR . $fname;
+    echo "\n📊 Activities: อ่าน $fname\n";
+
+    try {
+        $reader = \PhpOffice\PhpSpreadsheet\IOFactory::createReaderForFile($fpath);
+        $reader->setReadDataOnly(true);
+        $spreadsheet = $reader->load($fpath);
+        $sheet = $spreadsheet->getSheet(0);
+        $highRow = $sheet->getHighestDataRow();
+        $highCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($sheet->getHighestDataColumn());
+
+        // Parse header
+        $months = [];
+        $month_cols = [];
+        $total_col = null;
+        for ($c = 3; $c <= $highCol; $c++) {
+            $hdr = trim($sheet->getCellByColumnAndRow($c, 1)->getValue() ?? '');
+            if (mb_strpos($hdr, 'รวม') !== false) {
+                $total_col = $c;
+            } else if (!empty($hdr)) {
+                $months[] = $hdr;
+                $month_cols[] = $c;
+            }
+        }
+
+        $result = ['months' => $months, 'branches' => []];
+
+        $r = 2;
+        while ($r <= $highRow) {
+            $branch = trim($sheet->getCellByColumnAndRow(1, $r)->getValue() ?? '');
+            if (empty($branch)) { $r++; continue; }
+            if (mb_strpos($branch, 'ภาพรวม') !== false) { $r += 3; continue; }
+
+            $type_val = trim($sheet->getCellByColumnAndRow(2, $r)->getValue() ?? '');
+            if (mb_strpos($type_val, 'กายภาพ') === false) { $r++; continue; }
+
+            // Physical row
+            $phys = [];
+            foreach ($month_cols as $c) {
+                $v = $sheet->getCellByColumnAndRow($c, $r)->getValue();
+                $phys[] = ($v !== null && $v !== '') ? intval($v) : 0;
+            }
+            $phys_total = ($total_col !== null) ? intval($sheet->getCellByColumnAndRow($total_col, $r)->getValue() ?? 0) : array_sum($phys);
+
+            // Commercial row (+2)
+            $comm_row = $r + 2;
+            $comm = [];
+            if ($comm_row <= $highRow) {
+                foreach ($month_cols as $c) {
+                    $v = $sheet->getCellByColumnAndRow($c, $comm_row)->getValue();
+                    $comm[] = ($v !== null && $v !== '') ? intval($v) : 0;
+                }
+                $comm_total = ($total_col !== null) ? intval($sheet->getCellByColumnAndRow($total_col, $comm_row)->getValue() ?? 0) : array_sum($comm);
+            } else {
+                $comm = array_fill(0, count($month_cols), 0);
+                $comm_total = 0;
+            }
+
+            $branch_data = ['total' => [$phys_total, $comm_total, $phys_total + $comm_total], 'm' => []];
+            foreach ($months as $idx => $mname) {
+                $p = $phys[$idx] ?? 0;
+                $c_val = $comm[$idx] ?? 0;
+                $branch_data['m'][$mname] = [$p, $c_val, $p + $c_val];
+            }
+            $result['branches'][$branch] = $branch_data;
+            echo "   ✅ $branch: กายภาพ=$phys_total, พาณิชย์=$comm_total\n";
+            $r += 3;
+        }
+
+        $spreadsheet->disconnectWorksheets();
+        unset($spreadsheet);
+        echo "   📊 รวม " . count($result['branches']) . " สาขา\n";
+        return $result;
+
+    } catch (Exception $e) {
+        echo "   ❌ Error: " . $e->getMessage() . "\n";
+        return [];
+    }
+}
+
+function build_dashboard($all_data, $rl_data, $eu_data, $mnf_data, $kpi_data, $p3_data, $act_data = []) {
     echo "\n🏗️  Building index.html...\n";
 
     if (!file_exists(INDEX_HTML)) {
@@ -2045,6 +2150,7 @@ function build_dashboard($all_data, $rl_data, $eu_data, $mnf_data, $kpi_data, $p
     echo "   📊 MNF: " . (!empty($mnf_data) ? "parsed ✅" : "ไม่มีข้อมูลใหม่") . "\n";
     echo "   📊 KPI: " . (!empty($kpi_data) ? "parsed ✅" : "ไม่มีข้อมูลใหม่") . "\n";
     echo "   📊 P3: " . (!empty($p3_data) ? "parsed ✅" : "ไม่มีข้อมูลใหม่") . "\n";
+    echo "   📊 ACT: " . (!empty($act_data) ? "parsed ✅" : "ไม่มีข้อมูลใหม่") . "\n";
 
     // ── Convert build format → API format then embed into index.html ──
     // Build parsers use full key names; JS expects abbreviated keys (same as API output).
@@ -2119,6 +2225,14 @@ function build_dashboard($all_data, $rl_data, $eu_data, $mnf_data, $kpi_data, $p
     }
 
     // EU and P3: no conversion needed
+    // Activities: convert from build format {months, branches} to JS variables
+    $act_months_js = [];
+    $act_branches_js = [];
+    if (!empty($act_data) && !empty($act_data['branches'])) {
+        $act_months_js = $act_data['months'] ?? [];
+        $act_branches_js = $act_data['branches'];
+    }
+
     $embed_map = [
         'D'   => $d_api,
         'RL'  => $rl_api,
@@ -2126,6 +2240,7 @@ function build_dashboard($all_data, $rl_data, $eu_data, $mnf_data, $kpi_data, $p
         'MNF' => $mnf_api,
         'KPI' => $kpi_api,
         'P3'  => $p3_data,
+        'ACTIVITIES' => $act_branches_js,
     ];
     $embed_count = 0;
     foreach ($embed_map as $varName => $data) {
@@ -2142,7 +2257,38 @@ function build_dashboard($all_data, $rl_data, $eu_data, $mnf_data, $kpi_data, $p
             echo "   ⏭️  $varName: ไม่มีข้อมูล — คงค่าเดิม\n";
         }
     }
-    echo "   ✅ Embedded $embed_count / " . count($embed_map) . " variables\n";
+    // ACTIVITIES_MONTHS is a separate array variable
+    if (!empty($act_months_js)) {
+        $json = json_encode($act_months_js, JSON_UNESCAPED_UNICODE);
+        $replacement = 'var ACTIVITIES_MONTHS=' . $json . ';';
+        // Use replace_js_var with array support — find const/var ACTIVITIES_MONTHS=[...];
+        $needle_found = false;
+        foreach (['const ACTIVITIES_MONTHS=', 'var ACTIVITIES_MONTHS=', 'const ACTIVITIES_MONTHS =', 'var ACTIVITIES_MONTHS ='] as $prefix) {
+            $pos = strpos($content, $prefix);
+            if ($pos !== false) {
+                // Find matching ']'
+                $bracket_start = strpos($content, '[', $pos);
+                if ($bracket_start !== false) {
+                    $depth = 0;
+                    for ($i = $bracket_start; $i < strlen($content); $i++) {
+                        if ($content[$i] === '[') $depth++;
+                        if ($content[$i] === ']') { $depth--; if ($depth === 0) break; }
+                    }
+                    $end_pos = $i + 1;
+                    if ($end_pos < strlen($content) && $content[$end_pos] === ';') $end_pos++;
+                    $content = substr($content, 0, $pos) . $replacement . substr($content, $end_pos);
+                    $embed_count++;
+                    echo "   ✅ ACTIVITIES_MONTHS embedded (" . count($act_months_js) . " months)\n";
+                    $needle_found = true;
+                }
+                break;
+            }
+        }
+        if (!$needle_found) {
+            echo "   ⚠️  ACTIVITIES_MONTHS not found in index.html — skipping\n";
+        }
+    }
+    echo "   ✅ Embedded $embed_count / " . (count($embed_map) + 1) . " variables\n";
 
     // Update YC (year colors) — only when OIS was parsed
     $all_years = array_keys($all_data);
@@ -2321,8 +2467,15 @@ function main() {
         echo "⏭️  P3: ข้าม (ไม่ได้เปลี่ยน)\n";
     }
 
+    $act_data = [];
+    if (!$only || $only === 'activities') {
+        $act_data = process_activities_files($only === 'activities' ? $only_files : []);
+    } else {
+        echo "⏭️  Activities: ข้าม (ไม่ได้เปลี่ยน)\n";
+    }
+
     // Build dashboard — unchanged categories keep existing embedded data
-    build_dashboard($all_data, $rl_data, $eu_data, $mnf_data, $kpi_data, $p3_data);
+    build_dashboard($all_data, $rl_data, $eu_data, $mnf_data, $kpi_data, $p3_data, $act_data);
 
     // Summary
     echo "\n" . str_repeat("=", 60) . "\n";

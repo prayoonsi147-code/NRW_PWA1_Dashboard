@@ -48,10 +48,12 @@ Local (มี XAMPP)          GitHub Pages (ไม่มี PHP)
 └─────────────────┘       └──────────────────────┘
 ```
 
-**กฎสำคัญ:**
-- Local ใช้ API อย่างเดียว — ห้ามฝังข้อมูลลง index.html บน Local ทุกกรณี
-- การฝังข้อมูลทำเฉพาะ push_to_github.bat (ชั่วคราว แล้ว restore กลับทันที)
-- ห้ามเรียก build_dashboard.php จาก manage.html หรือ api.php/rebuild บน local
+**กฎเหล็ก — ห้ามฝังข้อมูลดิบลง index.html:**
+- **ห้าม hardcode** ข้อมูลดิบลงใน index.html โดยตรง ไม่ว่าจะกรณีใดก็ตาม
+- ข้อมูลใหม่ทุกชนิดต้องมี: (1) API endpoint ใน api.php, (2) build function ใน build_dashboard.php
+- Local ใช้ API อย่างเดียว — ห้ามเรียก build_dashboard.php จาก manage.html หรือ api.php/rebuild บน local
+- **ยกเว้นเดียว:** ฝังชั่วคราวตอน Push Git (push_to_github.bat Step 2) แล้ว restore กลับทันที (Step 9)
+- ถ้าพบข้อมูลดิบ hardcode อยู่ใน HTML → ต้องแจ้งผู้ใช้ทันที ห้ามปล่อยผ่าน
 - ทุก manage.html มี comment: "การฝังข้อมูลสำหรับ GitHub Pages ทำผ่าน push_to_github.bat เท่านั้น"
 
 ---

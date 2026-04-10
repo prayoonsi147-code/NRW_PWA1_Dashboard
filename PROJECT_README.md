@@ -5,13 +5,16 @@
 
 ---
 
-## *** ห้าม: ฝังข้อมูลลง index.html บน Local ***
+## *** กฎเหล็ก: ห้ามฝังข้อมูลดิบลง index.html — ทุกกรณี ***
 
-การฝังข้อมูล (embed data) ลง index.html ห้ามทำในกระบวนการทำงานปกติทุกกรณี
+ห้ามฝังข้อมูลดิบ (hardcode) ลงใน index.html ไม่ว่าจะกรณีใดก็ตาม:
+- **ห้าม hardcode** ตัวแปรข้อมูลดิบลงใน HTML โดยตรง (เช่น ACTIVITIES หรือข้อมูลใดก็ตาม)
+- **ห้ามเรียก** build_dashboard.php จาก manage.html หรือ api.php/rebuild บน local
+- **ห้ามสร้าง** ปุ่ม/ฟังก์ชัน rebuild ใดๆ ใน manage.html
 - Local ใช้ API อย่างเดียว — Dashboard fetch ข้อมูลจาก api.php โดยตรง
-- ห้ามเรียก build_dashboard.php จาก manage.html หรือ api.php/rebuild บน local
-- ห้ามสร้างปุ่ม/ฟังก์ชัน rebuild ใดๆ ใน manage.html
-- การฝังข้อมูลทำเฉพาะขั้นตอนชั่วคราวตอน Push Git เท่านั้น (push_to_github.bat Step 2) แล้ว restore กลับทันที (Step 9)
+- ข้อมูลใหม่ทุกชนิดต้องมี: (1) API endpoint อ่านจาก Excel, (2) build function ใน build_dashboard.php
+- **ยกเว้นเดียว:** ตอน Push ขึ้น Git (push_to_github.bat Step 2) ฝังชั่วคราว แล้ว restore กลับทันที (Step 9)
+- **ถ้าพบข้อมูลดิบ hardcode อยู่ใน HTML → ต้องแจ้งผู้ใช้ทันที ห้ามปล่อยผ่าน**
 
 ---
 

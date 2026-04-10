@@ -1326,6 +1326,24 @@
                 // ไม่ rebuild ฝังข้อมูลใน index.html — Local ใช้ API อย่างเดียว
                 // การฝังข้อมูลสำหรับ GitHub Pages ทำผ่าน push_to_github.bat เท่านั้น
                 try { localStorage.setItem('dashboard_updated', Date.now().toString()); } catch(e){}
+
+                // ★ แสดง success แล้วปิด overlay
+                const totalOk = (window._lastUploadResult?.successes || []).length;
+                const totalErr = (window._lastUploadResult?.errors || []).length;
+                if (totalErr === 0) {
+                    showRebuildOverlay(
+                        '<div class="icon-done">✅</div>' +
+                        '<div class="msg">อัปโหลดสำเร็จ ' + totalOk + ' ไฟล์</div>' +
+                        '<button class="btn-close-modal" onclick="hideRebuildOverlay()">ปิด</button>'
+                    );
+                    setTimeout(hideRebuildOverlay, 1500);
+                } else {
+                    showRebuildOverlay(
+                        '<div class="icon-done">⚠️</div>' +
+                        '<div class="msg">สำเร็จ ' + totalOk + ' / ล้มเหลว ' + totalErr + ' ไฟล์</div>' +
+                        '<button class="btn-close-modal" onclick="hideRebuildOverlay()">ปิด</button>'
+                    );
+                }
             } catch (error) {
                 hideRebuildOverlay();
                 showStatus(slug, `ข้อผิดพลาด: ${error.message}`, 'error');

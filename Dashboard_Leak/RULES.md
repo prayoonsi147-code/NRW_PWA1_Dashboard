@@ -5,6 +5,19 @@
 
 ---
 
+## 0. กฎเหล็ก: ห้ามฝังข้อมูลดิบลง index.html — ทุกกรณี
+
+**ห้าม hardcode ข้อมูลดิบลงใน index.html โดยตรง** ไม่ว่าจะเป็นข้อมูลชนิดใดก็ตาม
+- ข้อมูลทุกตัวต้องมี: (1) API endpoint ใน api.php อ่านจาก Excel, (2) build function ใน build_dashboard.php
+- Local ใช้ API อย่างเดียว — ห้ามเรียก build_dashboard.php / api/rebuild จาก manage.html
+- การฝังข้อมูลทำเฉพาะตอน Push Git (push_to_github.bat) แล้ว restore กลับทันที
+- ถ้าพบข้อมูลดิบ hardcode อยู่ใน HTML → ต้องแจ้งผู้ใช้ทันที ห้ามปล่อยผ่าน
+
+**บทเรียน:** เคยมี ACTIVITIES ถูก hardcode ลงใน index.html โดยไม่มี build pipeline
+ทำให้ข้อมูลไม่ sync กับ Excel และไม่มีทาง auto-update ได้ — ห้ามทำซ้ำอีก
+
+---
+
 ## 1. PHP Error Handling — ห้ามใช้ ini_set อย่างเดียว
 
 **ปัญหา:** Upload ไฟล์แล้วได้ JSON error "Unexpected token '<'" เพราะ PHP แสดง HTML error ก่อน JSON output

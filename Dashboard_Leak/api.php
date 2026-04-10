@@ -1657,8 +1657,18 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'rl-data
                     $dataStartRow = $headerRow + 2;
                     for ($r = $dataStartRow; $r <= $highRow; $r++) {
                         $raw_name = cellVal($sheet, $branchCol, $r);
+                        // Also check col 1 if branchCol is not 1 (some sheets have "รวม" in col 1)
+                        if (!is_string($raw_name) && $branchCol > 1) {
+                            $raw_name = cellVal($sheet, 1, $r);
+                        }
                         if (!is_string($raw_name)) continue;
-                        $branch = normalize_branch_name($raw_name);
+                        // Check if this is the regional/total row (รวม)
+                        $branch = null;
+                        if (mb_strpos($raw_name, 'รวม') !== false) {
+                            $branch = '__regional__';
+                        } else {
+                            $branch = normalize_branch_name($raw_name);
+                        }
                         if (!$branch) continue;
 
                         if (!isset($result[$fy_str])) $result[$fy_str] = [];
@@ -2433,6 +2443,128 @@ if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'ois-dat
 
     $response = ['ok' => true, 'has_data' => !empty($result), 'data' => $result];
     save_cache('ois_data', $response);
+    json_response($response);
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Route: GET /api/activities-data
+// Parse Activities (กิจกรรมลดน้ำสูญเสีย) from Excel files
+// Returns: {ok, has_data, data: {months:[...], branches:{branch:{total:[p,c,t], m:{month:[p,c,t]}}}}}
+// ───────────────────────────────────────────────────────────────────────────
+if ($method === 'GET' && count($path_parts) === 1 && $path_parts[0] === 'activities-data') {
+    if (!$phpSpreadsheet) {
+        json_response(['ok' => false, 'error' => 'PhpSpreadsheet not available'], 500);
+    }
+
+    $act_folder = RAW_DATA_DIR . DIRECTORY_SEPARATOR . 'Activities';
+
+    // Check cache
+    $cached = load_cache('activities_data', $act_folder);
+    if ($cached !== null) {
+        json_response($cached);
+    }
+
+    $result = ['months' => [], 'branches' => []];
+
+    if (is_dir($act_folder)) {
+        // Find latest ACT file
+        $act_files = [];
+        foreach (scandir($act_folder) as $fname) {
+            if ($fname[0] === '.') continue;
+            if (!preg_match('/ACT[-_](\d{4})\.xlsx?$/i', $fname, $m)) continue;
+            $act_files[$m[1]] = $fname;
+        }
+        if (!empty($act_files)) {
+            krsort($act_files); // latest year first
+            $latest_year = array_key_first($act_files);
+            $fname = $act_files[$latest_year];
+            $fpath = $act_folder . DIRECTORY_SEPARATOR . $fname;
+
+            try {
+                $reader = \PhpOffice\PhpSpreadsheet\IOFactory::createReaderForFile($fpath);
+                $reader->setReadDataOnly(true);
+                $spreadsheet = $reader->load($fpath);
+                $sheet = $spreadsheet->getSheet(0); // first sheet
+                $highRow = $sheet->getHighestDataRow();
+                $highCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($sheet->getHighestDataColumn());
+
+                // Row 1 = headers: สาขา, ประเภท, month1, month2, ..., รวม
+                // Extract month names from header (skip col 1=สาขา, 2=ประเภท, last=รวม)
+                $months = [];
+                $month_cols = [];
+                $total_col = null;
+                for ($c = 3; $c <= $highCol; $c++) {
+                    $hdr = trim(cellVal($sheet, $c, 1) ?? '');
+                    if (mb_strpos($hdr, 'รวม') !== false) {
+                        $total_col = $c;
+                    } else if (!empty($hdr)) {
+                        $months[] = $hdr;
+                        $month_cols[] = $c;
+                    }
+                }
+                // Filter out months before ธ.ค. (fiscal month index 2) — keep only months with data
+                // Actually, keep all months from Excel as-is for the API
+                $result['months'] = $months;
+
+                // Parse branch data: each branch = 3 rows (กายภาพ, sum, พาณิชย์)
+                $r = 2;
+                while ($r <= $highRow) {
+                    $branch = trim(cellVal($sheet, 1, $r) ?? '');
+                    if (empty($branch)) { $r++; continue; }
+                    if (mb_strpos($branch, 'ภาพรวม') !== false) { $r += 3; continue; } // skip regional summary
+
+                    $type_val = trim(cellVal($sheet, 2, $r) ?? '');
+                    // Must be กายภาพ row
+                    if (mb_strpos($type_val, 'กายภาพ') === false) { $r++; continue; }
+
+                    // Physical row
+                    $phys = [];
+                    foreach ($month_cols as $idx => $c) {
+                        $v = cellVal($sheet, $c, $r);
+                        $phys[] = ($v !== null && $v !== '') ? intval($v) : 0;
+                    }
+                    $phys_total = ($total_col !== null) ? intval(cellVal($sheet, $total_col, $r) ?? 0) : array_sum($phys);
+
+                    // Commercial row (skip 1 row for sum, +2 for commercial)
+                    $comm_row = $r + 2;
+                    $comm = [];
+                    if ($comm_row <= $highRow) {
+                        foreach ($month_cols as $idx => $c) {
+                            $v = cellVal($sheet, $c, $comm_row);
+                            $comm[] = ($v !== null && $v !== '') ? intval($v) : 0;
+                        }
+                        $comm_total = ($total_col !== null) ? intval(cellVal($sheet, $total_col, $comm_row) ?? 0) : array_sum($comm);
+                    } else {
+                        $comm = array_fill(0, count($month_cols), 0);
+                        $comm_total = 0;
+                    }
+
+                    // Build branch data
+                    $branch_data = [
+                        'total' => [$phys_total, $comm_total, $phys_total + $comm_total],
+                        'm' => []
+                    ];
+                    foreach ($months as $idx => $mname) {
+                        $p = $phys[$idx] ?? 0;
+                        $c_val = $comm[$idx] ?? 0;
+                        $branch_data['m'][$mname] = [$p, $c_val, $p + $c_val];
+                    }
+
+                    $result['branches'][$branch] = $branch_data;
+                    $r += 3; // next branch
+                }
+
+                $spreadsheet->disconnectWorksheets();
+                unset($spreadsheet);
+            } catch (Exception $e) {
+                // Log error but return partial result
+                error_log('[activities-data] Error: ' . $e->getMessage());
+            }
+        }
+    }
+
+    $response = ['ok' => true, 'has_data' => !empty($result['branches']), 'data' => $result];
+    save_cache('activities_data', $response);
     json_response($response);
 }
 

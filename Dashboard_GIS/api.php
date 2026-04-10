@@ -420,7 +420,7 @@ function build_pending_sqlite($all_data_rows, $folder_path, $db_or_excel_name) {
         $db->exec('PRAGMA journal_mode=WAL');
         $db->exec('PRAGMA synchronous=NORMAL');
 
-        // Create table
+        // Create table — UNIQUE on notify_no+month_key prevents duplicate records
         $db->exec('CREATE TABLE pending_rows (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             row_num INTEGER,
@@ -440,7 +440,8 @@ function build_pending_sqlite($all_data_rows, $folder_path, $db_or_excel_name) {
             team TEXT,
             tech TEXT,
             pipe TEXT,
-            status TEXT
+            status TEXT,
+            UNIQUE(notify_no, month_key)
         )');
 
         // Create indexes for common queries
@@ -459,7 +460,7 @@ function build_pending_sqlite($all_data_rows, $folder_path, $db_or_excel_name) {
         $C_TYPE = 7; $C_SIDE = 8; $C_TOPIC = 9; $C_DETAIL = 10;
         $C_BRANCH = 19; $C_TEAM = 20; $C_TECH = 21; $C_PIPE = 25; $C_STATUS = 26;
 
-        $stmt = $db->prepare('INSERT INTO pending_rows
+        $stmt = $db->prepare('INSERT OR IGNORE INTO pending_rows
             (row_num, notify_no, date_val, date_ce, date_by, month_key,
              finish_val, finish_ce, job_no, type_val, side, topic, detail,
              branch, team, tech, pipe, status)
@@ -596,11 +597,33 @@ function find_pending_files($pending_dir) {
             $yy = (int)$m[2];
             $fy_be = ($mm >= 10) ? (2500 + $yy + 1) : (2500 + $yy);
 
+            // Check for matching SQLite (same name as Excel)
+            $sqlite_name2 = preg_replace('/\.xlsx?$/i', '.sqlite', $fname);
+            $sqlite_path2 = $pending_dir . DIRECTORY_SEPARATOR . $sqlite_name2;
+
             if (!isset($fy_files[$fy_be])) {
                 $fy_files[$fy_be] = ['excel_files' => [], 'sqlite' => null];
             }
             $fy_files[$fy_be]['excel_files'][] = $fpath;
+            if (file_exists($sqlite_path2) && $fy_files[$fy_be]['sqlite'] === null) {
+                $fy_files[$fy_be]['sqlite'] = $sqlite_path2;
+            }
             continue;
+        }
+
+        // Format 3: ค้างซ่อม_fy_XXXX.sqlite (FY-named SQLite from fallback builder)
+        if (preg_match('/ค้างซ่อม_fy_(\d+)\.sqlite$/i', $fname)) {
+            // Just detect it exists — will be linked to FY after Excel scan
+        }
+    }
+
+    // Also check for FY-named SQLite files as fallback
+    foreach (scandir($pending_dir) as $fname) {
+        if (preg_match('/ค้างซ่อม_fy_(\d+)\.sqlite$/i', $fname, $m)) {
+            $fy_be = (int)$m[1];
+            if (isset($fy_files[$fy_be]) && $fy_files[$fy_be]['sqlite'] === null) {
+                $fy_files[$fy_be]['sqlite'] = $pending_dir . DIRECTORY_SEPARATOR . $fname;
+            }
         }
     }
 
@@ -672,7 +695,8 @@ function open_pending_db($pending_dir, $fy_files_info, $fy) {
             row_num INTEGER, notify_no TEXT, date_val TEXT, date_ce TEXT,
             date_by INTEGER, month_key TEXT, finish_val TEXT, finish_ce TEXT,
             job_no TEXT, type_val TEXT, side TEXT, topic TEXT, detail TEXT,
-            branch TEXT, team TEXT, tech TEXT, pipe TEXT, status TEXT
+            branch TEXT, team TEXT, tech TEXT, pipe TEXT, status TEXT,
+            UNIQUE(notify_no, month_key)
         )');
         $db->exec('CREATE INDEX idx_branch ON pending_rows(branch)');
         $db->exec('CREATE INDEX idx_month_key ON pending_rows(month_key)');
@@ -686,7 +710,7 @@ function open_pending_db($pending_dir, $fy_files_info, $fy) {
         $C_TYPE = 7; $C_SIDE = 8; $C_TOPIC = 9; $C_DETAIL = 10;
         $C_BRANCH = 19; $C_TEAM = 20; $C_TECH = 21; $C_PIPE = 25; $C_STATUS = 26;
 
-        $stmt = $db->prepare('INSERT INTO pending_rows
+        $stmt = $db->prepare('INSERT OR IGNORE INTO pending_rows
             (row_num, notify_no, date_val, date_ce, date_by, month_key,
              finish_val, finish_ce, job_no, type_val, side, topic, detail,
              branch, team, tech, pipe, status)
@@ -1564,11 +1588,16 @@ if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'upload
                     }
                     chmod($dest_path, 0644);
 
-                    // Clear caches
+                    // Clear caches (per-file)
                     $cache_file = CACHE_DIR . DIRECTORY_SEPARATOR . md5($dest_path) . '.json';
                     if (file_exists($cache_file)) unlink($cache_file);
                     $py_cache = $dest_path . '.cache.json';
                     if (file_exists($py_cache)) unlink($py_cache);
+                    // ★ Clear aggregated pressure cache so API returns fresh data
+                    if ($category === 'pressure') {
+                        $agg_cache = CACHE_DIR . DIRECTORY_SEPARATOR . 'pressure_data.json';
+                        if (file_exists($agg_cache)) @unlink($agg_cache);
+                    }
 
                     $results[] = [
                         'filename' => $new_name,
@@ -1947,6 +1976,28 @@ if ($method === 'POST' && count($path_parts) === 2 && $path_parts[0] === 'upload
                     // Clear Python-style cache too
                     $py_cache = $dest_path . '.cache.json';
                     if (file_exists($py_cache)) unlink($py_cache);
+
+                    // Clean up orphan caches and old SQLite files in pending folder
+                    // This prevents duplicates when merged file overlaps with old per-month caches
+                    foreach (scandir($folder_path) as $_f) {
+                        $_fp = $folder_path . DIRECTORY_SEPARATOR . $_f;
+                        // Delete cache.json files that don't have a matching .xlsx
+                        if (preg_match('/^(.+\.xlsx?)\.cache\.json$/i', $_f, $_m)) {
+                            $matching_xlsx = $folder_path . DIRECTORY_SEPARATOR . $_m[1];
+                            if (!file_exists($matching_xlsx)) {
+                                @unlink($_fp);
+                                error_log("pending: Cleaned orphan cache: $_f");
+                            }
+                        }
+                        // Delete old fy-named SQLite files (will be rebuilt fresh from new data)
+                        if (preg_match('/ค้างซ่อม_fy_\d+\.sqlite/i', $_f)) {
+                            @unlink($_fp);
+                            // Also clean WAL/SHM files
+                            @unlink($_fp . '-wal');
+                            @unlink($_fp . '-shm');
+                            error_log("pending: Cleaned old FY SQLite: $_f");
+                        }
+                    }
 
                     // Build SQLite database for fast querying
                     $sqlite_result = build_pending_sqlite($all_data_rows, $folder_path, $new_name);
@@ -2542,6 +2593,161 @@ function parse_date_key($date_str) {
     }
 
     return [null, null];
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Route: GET /api/pressure-data
+// Returns ค่าแรงดันน้ำเฉลี่ยรายสาขา (TAB 2) parsed live from PRESSURE_*.xlsx
+// ───────────────────────────────────────────────────────────────────────────
+if ($method === 'GET' && count($path_parts) >= 1 && $path_parts[0] === 'pressure-data') {
+    $pressure_dir = RAW_DATA_DIR . DIRECTORY_SEPARATOR . 'แรงดันน้ำ';
+
+    if (!is_dir($pressure_dir)) {
+        json_response(['ok' => true, 'has_data' => false, 'message' => 'ไม่พบโฟลเดอร์แรงดันน้ำ']);
+    }
+
+    // Check if PhpSpreadsheet is available
+    global $phpSpreadsheet;
+    if (!$phpSpreadsheet) {
+        json_response(['ok' => false, 'error' => 'PhpSpreadsheet ไม่พร้อมใช้งาน'], 500);
+    }
+
+    // Cache: use file modification time of pressure folder
+    $cache_file = CACHE_DIR . DIRECTORY_SEPARATOR . 'pressure_data.json';
+    $folder_mtime = 0;
+    foreach (scandir($pressure_dir) as $f) {
+        if ($f[0] === '.' || !preg_match('/\.xlsx$/i', $f)) continue;
+        $mt = filemtime($pressure_dir . DIRECTORY_SEPARATOR . $f);
+        if ($mt > $folder_mtime) $folder_mtime = $mt;
+    }
+
+    // Return cached data if still fresh
+    if (file_exists($cache_file)) {
+        $cache_mtime = filemtime($cache_file);
+        if ($cache_mtime >= $folder_mtime) {
+            $cached = json_decode(file_get_contents($cache_file), true);
+            if ($cached) {
+                json_response($cached);
+            }
+        }
+    }
+
+    // Thai month names for header detection
+    $THAI_MONTHS_SHORT = [
+        'ม.ค.'=>1,'ก.พ.'=>2,'มี.ค.'=>3,'เม.ย.'=>4,'พ.ค.'=>5,'มิ.ย.'=>6,
+        'ก.ค.'=>7,'ส.ค.'=>8,'ก.ย.'=>9,'ต.ค.'=>10,'พ.ย.'=>11,'ธ.ค.'=>12
+    ];
+
+    $pressure_data = []; // month_key => {branch => avg_value}
+    $all_months = [];
+
+    // Scan PRESSURE_สาขา_ปีงบYY.xlsx files
+    $files = glob($pressure_dir . DIRECTORY_SEPARATOR . 'PRESSURE_*.xlsx');
+    if (empty($files)) {
+        json_response(['ok' => true, 'has_data' => false, 'message' => 'ไม่พบไฟล์ PRESSURE_*.xlsx']);
+    }
+
+    foreach ($files as $fpath) {
+        $fname = basename($fpath);
+        // Extract branch name: PRESSURE_สาขา_ปีงบYY.xlsx
+        if (!preg_match('/^PRESSURE_(.+?)_ปีงบ\d+\.xlsx$/u', $fname, $m)) continue;
+        $branch = $m[1];
+
+        try {
+            $wb = \PhpOffice\PhpSpreadsheet\IOFactory::load($fpath);
+            $ws = $wb->getActiveSheet();
+            $maxRow = $ws->getHighestRow();
+
+            // Find header row with month names (row 5 typically)
+            $month_cols = []; // col_index => month_key (e.g. "68-10")
+            $header_row = null;
+            for ($r = 1; $r <= 10; $r++) {
+                for ($c = 1; $c <= 20; $c++) {
+                    $v = trim((string)$ws->getCell([$c, $r])->getValue());
+                    foreach ($THAI_MONTHS_SHORT as $mname => $mnum) {
+                        if (strpos($v, $mname) !== false) {
+                            // Extract year: "ต.ค. 68" → 68
+                            if (preg_match('/(\d{2})\s*$/', $v, $ym)) {
+                                $yy = (int)$ym[1];
+                                $mk = sprintf('%02d-%02d', $yy, $mnum);
+                                $month_cols[$c] = $mk;
+                                $header_row = $r;
+                            }
+                        }
+                    }
+                }
+                if (!empty($month_cols)) break;
+            }
+
+            if (empty($month_cols) || !$header_row) {
+                $wb->disconnectWorksheets();
+                continue;
+            }
+
+            // Read data rows and compute average per month column
+            // Data starts 2 rows after header (header_row + 2)
+            $data_start = $header_row + 2;
+            $month_sums = [];
+            $month_counts = [];
+            foreach ($month_cols as $c => $mk) {
+                $month_sums[$mk] = 0;
+                $month_counts[$mk] = 0;
+            }
+
+            for ($r = $data_start; $r <= $maxRow; $r++) {
+                // Skip rows without measurement point name
+                $name = trim((string)$ws->getCell([2, $r])->getValue());
+                if ($name === '' || strpos($name, 'ผู้จัดทำ') !== false || strpos($name, 'ลงชื่อ') !== false) continue;
+
+                foreach ($month_cols as $c => $mk) {
+                    $val = $ws->getCell([$c, $r])->getValue();
+                    if ($val !== null && is_numeric($val) && (float)$val > 0) {
+                        $month_sums[$mk] += (float)$val;
+                        $month_counts[$mk]++;
+                    }
+                }
+            }
+
+            // Store average per month
+            foreach ($month_cols as $c => $mk) {
+                if ($month_counts[$mk] > 0) {
+                    $avg = round($month_sums[$mk] / $month_counts[$mk], 2);
+                    if (!isset($pressure_data[$mk])) $pressure_data[$mk] = [];
+                    $pressure_data[$mk][$branch] = $avg;
+                    if (!in_array($mk, $all_months)) $all_months[] = $mk;
+                }
+            }
+
+            $wb->disconnectWorksheets();
+        } catch (\Throwable $e) {
+            error_log("Pressure parse error ($fname): " . $e->getMessage());
+            continue;
+        }
+    }
+
+    // Sort months
+    sort($all_months);
+
+    // Filter out months where ALL branches are 0 or missing
+    $filtered_months = [];
+    foreach ($all_months as $mk) {
+        $has_nonzero = false;
+        if (isset($pressure_data[$mk])) {
+            foreach ($pressure_data[$mk] as $v) {
+                if ($v > 0) { $has_nonzero = true; break; }
+            }
+        }
+        if ($has_nonzero) $filtered_months[] = $mk;
+    }
+
+    $response = [
+        'ok' => true,
+        'has_data' => !empty($filtered_months),
+        'data' => $pressure_data,
+        'months' => $filtered_months
+    ];
+    file_put_contents($cache_file, json_encode($response, JSON_UNESCAPED_UNICODE));
+    json_response($response);
 }
 
 // ───────────────────────────────────────────────────────────────────────────

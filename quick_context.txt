@@ -3,9 +3,14 @@
   อัปเดตล่าสุด: 4 เม.ย. 2569 (Session 9)
 ================================================================================
 
-*** ห้าม: ฝังข้อมูลลง index.html บน Local — ทุกกรณี ***
-Local ใช้ API อย่างเดียว ห้ามเรียก build_dashboard.php / api/rebuild จาก manage.html
-การฝังข้อมูลทำเฉพาะ push_to_github.bat (ชั่วคราว แล้ว restore กลับทันที)
+*** กฎเหล็ก: ห้ามฝังข้อมูลดิบลง index.html — ทุกกรณี ***
+ห้ามฝังข้อมูลดิบ (hardcode) ลงใน index.html ไม่ว่าจะกรณีใด
+  - ห้าม hardcode ตัวแปรข้อมูลดิบ (เช่น ACTIVITIES, หรืออะไรก็ตาม) ลงใน HTML โดยตรง
+  - ห้ามเรียก build_dashboard.php / api/rebuild จาก manage.html บน Local
+  - Local ใช้ API อย่างเดียว (api.php) — ข้อมูลทุกตัวต้องมา runtime ผ่าน API
+  - ข้อมูลใหม่ต้องมี: (1) API endpoint อ่านจาก Excel (2) build function ใน build_dashboard.php
+  - ยกเว้นเดียว: ตอน Push ขึ้น Git (push_to_github.bat) ฝังชั่วคราว แล้ว restore กลับทันที
+  - ถ้าพบข้อมูลดิบ hardcode อยู่ใน HTML → ต้องแจ้งผู้ใช้ทันที ห้ามปล่อยผ่าน
 
 *** สำคัญ: อ่าน NAMING_RULES.md ก่อนแก้โค้ด upload/rename ***
 กฎตั้งชื่อไฟล์อัตโนมัติทุกหมวดทุก Dashboard อยู่ใน NAMING_RULES.md
@@ -718,5 +723,23 @@ Session 8-9 (4 เม.ย. 2569): GIS Pending Upload Refactor + Dashboard Fix
   - ทดสอบ pending-chart, pending-table API หลังแก้ multi-file
   - แก้ JS error: updateLSUsageBar (PR index.html)
   - AON values ยังเป็น 0
+
+================================================================================
+★★★ MAPPING: ชื่อกราฟบนหน้าจอ ↔ ตัวแปร/ฟังก์ชันในโค้ด ★★★
+(ต้องดู mapping นี้ทุกครั้งก่อนแก้โค้ดกราฟ)
+================================================================================
+
+--- Dashboard_Leak Tab 3: น้ำสูญเสีย(บริหาร) [mainTab-rlcompare] ---
+
+หน้าจอ                                                | canvas ID  | init function          | cachedMonths
+------------------------------------------------------|------------|------------------------|------------------
+กราฟที่ 1 : ข้อมูลน้ำสูญเสีย (บริหาร) - รายหน่วยงาน   | rlcChart3  | rlc3InitControls()     | rlc3CachedMonths
+กราฟที่ 2 : น้ำสูญเสีย (บริหาร) - เทียบระหว่างสาขา     | rlcChart2  | rlc2PopulateControls() | rlc2GetAllMonths()
+กราฟที่ 3 : อัตราน้ำสูญเสีย / ปริมาณน้ำสูญเสีย (บริหาร)| rlcChart1  | rlcPopulateControls()  | (single month)
+กราฟที่ 4 : % น้ำจ่ายฟรี รายสาขา                       | rlcChart4  | rlc4InitControls()     | rlc4CachedMonths
+กราฟที่ 5 : เปรียบเทียบ % น้ำจ่ายฟรี เทียบระหว่างสาขา  | rlcChart5  | rlc5InitControls()     | (single month)
+
+⚠ หมายเหตุ: ชื่อตัวแปร (rlcChart1-5) ไม่ตรงกับหมายเลขกราฟบนหน้าจอ!
+  กราฟที่ 1 บนจอ = rlcChart3, กราฟที่ 3 บนจอ = rlcChart1
 
 ================================================================================

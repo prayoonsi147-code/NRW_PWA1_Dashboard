@@ -130,6 +130,12 @@ git config user.email "prayoonsi147@gmail.com"
 git config user.name "prayoonsi147-code"
 echo.
 
+REM --- Step 5.5: Remove stale lock file (e.g. left by Cowork/other git process) ---
+if exist ".git\index.lock" (
+    echo   [CLEANUP] Removing stale .git/index.lock...
+    del /F ".git\index.lock" >nul 2>nul
+)
+
 REM --- Step 6: Pull + squash ---
 echo [6/9] Pulling latest + cleaning history...
 git pull origin main --allow-unrelated-histories 2>nul
@@ -140,6 +146,7 @@ if not errorlevel 1 (
 echo.
 
 REM --- Step 7: Stage all files (respects .gitignore) ---
+if exist ".git\index.lock" ( del /F ".git\index.lock" >nul 2>nul )
 echo [7/9] Staging files...
 git add -A
 REM Remove oversized files that may have slipped in
@@ -151,6 +158,7 @@ git status --short
 echo.
 
 REM --- Step 8: Commit + Push ---
+if exist ".git\index.lock" ( del /F ".git\index.lock" >nul 2>nul )
 echo [8/9] Committing and pushing...
 git commit -m "Update dashboard data"
 if errorlevel 1 (
