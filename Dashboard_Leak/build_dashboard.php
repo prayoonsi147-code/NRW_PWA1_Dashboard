@@ -2057,7 +2057,7 @@ function process_activities_files($only_files = []) {
         $month_cols = [];
         $total_col = null;
         for ($c = 3; $c <= $highCol; $c++) {
-            $hdr = trim($sheet->getCellByColumnAndRow($c, 1)->getValue() ?? '');
+            $hdr = trim($sheet->getCell([$c, 1])->getValue() ?? '');
             if (mb_strpos($hdr, 'รวม') !== false) {
                 $total_col = $c;
             } else if (!empty($hdr)) {
@@ -2070,30 +2070,30 @@ function process_activities_files($only_files = []) {
 
         $r = 2;
         while ($r <= $highRow) {
-            $branch = trim($sheet->getCellByColumnAndRow(1, $r)->getValue() ?? '');
+            $branch = trim($sheet->getCell([1, $r])->getValue() ?? '');
             if (empty($branch)) { $r++; continue; }
             if (mb_strpos($branch, 'ภาพรวม') !== false) { $r += 3; continue; }
 
-            $type_val = trim($sheet->getCellByColumnAndRow(2, $r)->getValue() ?? '');
+            $type_val = trim($sheet->getCell([2, $r])->getValue() ?? '');
             if (mb_strpos($type_val, 'กายภาพ') === false) { $r++; continue; }
 
             // Physical row
             $phys = [];
             foreach ($month_cols as $c) {
-                $v = $sheet->getCellByColumnAndRow($c, $r)->getValue();
+                $v = $sheet->getCell([$c, $r])->getValue();
                 $phys[] = ($v !== null && $v !== '') ? intval($v) : 0;
             }
-            $phys_total = ($total_col !== null) ? intval($sheet->getCellByColumnAndRow($total_col, $r)->getValue() ?? 0) : array_sum($phys);
+            $phys_total = ($total_col !== null) ? intval($sheet->getCell([$total_col, $r])->getValue() ?? 0) : array_sum($phys);
 
             // Commercial row (+2)
             $comm_row = $r + 2;
             $comm = [];
             if ($comm_row <= $highRow) {
                 foreach ($month_cols as $c) {
-                    $v = $sheet->getCellByColumnAndRow($c, $comm_row)->getValue();
+                    $v = $sheet->getCell([$c, $comm_row])->getValue();
                     $comm[] = ($v !== null && $v !== '') ? intval($v) : 0;
                 }
-                $comm_total = ($total_col !== null) ? intval($sheet->getCellByColumnAndRow($total_col, $comm_row)->getValue() ?? 0) : array_sum($comm);
+                $comm_total = ($total_col !== null) ? intval($sheet->getCell([$total_col, $comm_row])->getValue() ?? 0) : array_sum($comm);
             } else {
                 $comm = array_fill(0, count($month_cols), 0);
                 $comm_total = 0;
@@ -2154,77 +2154,118 @@ function build_dashboard($all_data, $rl_data, $eu_data, $mnf_data, $kpi_data, $p
 
     // ── Convert build format → API format then embed into index.html ──
     // Build parsers use full key names; JS expects abbreviated keys (same as API output).
-    // D:   {label→l, unit→u, monthly→m, total→t, target_year→ty, target_month→tm} + strip 'rows' wrapper
-    // RL:  {rate→r, volume→v, production→p, supplied→s, sold→d, blowoff→b}
-    // EU:  no conversion needed
-    // MNF: {actual→a, acceptable→c, target→t, production→p}
-    // KPI: {target→t, levels→l, actual→a}
-    // P3:  no conversion needed
+    // Cache fallback data is already in API format (abbreviated keys).
+    // Detection: if first row has 'l' key → already API format, skip conversion.
 
-    // Convert D: strip 'rows' wrapper + abbreviate keys
+    // Helper: check if data is already in API format (has abbreviated keys)
+    $is_api_format = function($data) {
+        if (empty($data)) return false;
+        $first_yr = reset($data);
+        if (!is_array($first_yr)) return false;
+        $first_item = reset($first_yr);
+        if (is_array($first_item) && isset($first_item[0]) && is_array($first_item[0])) {
+            // D format: {year: {sheet: [{l:..., u:...}]}}
+            return isset($first_item[0]['l']);
+        }
+        if (is_array($first_item)) {
+            // RL/MNF/KPI format: {year: {branch: {r:..., v:...}}}
+            return isset($first_item['r']) || isset($first_item['a']) || isset($first_item['t']);
+        }
+        return false;
+    };
+
+    // Convert D: strip 'rows' wrapper + abbreviate keys (skip if already API format)
     $d_api = [];
-    foreach ($all_data as $yr => $sheets) {
-        $d_api[$yr] = [];
-        foreach ($sheets as $sname => $sheet_info) {
-            $rows_raw = isset($sheet_info['rows']) ? $sheet_info['rows'] : $sheet_info;
-            $rows_conv = [];
-            foreach ($rows_raw as $row) {
-                $rows_conv[] = [
-                    'l'  => $row['label'] ?? '',
-                    'u'  => $row['unit'] ?? '',
-                    'm'  => $row['monthly'] ?? [],
-                    't'  => $row['total'] ?? null,
-                    'ty' => $row['target_year'] ?? null,
-                    'tm' => $row['target_month'] ?? null,
-                ];
+    if (!empty($all_data)) {
+        if ($is_api_format($all_data)) {
+            $d_api = $all_data; // Already API format (from cache)
+            echo "   [OK] D: using API-format data (from cache)\n";
+        } else {
+            foreach ($all_data as $yr => $sheets) {
+                $d_api[$yr] = [];
+                foreach ($sheets as $sname => $sheet_info) {
+                    $rows_raw = isset($sheet_info['rows']) ? $sheet_info['rows'] : $sheet_info;
+                    $rows_conv = [];
+                    foreach ($rows_raw as $row) {
+                        $rows_conv[] = [
+                            'l'  => $row['label'] ?? '',
+                            'u'  => $row['unit'] ?? '',
+                            'm'  => $row['monthly'] ?? [],
+                            't'  => $row['total'] ?? null,
+                            'ty' => $row['target_year'] ?? null,
+                            'tm' => $row['target_month'] ?? null,
+                        ];
+                    }
+                    $d_api[$yr][$sname] = $rows_conv;
+                }
             }
-            $d_api[$yr][$sname] = $rows_conv;
         }
     }
 
-    // Convert RL: abbreviate metric keys
+    // Convert RL: abbreviate metric keys (skip if already API format)
     $rl_api = [];
-    $rl_keymap = ['rate'=>'r','volume'=>'v','production'=>'p','supplied'=>'s','sold'=>'d','blowoff'=>'b'];
-    foreach ($rl_data as $yr => $branches) {
-        $rl_api[$yr] = [];
-        foreach ($branches as $branch => $metrics) {
-            $conv = [];
-            foreach ($metrics as $k => $v) {
-                $conv[$rl_keymap[$k] ?? $k] = $v;
+    if (!empty($rl_data)) {
+        if ($is_api_format($rl_data)) {
+            $rl_api = $rl_data;
+            echo "   [OK] RL: using API-format data (from cache)\n";
+        } else {
+            $rl_keymap = ['rate'=>'r','volume'=>'v','production'=>'p','supplied'=>'s','sold'=>'d','blowoff'=>'b'];
+            foreach ($rl_data as $yr => $branches) {
+                $rl_api[$yr] = [];
+                foreach ($branches as $branch => $metrics) {
+                    $conv = [];
+                    foreach ($metrics as $k => $v) {
+                        $conv[$rl_keymap[$k] ?? $k] = $v;
+                    }
+                    $rl_api[$yr][$branch] = $conv;
+                }
             }
-            $rl_api[$yr][$branch] = $conv;
         }
     }
 
-    // Convert MNF: abbreviate metric keys
+    // Convert MNF: abbreviate metric keys (skip if already API format)
     $mnf_api = [];
-    $mnf_keymap = ['actual'=>'a','acceptable'=>'c','target'=>'t','production'=>'p'];
-    foreach ($mnf_data as $yr => $branches) {
-        $mnf_api[$yr] = [];
-        foreach ($branches as $branch => $metrics) {
-            $conv = [];
-            foreach ($metrics as $k => $v) {
-                $conv[$mnf_keymap[$k] ?? $k] = $v;
+    if (!empty($mnf_data)) {
+        if ($is_api_format($mnf_data)) {
+            $mnf_api = $mnf_data;
+            echo "   [OK] MNF: using API-format data (from cache)\n";
+        } else {
+            $mnf_keymap = ['actual'=>'a','acceptable'=>'c','target'=>'t','production'=>'p'];
+            foreach ($mnf_data as $yr => $branches) {
+                $mnf_api[$yr] = [];
+                foreach ($branches as $branch => $metrics) {
+                    $conv = [];
+                    foreach ($metrics as $k => $v) {
+                        $conv[$mnf_keymap[$k] ?? $k] = $v;
+                    }
+                    $mnf_api[$yr][$branch] = $conv;
+                }
             }
-            $mnf_api[$yr][$branch] = $conv;
         }
     }
 
-    // Convert KPI: abbreviate keys
+    // Convert KPI: abbreviate keys (skip if already API format)
     $kpi_api = [];
-    $kpi_keymap = ['target'=>'t','levels'=>'l','actual'=>'a'];
-    foreach ($kpi_data as $yr => $branches) {
-        $kpi_api[$yr] = [];
-        foreach ($branches as $branch => $metrics) {
-            $conv = [];
-            foreach ($metrics as $k => $v) {
-                $conv[$kpi_keymap[$k] ?? $k] = $v;
+    if (!empty($kpi_data)) {
+        if ($is_api_format($kpi_data)) {
+            $kpi_api = $kpi_data;
+            echo "   [OK] KPI: using API-format data (from cache)\n";
+        } else {
+            $kpi_keymap = ['target'=>'t','levels'=>'l','actual'=>'a'];
+            foreach ($kpi_data as $yr => $branches) {
+                $kpi_api[$yr] = [];
+                foreach ($branches as $branch => $metrics) {
+                    $conv = [];
+                    foreach ($metrics as $k => $v) {
+                        $conv[$kpi_keymap[$k] ?? $k] = $v;
+                    }
+                    $kpi_api[$yr][$branch] = $conv;
+                }
             }
-            $kpi_api[$yr][$branch] = $conv;
         }
     }
 
-    // EU and P3: no conversion needed
+    // EU and P3: no conversion needed (same format in both build and API)
     // Activities: convert from build format {months, branches} to JS variables
     $act_months_js = [];
     $act_branches_js = [];
@@ -2296,8 +2337,8 @@ function build_dashboard($all_data, $rl_data, $eu_data, $mnf_data, $kpi_data, $p
         echo "   ⏭️  YC: คงค่าเดิม (ไม่มี OIS data)\n";
         // Still write index.html if other data was embedded
         if ($embed_count === 0) {
-            echo "   ⏭️  ไม่มีข้อมูลใหม่เลย — ไม่เขียน HTML\n";
-            return true;
+            echo "   [FAIL] No data embedded at all — aborting!\n";
+            return false;
         }
         goto WRITE_HTML;
     }
@@ -2398,23 +2439,46 @@ function parse_cli_args() {
     return $args;
 }
 
+/**
+ * Load data from *_data.json cache file as fallback.
+ * These cache files are written by api.php and contain API-format data.
+ */
+function load_cache_fallback($cache_name) {
+    $cache_file = SCRIPT_DIR . DIRECTORY_SEPARATOR . '.cache' . DIRECTORY_SEPARATOR . $cache_name;
+    if (!file_exists($cache_file)) {
+        echo "   [CACHE] $cache_name not found\n";
+        return null;
+    }
+    $raw = json_decode(file_get_contents($cache_file), true);
+    if (!$raw) {
+        echo "   [CACHE] $cache_name invalid JSON\n";
+        return null;
+    }
+    // Cache files may have {ok, has_data, data} wrapper or be raw data
+    if (isset($raw['data'])) {
+        echo "   [CACHE] Loaded $cache_name (" . number_format(filesize($cache_file)) . " bytes)\n";
+        return $raw['data'];
+    }
+    echo "   [CACHE] Loaded $cache_name (" . number_format(filesize($cache_file)) . " bytes)\n";
+    return $raw;
+}
+
 function main() {
     $args = parse_cli_args();
     $only = $args['only'];       // e.g. 'ois', 'rl', 'eu', 'mnf', 'kpi2', 'p3', or '' (all)
     $only_files = $args['files']; // e.g. ['OIS_2569.xls'] or []
 
     echo str_repeat("=", 60) . "\n";
-    echo "  🏗️  Dashboard Builder - PHP CLI Edition\n";
+    echo "  Dashboard Builder - PHP CLI Edition\n";
     if ($only) {
-        echo "  ⚡ Incremental build: only=$only" . ($only_files ? " files=" . implode(',', $only_files) : '') . "\n";
+        echo "  Incremental build: only=$only" . ($only_files ? " files=" . implode(',', $only_files) : '') . "\n";
     }
     echo str_repeat("=", 60) . "\n";
 
     // Check for PhpSpreadsheet
-    if (!load_phsspreadsheet()) {
-        echo "\n❌ PhpSpreadsheet is not available.\n";
-        echo "   Please install it via: composer install\n";
-        return;
+    $has_spreadsheet = load_phsspreadsheet();
+    if (!$has_spreadsheet) {
+        echo "\n[WARNING] PhpSpreadsheet not available - will use cache fallback.\n";
     }
 
     // Process each category — skip categories not in --only
@@ -2426,68 +2490,143 @@ function main() {
     $p3_data = [];
 
     if (!$only || $only === 'ois') {
-        $all_data = process_ois_files($only === 'ois' ? $only_files : []);
-        if (!empty($all_data)) {
-            echo "\n🔧 Normalizing labels...\n";
-            normalize_labels($all_data);
-            echo "🔧 Fixing trailing zeros...\n";
-            fix_trailing_zeros($all_data);
+        if ($has_spreadsheet) {
+            $all_data = process_ois_files($only === 'ois' ? $only_files : []);
+            if (!empty($all_data)) {
+                echo "\n Normalizing labels...\n";
+                normalize_labels($all_data);
+                echo " Fixing trailing zeros...\n";
+                fix_trailing_zeros($all_data);
+            }
+        }
+        // Fallback: load from cache if Excel parsing failed or produced empty
+        if (empty($all_data)) {
+            echo "   [FALLBACK] OIS Excel parse empty — loading from cache...\n";
+            $cached = load_cache_fallback('ois_data.json');
+            if ($cached) $all_data = $cached;
         }
     } else {
-        echo "\n⏭️  OIS: ข้าม (ไม่ได้เปลี่ยน)\n";
+        echo "\n OIS: skip (not changed)\n";
     }
 
     if (!$only || $only === 'rl') {
-        $rl_data = process_rl_files($only === 'rl' ? $only_files : []);
+        if ($has_spreadsheet) {
+            $rl_data = process_rl_files($only === 'rl' ? $only_files : []);
+        }
+        if (empty($rl_data)) {
+            echo "   [FALLBACK] RL Excel parse empty — loading from cache...\n";
+            $cached = load_cache_fallback('rl_data.json');
+            if ($cached) $rl_data = $cached;
+        }
     } else {
-        echo "⏭️  Real Leak: ข้าม (ไม่ได้เปลี่ยน)\n";
+        echo " Real Leak: skip (not changed)\n";
     }
 
     if (!$only || $only === 'eu') {
-        $eu_data = process_eu_files($only === 'eu' ? $only_files : []);
+        if ($has_spreadsheet) {
+            $eu_data = process_eu_files($only === 'eu' ? $only_files : []);
+        }
+        if (empty($eu_data)) {
+            echo "   [FALLBACK] EU Excel parse empty — loading from cache...\n";
+            $cached = load_cache_fallback('eu_data.json');
+            if ($cached) $eu_data = $cached;
+        }
     } else {
-        echo "⏭️  EU: ข้าม (ไม่ได้เปลี่ยน)\n";
+        echo " EU: skip (not changed)\n";
     }
 
     if (!$only || $only === 'mnf') {
-        $mnf_data = process_mnf_files($only === 'mnf' ? $only_files : []);
+        if ($has_spreadsheet) {
+            $mnf_data = process_mnf_files($only === 'mnf' ? $only_files : []);
+        }
+        if (empty($mnf_data)) {
+            echo "   [FALLBACK] MNF Excel parse empty — loading from cache...\n";
+            $cached = load_cache_fallback('mnf_data.json');
+            if ($cached) $mnf_data = $cached;
+        }
     } else {
-        echo "⏭️  MNF: ข้าม (ไม่ได้เปลี่ยน)\n";
+        echo " MNF: skip (not changed)\n";
     }
 
     if (!$only || $only === 'kpi2') {
-        $kpi_data = process_kpi_files($only === 'kpi2' ? $only_files : []);
+        if ($has_spreadsheet) {
+            $kpi_data = process_kpi_files($only === 'kpi2' ? $only_files : []);
+        }
+        if (empty($kpi_data)) {
+            echo "   [FALLBACK] KPI Excel parse empty — loading from cache...\n";
+            $cached = load_cache_fallback('kpi_data.json');
+            if ($cached) $kpi_data = $cached;
+        }
     } else {
-        echo "⏭️  KPI: ข้าม (ไม่ได้เปลี่ยน)\n";
+        echo " KPI: skip (not changed)\n";
     }
 
     if (!$only || $only === 'p3') {
-        $p3_data = process_p3_files($only === 'p3' ? $only_files : []);
+        if ($has_spreadsheet) {
+            $p3_data = process_p3_files($only === 'p3' ? $only_files : []);
+        }
+        if (empty($p3_data)) {
+            echo "   [FALLBACK] P3 Excel parse empty — loading from cache...\n";
+            $cached = load_cache_fallback('p3_data.json');
+            if ($cached) $p3_data = $cached;
+        }
     } else {
-        echo "⏭️  P3: ข้าม (ไม่ได้เปลี่ยน)\n";
+        echo " P3: skip (not changed)\n";
     }
 
     $act_data = [];
     if (!$only || $only === 'activities') {
-        $act_data = process_activities_files($only === 'activities' ? $only_files : []);
+        if ($has_spreadsheet) {
+            $act_data = process_activities_files($only === 'activities' ? $only_files : []);
+        }
+        if (empty($act_data)) {
+            echo "   [FALLBACK] Activities Excel parse empty — loading from cache...\n";
+            $cached = load_cache_fallback('activities_data.json');
+            if ($cached) $act_data = $cached;
+        }
     } else {
-        echo "⏭️  Activities: ข้าม (ไม่ได้เปลี่ยน)\n";
+        echo " Activities: skip (not changed)\n";
     }
 
+    // Safety: if ALL data is empty even after cache fallback, abort with error
+    $total_data = 0;
+    if (!empty($all_data)) $total_data++;
+    if (!empty($rl_data)) $total_data++;
+    if (!empty($eu_data)) $total_data++;
+    if (!empty($mnf_data)) $total_data++;
+    if (!empty($kpi_data)) $total_data++;
+    if (!empty($p3_data)) $total_data++;
+
+    if ($total_data === 0) {
+        echo "\n" . str_repeat("!", 60) . "\n";
+        echo "  [FATAL] No data found from Excel OR cache!\n";
+        echo "  Cannot embed empty data into index.html.\n";
+        echo str_repeat("!", 60) . "\n";
+        exit(1);
+    }
+
+    echo "\n  Data sources ready: $total_data/6 categories have data\n";
+
     // Build dashboard — unchanged categories keep existing embedded data
-    build_dashboard($all_data, $rl_data, $eu_data, $mnf_data, $kpi_data, $p3_data, $act_data);
+    $result = build_dashboard($all_data, $rl_data, $eu_data, $mnf_data, $kpi_data, $p3_data, $act_data);
+
+    if ($result === false) {
+        echo "\n[FATAL] Build failed — index.html NOT updated.\n";
+        exit(1);
+    }
 
     // Summary
     echo "\n" . str_repeat("=", 60) . "\n";
-    echo "  ✅ Complete!\n";
-    if (!empty($all_data)) echo "  📅 OIS years: " . implode(", ", array_keys($all_data)) . "\n";
-    if (!empty($rl_data)) echo "  📅 Real Leak years: " . implode(", ", array_keys($rl_data)) . "\n";
-    if (!empty($eu_data)) echo "  📅 EU years: " . implode(", ", array_keys($eu_data)) . "\n";
-    if (!empty($mnf_data)) echo "  📅 MNF years: " . implode(", ", array_keys($mnf_data)) . "\n";
-    if (!empty($kpi_data)) echo "  📅 KPI years: " . implode(", ", array_keys($kpi_data)) . "\n";
-    if (!empty($p3_data)) echo "  📅 P3 years: " . implode(", ", array_keys($p3_data)) . "\n";
-    echo "  📄 Open index.html in browser to view results\n";
+    echo "  Complete!\n";
+    if (!empty($all_data)) echo "  OIS: " . (is_array(reset($all_data)) ? count($all_data) . " years" : "loaded from cache") . "\n";
+    if (!empty($rl_data)) echo "  Real Leak: loaded\n";
+    if (!empty($eu_data)) echo "  EU: loaded\n";
+    if (!empty($mnf_data)) echo "  MNF: loaded\n";
+    if (!empty($kpi_data)) echo "  KPI: loaded\n";
+    if (!empty($p3_data)) echo "  P3: loaded\n";
+    echo "  Open index.html in browser to view results\n";
     echo str_repeat("=", 60) . "\n";
+    exit(0);
 }
 
 main();

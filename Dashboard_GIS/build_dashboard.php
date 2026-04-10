@@ -450,6 +450,110 @@ $html = preg_replace(
 );
 $changes += $cnt;
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  TAB 1: KPI data (from repair_data.json cache)
+// ═══════════════════════════════════════════════════════════════════════════
+$cache_dir = $BASE_DIR . DIRECTORY_SEPARATOR . '.cache';
+$repair_cache = $cache_dir . DIRECTORY_SEPARATOR . 'repair_data.json';
+if (file_exists($repair_cache)) {
+    $repair_raw = json_decode(file_get_contents($repair_cache), true);
+    if ($repair_raw && !empty($repair_raw['data'])) {
+        // Build DATA object matching JS format: {months, branches, data, month_names}
+        $repair_data = [
+            'months' => $repair_raw['months'] ?? [],
+            'branches' => $repair_raw['branches'] ?? [],
+            'data' => $repair_raw['data'] ?? [],
+            'month_names' => $repair_raw['month_names'] ?? [
+                "01"=>"ม.ค.","02"=>"ก.พ.","03"=>"มี.ค.","04"=>"เม.ย.",
+                "05"=>"พ.ค.","06"=>"มิ.ย.","07"=>"ก.ค.","08"=>"ส.ค.",
+                "09"=>"ก.ย.","10"=>"ต.ค.","11"=>"พ.ย.","12"=>"ธ.ค."
+            ]
+        ];
+        $repair_json = json_encode($repair_data, $json_opts);
+        // Replace "const DATA = {...};" using strpos (safe for large JSON)
+        $replaced = false;
+        foreach (['const DATA ', 'const DATA=', 'var DATA ', 'var DATA='] as $needle) {
+            $pos = strpos($html, $needle);
+            if ($pos === false) continue;
+            $eq = strpos($html, '=', $pos + 4);
+            if ($eq === false || $eq - $pos > 20) continue;
+            $brace = strpos($html, '{', $eq);
+            if ($brace === false || $brace - $eq > 5) continue;
+            $depth = 0; $i = $brace; $len = strlen($html);
+            while ($i < $len) {
+                $ch = $html[$i];
+                if ($ch === '{') $depth++;
+                elseif ($ch === '}') { $depth--; if ($depth === 0) break; }
+                elseif ($ch === '"' || $ch === "'") {
+                    $q = $ch; $i++;
+                    while ($i < $len && $html[$i] !== $q) { if ($html[$i] === '\\') $i++; $i++; }
+                }
+                $i++;
+            }
+            if ($depth !== 0) continue;
+            $end = $i + 1;
+            if ($end < $len && $html[$end] === ';') $end++;
+            $new_val = 'const DATA = ' . $repair_json . ';';
+            echo "  [OK] TAB1 KPI DATA embedded (" . number_format(strlen($repair_json)) . " bytes)\n";
+            $html = substr($html, 0, $pos) . $new_val . substr($html, $end);
+            $changes++;
+            $replaced = true;
+            break;
+        }
+        if (!$replaced) {
+            echo "  [WARNING] Cannot find DATA variable in index.html for TAB1\n";
+        }
+    } else {
+        echo "  [SKIP] repair_data.json has no data\n";
+    }
+} else {
+    echo "  [SKIP] repair_data.json not found (TAB1 KPI)\n";
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  TAB 2: Pressure/OIS data (from pressure_data.json cache)
+// ═══════════════════════════════════════════════════════════════════════════
+$pressure_cache = $cache_dir . DIRECTORY_SEPARATOR . 'pressure_data.json';
+if (file_exists($pressure_cache)) {
+    $pressure_raw = json_decode(file_get_contents($pressure_cache), true);
+    if ($pressure_raw && !empty($pressure_raw['data'])) {
+        $pressure_data = $pressure_raw['data'];
+        $pressure_months = $pressure_raw['months'] ?? array_keys($pressure_data);
+
+        // Replace PRESSURE_DATA
+        $p_json = json_encode($pressure_data, $json_opts);
+        $html = preg_replace(
+            '/var PRESSURE_DATA=\{[^\n]*\};/',
+            'var PRESSURE_DATA=' . $p_json . ';',
+            $html, 1, $cnt
+        );
+        if ($cnt > 0) {
+            $changes += $cnt;
+            echo "  [OK] TAB2 PRESSURE_DATA embedded (" . number_format(strlen($p_json)) . " bytes)\n";
+        } else {
+            echo "  [WARNING] Cannot find PRESSURE_DATA in index.html\n";
+        }
+
+        // Replace PRESSURE_MONTHS
+        $pm_json = json_encode($pressure_months, $json_opts);
+        $html = preg_replace(
+            '/var PRESSURE_MONTHS=\[[^\]]*\];/',
+            'var PRESSURE_MONTHS=' . $pm_json . ';',
+            $html, 1, $cnt
+        );
+        if ($cnt > 0) {
+            $changes += $cnt;
+            echo "  [OK] TAB2 PRESSURE_MONTHS embedded (" . count($pressure_months) . " months)\n";
+        } else {
+            echo "  [WARNING] Cannot find PRESSURE_MONTHS in index.html\n";
+        }
+    } else {
+        echo "  [SKIP] pressure_data.json has no data\n";
+    }
+} else {
+    echo "  [SKIP] pressure_data.json not found (TAB2 OIS)\n";
+}
+
 // ─── Write updated HTML ───────────────────────────────────────────────────
 if ($changes > 0) {
     file_put_contents($INDEX_FILE, $html);
