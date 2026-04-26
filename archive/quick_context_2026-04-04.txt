@@ -1,0 +1,745 @@
+================================================================================
+  Quick Context — Dashboard กปภ.ข.1 (อ่านไฟล์นี้แทน README+prompt_history)
+  อัปเดตล่าสุด: 4 เม.ย. 2569 (Session 9)
+================================================================================
+
+*** กฎเหล็ก: ห้ามฝังข้อมูลดิบลง index.html — ทุกกรณี ***
+ห้ามฝังข้อมูลดิบ (hardcode) ลงใน index.html ไม่ว่าจะกรณีใด
+  - ห้าม hardcode ตัวแปรข้อมูลดิบ (เช่น ACTIVITIES, หรืออะไรก็ตาม) ลงใน HTML โดยตรง
+  - ห้ามเรียก build_dashboard.php / api/rebuild จาก manage.html บน Local
+  - Local ใช้ API อย่างเดียว (api.php) — ข้อมูลทุกตัวต้องมา runtime ผ่าน API
+  - ข้อมูลใหม่ต้องมี: (1) API endpoint อ่านจาก Excel (2) build function ใน build_dashboard.php
+  - ยกเว้นเดียว: ตอน Push ขึ้น Git (push_to_github.bat) ฝังชั่วคราว แล้ว restore กลับทันที
+  - ถ้าพบข้อมูลดิบ hardcode อยู่ใน HTML → ต้องแจ้งผู้ใช้ทันที ห้ามปล่อยผ่าน
+
+*** สำคัญ: อ่าน NAMING_RULES.md ก่อนแก้โค้ด upload/rename ***
+กฎตั้งชื่อไฟล์อัตโนมัติทุกหมวดทุก Dashboard อยู่ใน NAMING_RULES.md
+Upload ทุกหมวดต้องเป็น 2-step (pre-check → confirm) + แจ้งซ้ำ/ไม่ซ้ำ
+
+โปรเจค: 4 Dashboard + 1 Landing Page (index.html ราก)
+ทุก Dashboard: standalone HTML + server.py (Flask) + manage.html
+
+Dashboard         | Port | Theme           | index.html
+------------------|------|-----------------|------------
+Dashboard_PR      | 5000 | ส้ม #c43e00     | ~1.6MB
+Dashboard_Leak    | 5001 | น้ำเงิน #1e3a5f | ~4.7MB
+Dashboard_GIS     | 5002 | Teal #004d40    | ~146KB
+Dashboard_Meter   | 5003 | ม่วง #4a148c    | ~22KB
+
+ข้อตกลงสำคัญ (ดูรายละเอียดใน PROJECT_README.md):
+  - ทุกกราฟต้องมี: export bar, scroll/zoom, context menu, toggle กราฟ/ตาราง
+  - ประเภทกราฟ: เส้นโค้ง → เส้นตรง → แท่ง → พื้นที่
+  - ลงทะเบียน getChartObj, CTX_CHART_TYPE_MAP, CTX_CHART_UPDATE_MAP
+  - ตัวเลข: th-TH locale, <100 → 2 ทศนิยม, >=100 → comma
+  - X-axis: maxRotation:60, font 12, ชื่อเดือนย่อ "ต.ค.68"
+  - max-width: 1400px ทุก Dashboard
+  - Dark mode: localStorage sync ระหว่าง index.html ↔ manage.html
+  - ปุ่มจัดการแหล่งข้อมูล: smart onclick (file:// / localhost / GitHub alert)
+  - ปุ่มหน้าหลัก: smart pattern (file:// = href, localhost = API)
+
+งานที่ทำ (25 มี.ค.):
+  - GIS TAB 3: ปรับ bar spacing (barPercentage:1.0, categoryPercentage:0.68)
+  - GIS TAB 3: เพิ่มสรุป+หมายเหตุท้ายกราฟ pd1 (เปรียบเทียบเดือน) และ pd2 (รายเดือน)
+  - manage.html ทุก Dashboard: เพิ่มแสดงรายชื่อไฟล์ + ปุ่มลบ ใน drop zone (DataTransfer API)
+  - PR manage.html: refactor จาก hardcoded HTML → CATEGORIES loop เหมือน GIS/Leak/Meter
+  - PR server.py: แก้ bug @app.route('/api/data') decorator หลุดไปติด _folder_last_modified()
+
+งานที่ทำ (26 มี.ค.):
+  - PR manage.html: ตัด mode selector (อัตโนมัติ/ระบุเดือนเอง) ออก ใช้ auto อย่างเดียว
+  - manage.html ทุก Dashboard (PR/Leak/GIS): เปลี่ยนช่องคำแนะนำ → Textbox "บันทึกช่วยจำ"
+    พร้อม auto-save (debounce 800ms) บันทึกถาวรผ่าน API
+    - PR: เก็บใน data.json (notes key), endpoint POST /api/notes/<slug>
+    - Leak: เก็บใน ข้อมูลดิบ/notes.json, endpoint POST /api/notes/<slug>
+    - GIS: เก็บใน ข้อมูลดิบ/notes.json, endpoint POST /api/notes/<slug>
+    - Meter: เก็บใน ข้อมูลดิบ/notes.json, endpoint POST /api/notes/<slug>
+  - index.html: แก้ Dashboard Meter status จาก "ใช้งานได้" → "พร้อมใช้งาน"
+  - Meter manage.html: เปลี่ยนช่องคำแนะนำ → Textbox บันทึกช่วยจำ + auto-save
+    - เก็บใน ข้อมูลดิบ/notes.json, endpoint POST /api/notes/<slug>
+  - GIS server.py pressure auto-rename: อ่านปีงบประมาณจากเนื้อไฟล์ (Row 3 "ประจำปีงบประมาณ 25XX")
+    ตั้งชื่อเป็น PRESSURE_สาขา_ปีงบYY.xlsx เช่น PRESSURE_ชลบุรี_ปีงบ69.xlsx
+  - GIS manage.html: แก้ management panel แสดง chips แยกปี เหมือน PR
+    - repair: จัดกลุ่มปีจาก GIS_YYMMDD, chip แสดง DD/MM
+    - pending: จัดกลุ่มปีจาก Repair_MM-YY, chip แสดงชื่อเดือนไทย
+    - pressure: จัดกลุ่มปีจาก ปีงบYY, chip แสดงชื่อสาขา
+
+โครงสร้าง manage.html ทุก Dashboard:
+  - ใช้ CATEGORIES loop pattern (buildUI สร้าง tabs/panels แบบ dynamic)
+  - drop zone มี file list + remove button (DataTransfer API)
+  - Textbox บันทึกช่วยจำ + auto-save (ครบทุก Dashboard แล้ว)
+  - management panel แสดง chips แยกปี (GIS ทำแล้ว, PR ทำแล้ว)
+
+งานที่ทำ (26 มี.ค. — เพิ่มเติม):
+  - GIS server.py pending upload: รวมหลายไฟล์เป็น 1, sort ตามวันที่แจ้ง,
+    ตั้งชื่ออัตโนมัติตามช่วงเดือน เช่น ค้างซ่อม_10-68_to_03-69.xlsx
+    - batch merge: อ่าน .xls/.xlsx → ดึง data rows (ข้าม header 8 แถว) → รวม → sort → save .xlsx
+  - manage.html ทุก Dashboard: แก้ upload file count ซ้ำ
+    - server.py (GIS, Leak): แก้ double-counting ตอน overwrite (append ทั้ง overwrite+success)
+    - client: เปลี่ยน uploadFiles() ใช้ window._fileStore[slug] แทน fileInput.files
+    - client: เปลี่ยน performUpload() เคลียร์ _fileStore หลัง upload + renderFileList(slug)
+    - เปลี่ยน renderFileList เป็น window.renderFileList ทุก Dashboard
+  - GIS manage.html: เพิ่ม loading popup "กรุณารอสักครู่ อยู่ระหว่างรวมไฟล์" + สำเร็จ popup
+  - GIS server.py: แก้ illegal XML character error ตอนแปลง .xls → .xlsx
+    - ใช้ custom regex: re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]') + safe_val()
+  - GIS TAB 3 กราฟที่ 1+2: Update ข้อมูลค้างซ่อมจากไฟล์ ค้างซ่อม_10-68_to_03-69.xlsx
+    - PENDING_UPDATE_DATE → '26-03-69'
+    - นิยามค้างซ่อม: R-job ที่ (1) วันเวลาเสร็จสิ้น > สิ้นเดือน หรือ (2) สถานะ "ซ่อมไม่เสร็จ"
+    - นับสะสมจาก ม.ค.69 เป็นต้นไป
+    - PD1 = [PD2 เดือนก่อน, PD2 เดือนปัจจุบัน] ทุกสาขา
+    - PD2 = snapshot ค้างซ่อม ณ สิ้นเดือน: 69-01(95), 69-02(164), 69-03(269)
+    - ตรวจสอบแล้ว: 69-01 ตรง 100% ทุกสาขา, PD1↔PD2 สอดคล้อง 100%
+
+งานที่ทำ (26 มี.ค. — ต่อ session 2):
+  - GIS TAB 3 (pd3): สร้างตาราง "งานซ่อมที่ยังไม่ปิดในระบบ" แยกสาขา×เดือน ปีงบ 2569
+    - คำนวณจากไฟล์ ค้างซ่อม_10-68_to_03-69.xlsx (filter สถานะ=ซ่อมไม่เสร็จ, 304 records)
+    - Header: กปภ.สาขา(rowspan=2) | descriptive text(colspan=12) | รวมรายสาขา(rowspan=2)
+    - descriptive text: "งานซ่อมที่ยังไม่ปิดในระบบ ปีงบประมาณ xxxx (ค่าสะสมตั้งแต่ ต้นปีงบฯ) Update ข้อมูล ณ วันที่ dd-mm-yy"
+    - dd-mm-yy = วันที่รับแจ้งล่าสุดจาก ALL records ในไฟล์
+  - GIS server.py: เพิ่ม API GET /api/pending-table?fy=YYYY
+    - parse Excel header row 7, data row 9+, Col4=วันที่แจ้ง, Col20=สาขา, Col27=สถานะ
+    - return: fy, fy_list, update_date, branches, months, data, col_totals, grand_total
+  - GIS index.html: dual-mode (API live + PD3_FALLBACK hardcode) สำหรับ file:// mode
+  - GIS TAB 3 pd3: toggle กราฟ/ตาราง, export bar (PNG, copy, Excel, PPTX)
+  - ตัวเลือกปีงบประมาณ: ย้ายจาก Card 3 → Card 1 (pendingFySel)
+    - pendingFYInit/Populate/Changed → ตั้ง PENDING_FY → pd1/pd2/pd3 LoadFY() อ้างอิง
+    - Card 1/2/3 ทั้งหมดอ้างอิง PENDING_FY จาก dropdown ใน Card 1
+  - API: GET /api/pending-chart?fy=YYYY → คำนวณค้างซ่อมสะสม (finish>eom OR ซ่อมไม่เสร็จ)
+    - return: pd2_data (snapshot ค้างซ่อม ณ สิ้นเดือน), pd2_months, pd1_data (derive จาก pd2), update_date
+    - ทั้ง 3 กราฟใช้ API endpoint เดียวกัน คำนวณจากข้อมูลดิบชุดเดียว
+  - GIS pd1 (กราฟที่ 1): เปลี่ยนจาก const → var, เพิ่ม pd1LoadFY/pd1UseFallback/pd1PopulateMonthSel
+    - fallback: PD1_DATA_FALLBACK สำหรับ file:// mode
+  - GIS pd2 (กราฟที่ 2): เปลี่ยนจาก const → var, เพิ่ม pd2LoadFY/pd2UseFallback/pd2UpdateTitle
+    - fallback: PD2_DATA_FALLBACK สำหรับ file:// mode
+  - pendingFYChanged() trigger ทั้ง pd1, pd2 และ pd3
+
+งานที่ทำ (27 มี.ค.):
+  - GIS TAB 1 กราฟ 1: เปลี่ยน default chart type เป็น bar (ใช้ selected attribute ไม่ reorder options)
+  - GIS TAB 2 กราฟ 1: เปลี่ยน default chart type เป็น bar (selected attribute)
+  - GIS TAB 2 กราฟ 1: เพิ่มช่อง หมายเหตุ (textarea) ท้ายกราฟ + localStorage persist
+  - GIS TAB 3 ตารางที่ 3-4: เพิ่ม "ตารางที่ x" ในชื่อ Card + วันที่ Update
+  - GIS ตารางที่ 1-4: เพิ่มเงื่อนไขการนับข้อมูล (append ต่อจากหมายเหตุเดิม ไม่ซ้ำ)
+    - กราฟ 1+2 มีหมายเหตุเดิมอยู่แล้ว → append ด้วย <br> ใน JS
+    - ตารางที่ 3+4 → เพิ่ม static div ใหม่
+  - เพิ่ม textarea "หมายเหตุ" ทุกกราฟ ทุก Dashboard ทุก TAB (localStorage persist ถาวร)
+    - GIS: pd1Note, pd2Note, pd3Note, pd4Note, pressureNote + gisNote (TAB 1)
+    - Leak: 15 textareas (ทุกกราฟ)
+    - PR: 5 textareas เพิ่ม (pr1, pr2, aon1-3) — มี saveCardNote อยู่แล้ว 5 อัน
+    - Meter: 1 textarea เพิ่ม
+    - localStorage key pattern: {dashboard}_{chartId}Note เช่น gis_pressureNote, leak_kpi1Note
+  - GIS TAB 3 ตาราง 4: max-height 520px (แสดง ~15 แถว ที่เหลือ scroll)
+  - Leak build_dashboard.py: แก้ file pattern ให้ match ไฟล์จริง
+    - KPI: KPI*.xlsx (เดิม KPI_Lea*-*.xlsx)
+    - RL: RL*.xlsx (เดิม RL-*.xlsx)
+    - MNF: MNF*.xlsx + regex MNF[-_](\d{4}) (เดิม MNF-*.xlsx)
+    - P3: เพิ่ม flat file support (P3_สาขา_YY-MM.xlsx ใน P3/ โดยตรง)
+  - .gitignore: เพิ่ม *.cache.json (ป้องกัน push ไฟล์ใหญ่)
+  - update_dashboards.bat: แก้ bug errorlevel ถูก reset โดย cd ..
+    - เปลี่ยน cd/cd.. → pushd/popd + เก็บ PYERR ก่อนเช็ค
+
+สถาปัตยกรรมสำคัญ (อ่านให้ดี!):
+  - GIS build_dashboard.py: ฝังข้อมูลทั้ง 3 TAB ลง index.html:
+    - TAB 1: const DATA = {...}  (KPI จุดซ่อมท่อ)
+    - TAB 2: const PRESSURE_DATA = {...}, PRESSURE_MONTHS = [...]  (แรงดันน้ำ)
+    - TAB 3: PD1/PD2 _DATA_FALLBACK, PD3_FALLBACK, PD4_FALLBACK, PD5_*_FALLBACK, PENDING_UPDATE_DATE, PENDING_FY_LIST
+    ⚠️ ใช้ index.html เป็นทั้ง template+output — แทนที่เฉพาะ JS variables ไม่แตะ HTML
+    ⚠️ HTML changes (textareas, card titles ฯลฯ) จะไม่หาย
+  - GIS Dual Mode:
+    - บนเครื่อง (api.php): TAB 2+3 ใช้ API สด → ข้อมูลล่าสุดทันที
+    - GitHub Pages / file://: ทุก TAB ใช้ fallback data ที่ build ฝังไว้
+  - ★ Dual Mode ครบทั้ง 4 Dashboard:
+    - Dashboard_Leak ✅ (6/6 categories: D, RL, EU, MNF, KPI, P3)
+    - Dashboard_GIS ✅ (TAB 2+3 API, TAB 1 embedded only)
+    - Dashboard_Meter ✅ (dead_meter + total_meters)
+    - Dashboard_PR ✅ (PR + AON — AON values=0 ปัญหา parser เดิม, fallback ใช้ได้)
+  - Leak/PR/Meter: build_dashboard.py ฝังข้อมูลทั้งหมดลง index.html → ทำงานบน GitHub Pages ได้
+  - push_to_github.bat: ★ 9-step flow: checkpoint → build → validate → git → push → restore
+    - Step 1: CHECKPOINT — backup index.html → .checkpoint ทุก Dashboard
+    - Step 2: BUILD — run build_dashboard.php ทุก Dashboard
+    - Step 3: VALIDATE — ตรวจ DOCTYPE + min 1KB, auto-restore ถ้า fail
+    - Steps 4-8: Git init/identity/pull+squash/stage/commit+push
+    - Step 9: RESTORE — คืน index.html จาก .checkpoint (local กลับเป็นเดิม)
+    ⚠️ ทำให้ข้อมูลบน GitHub Pages อัพเดตอัตโนมัติ + local ไม่ถูกแก้
+
+  - GIS build ฝังข้อมูล TAB 2+3 เป็น static fallback (แก้ 27 มี.ค.)
+    - อ่านจาก ข้อมูลดิบ/แรงดันน้ำ/ → PRESSURE_DATA, PRESSURE_MONTHS
+    - อ่านจาก ข้อมูลดิบ/ซ่อมท่อค้างระบบ/ → PD1/PD2/PD3 + PD4/PD5 fallback data
+    - กรอง pressure เดือนที่ค่า = 0 ทั้งหมดออก
+    - pd4/pd5 fallback: ฝังผ่าน marker /*FALLBACK_PD4_START*/.../*FALLBACK_PD4_END*/
+    - pd4UseFallback() / pd5UseFallback() ทำงานอัตโนมัติเมื่อ API ไม่ตอบ
+    - ★ ทำให้ pd4+pd5 ทำงานบน GitHub Pages / file:// ได้โดยไม่ต้องพึ่ง XAMPP
+
+  ★ แนวคิดการ Deploy (จดไว้):
+    - ปัจจุบัน: Push ขึ้น GitHub Pages ให้คนอื่นใช้ชั่วคราว (ไม่มี PHP → ใช้ fallback)
+    - อนาคต: เอาขึ้น Server จริงของสำนักงาน (มี PHP/XAMPP → ใช้ API สด)
+    - ดังนั้น fallback data ต้องอัปเดตทุกครั้งที่ push (build script ต้องฝังข้อมูลล่าสุด)
+    - build script ต้องฝัง: PD4_FALLBACK (จาก SQLite query status=ซ่อมไม่เสร็จ)
+      และ PD5_*_FALLBACK (จาก SQLite query เดือนล่าสุด+ท่อแตกรั่ว+ไม่มีเลขงาน)
+
+⚠️ เปลี่ยนจาก Python → PHP/XAMPP แล้ว (27 มี.ค.):
+  - ★ server.py ทุก Dashboard + update_dead_meter.py + start_server.bat = ลบแล้ว (28 มี.ค.)
+  - build_dashboard.py ทุกตัว → ลบแล้ว (28 มี.ค.) แทนที่ด้วย build_dashboard.php (ใช้ PhpSpreadsheet)
+  - push_to_github.bat + update_dashboards.bat → แก้ให้เรียก PHP แทน Python แล้ว
+  - start_xampp.bat = ใช้ไม่ได้บน Cowork (encoding/linter ทำพัง) → ใช้วิธี manual แทน
+  - composer.json + vendor/ = PHP dependencies (PhpSpreadsheet)
+
+★ วิธีเปิด Dashboard บนเครื่องใหม่ (Manual — ทำครั้งเดียวต่อเครื่อง):
+  ขั้นตอนที่ 1: ติดตั้ง XAMPP (C:\xampp) + เปิด XAMPP Control Panel
+  ขั้นตอนที่ 2: แก้ DocumentRoot ใน httpd.conf (ทำครั้งเดียว)
+    - XAMPP Control Panel → Config (แถว Apache) → httpd.conf
+    - Ctrl+H → Find: C:/xampp/htdocs → Replace: C:/Users/ชื่อuser
+    - ★ ชื่อ user ดูจาก cmd พิมพ์ echo %USERNAME% หรือดูที่ C:\Users\
+    - กด Replace All → Save
+    - ทดสอบ: เปิด cmd → "C:\xampp\apache\bin\httpd.exe" -t → ต้องขึ้น Syntax OK
+  ขั้นตอนที่ 3: Start Apache ใน XAMPP Control Panel
+  ขั้นตอนที่ 4: เปิด browser → http://localhost/Claude Test Cowork/index.html
+  ★ ถ้า httpd.conf พัง: restore backup → copy /Y "C:\xampp\apache\conf\httpd.conf.backup" "C:\xampp\apache\conf\httpd.conf"
+  ★ เครื่องปัจจุบัน: user = prayo (C:/Users/prayo)
+
+งานที่ทำ (27 มี.ค. — session 2):
+  - GIS TAB 3 pd4+pd5: เพิ่ม fallback data ฝังใน HTML (แก้ปัญหากราฟ 4-5 ไม่ขึ้นถาวร)
+    - สาเหตุเดิม: pd4/pd5 ดึงจาก api.php เท่านั้น ไม่มี fallback → พังทุกครั้งที่ไม่มี XAMPP
+    - แก้: เพิ่ม PD4_FALLBACK, PD5_BY_BRANCH_FALLBACK, PD5_RECORDS_FALLBACK, PD5_MONTH_FALLBACK
+    - ใช้ marker /*FALLBACK_PD4_START*/.../*FALLBACK_PD4_END*/ สำหรับ build script แทนที่
+    - เพิ่ม pd4UseFallback() / pd5UseFallback() → ทำงานอัตโนมัติเมื่อ API fail
+    - pd4 = 304 records (~82KB), pd5 = 10 records
+    - ★ ตอนนี้ทุกกราฟใน GIS TAB 3 (pd1-pd5) มี fallback ครบหมดแล้ว
+  - รวม setup_xampp.bat เข้า start_xampp.bat (แต่ bat ใช้ไม่ได้บน Cowork → ใช้ manual)
+  - ลบ setup_xampp.bat แล้ว
+  - ปุ่ม "หน้าหลัก" ทุก Dashboard: ลบ onclick ที่เรียก /api/open-main (API เก่าของ Python Flask)
+    - เดิม: localhost → fetch('/api/open-main') ซึ่งไม่มีใน PHP → กดแล้วไม่เกิดอะไร
+    - แก้: ใช้ href="../index.html" ตรงๆ ทุกกรณี (file://, localhost, GitHub Pages)
+    - แก้แล้วทั้ง 4 Dashboard: GIS, Leak, PR, Meter
+  - manage.html ทุก Dashboard: แก้ปุ่ม "กลับหน้า Dashboard" → goBack() ใช้ 'index.html' แทน '/'
+    - เดิม: GIS/Meter → '/', Leak → smart pattern ไป root, PR → href="/"
+    - แก้: ทุกตัวใช้ window.location.href='index.html' หรือ href="index.html" ตรงๆ
+  - ★ ลบ reference Python Flask ทั้งหมดออกจาก HTML (ทุก Dashboard):
+    - manage.html: file:// redirect จาก localhost:500X → alert บอกใช้ XAMPP แทน
+    - index.html ปุ่มจัดการฯ: ลบ redirect ไป localhost:500X + แก้ alert อ้าง XAMPP แทน start_server.bat
+    - PR manage.html: API_BASE จาก 'http://localhost:5000' → window.location.origin
+    - Meter index.html: SERVER_API_BASE จาก 'http://localhost:5003' → '' (same origin)
+    - PR index.html: แก้ comment Flask → XAMPP
+    - ★ ตรวจแล้ว: ไม่เหลือ localhost:500X หรือ start_server.bat ใน HTML ใดเลย
+
+งานที่ทำ (27 มี.ค. — session 3, Leak TAB 2 น้ำสูญเสีย):
+  - กราฟที่ 1 (wl0Chart): เพิ่ม 9 Checkboxes ควบคุมการแสดงชุดข้อมูล
+    - wl0CB_cur, wl0CB_prev, wl0CB_cumCur, wl0CB_cumPrev, wl0CB_kpi1-5
+    - สีตัวอักษร label ตรงกับสีชุดข้อมูล (#2980b9, #999, #1a237e, #e74c3c, #e67e22, #f1c40f, #2ecc71, #3498db)
+    - Legend Chart.js default ยังคงแสดงด้านล่างกราฟ
+  - กราฟที่ 1 Legend: ⚠️ ยังเสีย — wl0LegendColorPlugin ถูกลบออก ไม่มี per-item text coloring
+    - ลองแก้ 3 ครั้ง ไม่สำเร็จ → ผู้ใช้สั่งหยุด ("พอแล้ว")
+    - สาเหตุ: plugin เดิมใช้ color:'transparent' + วาดข้อความสีทับ → พอเปลี่ยน usePointStyle ทำให้ตำแหน่งเลื่อน
+  - กราฟที่ 2 (wlChart1): เปลี่ยน default ช่วงปี = ปีล่าสุดปีเดียว
+    - wl1YearFrom.value = years[years.length-1]
+  - กราฟที่ 2: เพิ่ม Checkbox "เปรียบเทียบกับเดือน/ปี ก่อนหน้า" (wl1PrevCB)
+    - เมื่อ checked → เพิ่ม dataset ปีก่อน (สีเทา rgba(180,180,180,1), borderWidth:1.5)
+  - กราฟที่ 2: แสดงค่าเป้าบนเส้นเป้าหมายขวาสุด (wl1TargetLabelPlugin)
+    - plugin ใหม่แทน wl1TargetNotePlugin เดิม
+    - วาด "เป้า X.XX%" ที่จุดขวาสุดของ dataset ชื่อ 'เป้าหมาย'
+  - กราฟที่ 2: เพิ่ม datalabels บนกราฟแท่ง (สีตรงกับ borderColor ของแต่ละ dataset)
+    - ใช้ dlConfig() ที่มีอยู่แล้ว + ds.borderColor
+  - กราฟที่ 3 (wlChart2): ❌ ฟีเจอร์ "แกน X (ช่วงเวลา/สาขา)" — ทำแล้ว Undo ทั้งหมด
+    - สาเหตุ Undo: กราฟแสดงผลผิดเพี้ยน (ซิกแซกเชื่อม 22 สาขา)
+    - ลบ HTML (select แกน X + เลือกเดือน-ปี), JS (wl2XAxis, wl2SetXAxis, wl2PopulateMonthYear)
+    - ลบ branch chart logic block + guard condition จากเส้นเป้าหมาย
+
+งานที่ทำ (28 มี.ค.):
+  - ★ Leak Auto-Update: ครบ 100% ทั้ง 6 หมวด (D, RL, EU, MNF, KPI, P3)
+    - api.php: เพิ่ม 6 GET endpoints (/api/ois-data, /api/eu-data, /api/rl-data, /api/mnf-data, /api/kpi-data, /api/p3-data)
+    - แต่ละ endpoint: parse Excel จาก ข้อมูลดิบ/ → JSON + file-based caching (CACHE_DIR/.cache, TTL=60s)
+    - index.html: เพิ่ม _tryFetchD/EU/RL/MNF/KPI/P3() → fetch API อัตโนมัติเมื่อรันบน localhost
+    - เปลี่ยน const → var สำหรับ D, RL, EU, MNF, KPI, P3 (ให้ overwrite ได้)
+    - fallback: ถ้า API ไม่ตอบ → ใช้ข้อมูลที่ฝังไว้ (GitHub Pages / file://)
+    - re-init: ถ้า tab เปิดแล้ว → re-init กราฟอัตโนมัติหลังโหลดข้อมูลใหม่
+    - PhpSpreadsheet 2.x compatible: ใช้ getCell([$col,$row]) แทน getCellByColumnAndRow()
+  - D (OIS) parser: ซับซ้อนที่สุด — รองรับ .xls/.xlsx 13 ไฟล์ (2557-2569)
+    - dynamic header detection (หา row ที่มี 6+ month keywords)
+    - dynamic month column mapping (short+long Thai month names)
+    - total column detection ("รวม")
+    - LABEL_NORMALIZE_MAP (5 variant names across years)
+    - fix_trailing_zeros (30% threshold for incomplete fiscal years)
+    - skip "เป้าหมาย" sheet
+  - api.php: เพิ่ม branch normalization (STANDARD_BRANCHES, BRANCH_ALIASES, normalize_branch_name())
+  - api.php: เพิ่ม cache helpers (load_cache/save_cache/get_folder_mtime)
+  - XAMPP เครื่องใหม่: ต้องเปิด extension=zip ใน php.ini (PhpSpreadsheet ต้องใช้)
+  - ★ Meter Dual Mode: ครบ 100%
+    - api.php: เพิ่ม GET /api/meter-data endpoint
+      - parse METER_XXXX.xlsx (22 ไฟล์สาขา) → dead_meter (col 12=มาตรไม่เดิน, col 16≠เปลี่ยนแล้ว, dedup by col 2)
+      - อ่าน OIS ล่าสุดจาก ../Dashboard_Leak/ข้อมูลดิบ/OIS/ → total_meters (OIS_SHEET_MAP 22 sheets → branches)
+      - auto-detect latest month column (row 6, cols 6-17 in 1-based)
+      - file-based caching (CACHE_DIR/.cache, TTL=60s)
+    - index.html: เพิ่ม _tryFetchMeter() → fetch API + renderDeadMeterTable() re-init
+    - Dual Mode call: if(location.protocol!=='file:') _tryFetchMeter()
+    - ⚠️ แก้ OIS row/col indexing: Python xlrd 0-based → PhpSpreadsheet 1-based (row 5→6, col 5→6, range 5-16→6-17)
+  - ★ PR Dual Mode: ครบ 100%
+    - api.php: เพิ่ม GET /api/pr-data endpoint
+      - scan ข้อมูลดิบ/เรื่องร้องเรียน/ → PR_*.xlsx → reuse parse_pr_file()
+      - คำนวณ 13-month rolling window (เหมือน build_dashboard.py)
+      - return: {months, branches, all_months, data, cat_names}
+    - api.php: เพิ่ม GET /api/aon-data endpoint
+      - scan ข้อมูลดิบ/AlwayON/ → AON_*.xls/*.xlsx → reuse parse_aon_file()
+      - return: {month_key: {branch: percentage}}
+    - index.html: เปลี่ยน const → var สำหรับ DATA, BRANCHES, RAW, PR_CATEGORIES
+    - index.html: เพิ่ม Dual Mode script block ก่อน </body>
+      - _tryFetchPR(): fetch pr-data → overwrite DATA/BRANCHES/RAW/PR_CATEGORIES → pr1Init()+pr2Init()
+      - _tryFetchAON(): fetch aon-data → overwrite AON/AON_KEYS_SORTED/AON_ALL_MONTHS → aonRender()+aonCmpRender()+aon2Render()
+    - ⚠️ แก้ function_exists() → class_exists() สำหรับ PhpSpreadsheet check
+    - ⚠️ AON values ยังเป็น 0 (ปัญหา parse_aon_sheet_with_col เดิม) → fallback ยังใช้ได้
+
+งานค้าง:
+  1. ★ scale sync กราฟ Leak เสร็จแล้ว (28 มี.ค.) — ทั้ง % และ Volume sync 2 กราฟใน Card เดียวกัน
+  2. ★ ลบไฟล์ .py เสร็จแล้วทั้งหมด (28 มี.ค.) — ไม่มี Python dependency เหลือ
+  3. ~~แก้ Legend กราฟที่ 1 (wl0Chart)~~ — ยกเลิก ไม่แก้แล้ว
+
+งานที่ทำ (28 มี.ค. — session 3):
+  - ★ Y-axis scale sync กราฟ Leak:
+    - กราฟ % (wscRChart3+wscRChart4): เปลี่ยนจาก max:70 คงที่ → dynamic sync ด้วย wscRPercentSyncYAxis()
+      - หา max จากข้อมูลทั้ง 2 กราฟ → ปัดขึ้นเป็นทวีคูณของ 5 + เผื่อ 5% → set ทั้งคู่เท่ากัน
+    - กราฟ Volume (wscRChart3V+wscRChart4V): มี wscRVolSyncYAxis() อยู่แล้ว (ปัดขึ้นทวีคูณ 200,000)
+  - ★ Paired chart Y-axis sync เมื่อ user ปรับ scale:
+    - PAIRED_CHARTS mapping: wscRChart3↔wscRChart4, wscRChart3V↔wscRChart4V
+    - syncPairedChart(): copy min/max/stepSize จากกราฟที่ปรับไปกราฟคู่
+    - ทำงานกับทั้ง 3 กลไก: scroll (zoom), drag (pan), double-click (dialog)
+    - Reset ใน dialog ก็ reset กราฟคู่ด้วย
+  - ★ PR Dashboard TAB ข้อร้องเรียน — Paired chart Y-axis sync:
+    - PAIRED_CHARTS mapping: waterQty1↔2, pipe1↔2, quality1↔2, service1↔2, staff1↔2 (ทั้ง 5 ด้าน)
+    - syncPairedChart() เหมือน Leak — hook เข้า scroll/drag/dialog/right-click context menu
+    - มี syncYScale() อยู่เดิมสำหรับ initial sync → เพิ่ม interactive sync เข้าไป
+  - ยกเลิก Legend กราฟที่ 1 (wl0Chart) — ไม่แก้แล้ว
+
+งานที่ทำ (28 มี.ค. — session 2):
+  - Smart Header Detection ทุก Dashboard:
+    - GIS: detect_repair_columns() + fallback flag
+    - Meter: detect_meter_columns() + fallback flag
+    - PR: parse_pr_file() ใช้ $data_start_idx/$branch_col/$cust_col แทนค่าตายตัว
+    - PR: parse_aon_sheet_with_col() ค้นหา "หน่วยงาน/สาขา/เขต" แบบ dynamic
+    - Leak EU: ค้นหาคอลัมน์สาขาและเดือนแรก (ต.ค.) แบบ dynamic
+    - Leak KPI: ค้นหาคอลัมน์สาขา/เป้าหมาย/ระดับ/ผลดำเนินการ แบบ dynamic
+  - ★ ตรวจสอบรูปแบบไฟล์ก่อน Upload (ครบทุก Dashboard):
+    - validate_gis_file(): repair ต้องเจอ สาขา+ปิดงาน/สำเร็จ/คะแนน
+    - validate_meter_file(): ต้องเจอ CA/รหัสผู้ใช้น้ำ+สภาพมาตร
+    - validate_pr_file(): ต้องเจอ pattern "ด้าน" (เช่น "1. ด้านคุณภาพน้ำ")
+    - validate_aon_file(): ต้องเจอ "หน่วยงาน/สาขา"
+    - validate_leak_file(): EU ต้องเจอ สาขา+เดือน, KPI ต้องเจอ สาขา+เป้าหมาย
+    - ถ้า format ไม่ตรง → บล็อก upload + แสดง ⚠️ error ให้ user เห็น
+  - manage.html ทุก Dashboard: ปรับ error display แยก "ทุกไฟล์ fail" / "บางไฟล์ fail"
+  - ★ ลบ server.py ทุก Dashboard (4 ไฟล์) + update_dead_meter.py + start_server.bat
+  - ★ เปลี่ยน build_dashboard.py → build_dashboard.php ทั้ง 3 Dashboard (GIS/PR/Leak)
+    - ใช้ PhpSpreadsheet อ่าน Excel → ฝัง JSON ลง index.html เหมือนเดิม
+    - ลบ build_dashboard.py ทั้ง 3 ไฟล์ (ไม่ต้องการ Python อีกต่อไป)
+  - ★ แก้ push_to_github.bat + update_dashboards.bat → เรียก PHP แทน Python
+
+คำเตือนสำคัญสำหรับ Claude session ใหม่:
+  - ห้าม reorder options ใน <select> → ใช้ selected attribute แทน
+  - กราฟที่มีหมายเหตุอยู่แล้ว → append ต่อ ไม่ซ้ำ (ดู JS ที่สร้าง HTML)
+  - file naming: ใช้ _ separator (RL_2569.xlsx) ไม่ใช่ - (RL-2569.xlsx)
+  - build_dashboard.php ทุกตัว: อ่าน index.html → replace data → เขียนกลับ index.html เดิม (ใช้ PhpSpreadsheet)
+  - อ่านไฟล์นี้ก่อนทำงาน!
+
+หมายเหตุ: ยกเลิกการบันทึก prompt_history แล้ว ไม่ต้องเขียนเพิ่ม
+
+★ มาตรฐานแกน Y สำหรับทุกกราฟ (Chart.js) — ใช้เหมือนกันทุก Dashboard:
+  1. Scroll เม้าส์ปรับ Scale แกน Y:
+     - ถ้า Origin เดิม = 0 → ยึด Origin ไว้ที่ 0 (ปรับเฉพาะ Max)
+     - ถ้า Origin เดิม ≠ 0 → Zoom รอบจุดกึ่งกลาง (ปรับทั้ง Min และ Max)
+  2. ลากเม้าส์ Pan แกน Y:
+     - ถ้า Origin = 0 → ยึด Min=0, ปรับ Max ตาม
+     - ถ้า Origin ≠ 0 → Pan อิสระ ทั้ง Min และ Max
+  3. Double-click บนแกน → dialog ตั้งค่า Min / Max / Interval
+  4. Right-click บนแกน → context menu ปรับ:
+     - Min / Max / Interval
+     - สีแกน (tick labels, title)
+     - สีเส้น Grid, รูปแบบ (Solid/Dashed/Dotted), ซ่อน/แสดง
+  
+  โค้ดอยู่ใน: axisSettings{}, axisEnforcer plugin, handleWheel(), handleMouseMove(),
+  showAxisDialog(), showAxisCtxMenu(), ctxAxisApply(), ctxAxisReset()
+  
+  ★ เมื่อสร้างกราฟใหม่ ต้องมีลักษณะแกน Y แบบนี้เสมอ
+
+★ ตารางทุกตาราง: มี class="table-resizable" (resize:both; overflow:auto)
+  ปรับขนาดได้โดยลากมุมล่างขวา
+
+================================================================================
+  Session 4 Work Log (29 มี.ค. 2569)
+================================================================================
+
+งานที่ทำ:
+  1. Y-axis sync สำหรับ Leak dashboard (paired charts ใน card เดียวกัน)
+  2. Y-axis sync สำหรับ PR dashboard (5 ด้านใน TAB ข้อร้องเรียน)
+  3. แก้ push_to_github.bat (CRLF, syntax, soft reset logic)
+  4. แก้ build_dashboard.php หลายจุด (OIS format, RL parsing, regex→strpos)
+  5. แก้ปัญหา .sqlite 143MB บล็อก GitHub push
+  6. กู้คืน Leak index.html ที่ถูก build script เขียนทับจนเสีย
+
+================================================================================
+  ⚠️ ปัญหาที่รู้แล้ว (Known Issues)
+================================================================================
+
+1. build_dashboard.php (Leak) — replace_js_var อาจเขียน index.html เสียหาย
+   - สาเหตุ: ฟังก์ชัน replace_js_var ที่ parse {…} ด้วย brace counting
+     อาจนับผิดถ้ามี { หรือ } ภายใน string literal ที่ซับซ้อน
+   - แก้ชั่วคราว: เพิ่ม safety checks (ตรวจ DOCTYPE, ตรวจขนาดไฟล์, backup)
+     ถ้า content เสียหาย จะไม่เขียนทับ
+   - แก้ถาวร (ยังไม่ทำ): อาจต้องเปลี่ยนวิธี parse ใหม่ เช่น หา marker
+     comment ที่ชัดเจน แทนการ parse JS syntax
+
+2. RL (Real Leak) — ✅ แก้แล้ว (Session 7)
+   - ปัญหาเดิม: "0 branches with data" + ปี 68 ข้อมูลผิด
+   - สาเหตุ: build_dashboard.php ใช้ปีจากชื่อไฟล์ ($year_str) สำหรับทุก sheet
+     แต่ RL_2568.xlsx มี sheets ข้ามปีงบ (ต.ค.67-ก.พ.69 = ปี 68+69)
+   - แก้: เพิ่ม per-sheet fiscal year calculation + rate fallback (ดู Session 7)
+
+3. OIS files — format ไม่ตรงกับ parser
+   - OIS .xls มี branches เป็น columns (เป้าหมาย format) ไม่ใช่ months เป็น columns
+   - build script จะ skip OIS replacement → คงค่าเดิมที่ฝังใน index.html
+
+================================================================================
+  ⚠️ GitHub Push — ปัญหาไฟล์ใหญ่เกิน 100MB
+================================================================================
+
+ปัญหา:
+  GitHub ปฏิเสธ push ถ้ามีไฟล์เกิน 100MB ใน commit history
+  (ถึงแม้จะลบไฟล์แล้ว ถ้ายังอยู่ใน commit เก่าก็ push ไม่ได้)
+
+วิธีแก้ที่ใช้:
+  push_to_github.bat มี Step 4.5 ที่ทำ git reset --soft origin/main
+  ก่อน commit ใหม่ — เป็นการ squash unpushed commits ทิ้ง history เก่า
+  + .gitignore มี: *.sqlite, *.db, *.cache.json, *.zip, *.rar, *.7z, *.bak
+
+ถ้าเกิดอีกในอนาคต (ไฟล์ใหญ่หลุดเข้า git):
+  วิธี A — ถ้ายัง push ไม่สำเร็จ (commits อยู่ local):
+    git reset --soft origin/main
+    git rm --cached "path/to/largefile"
+    เพิ่ม pattern ใน .gitignore
+    git add -A && git commit -m "Remove large file"
+    git push
+
+  วิธี B — ถ้า push สำเร็จแล้ว (ไฟล์อยู่ใน remote history):
+    ใช้ BFG Repo-Cleaner (https://rtyley.github.io/bfg-repo-cleaner/)
+    java -jar bfg.jar --strip-blobs-bigger-than 100M
+    git reflog expire --expire=now --all
+    git gc --prune=now --aggressive
+    git push --force
+
+  วิธี C — ถ้าจะเริ่มใหม่ (ง่ายสุด):
+    ลบ .git folder
+    git init && git remote add origin <url>
+    git add -A && git commit -m "Fresh start"
+    git push --force origin main
+
+================================================================================
+  📋 เปลี่ยนเครื่อง / Setup ใหม่ — Checklist
+================================================================================
+
+เมื่อย้ายไปเครื่องใหม่ ต้องทำ:
+
+  1. ติดตั้ง Git for Windows
+     https://git-scm.com/download/win
+
+  2. ติดตั้ง XAMPP (สำหรับ PHP + build scripts)
+     https://www.apachefriends.org/
+     - เปิด php.ini → uncomment: extension=gd (จำเป็นสำหรับ PhpSpreadsheet)
+     - path: C:\xampp\php\php.ini
+
+  3. ติดตั้ง Composer (PHP package manager)
+     cd เข้า project root แล้วรัน:
+       C:\xampp\php\php.exe -r "copy('https://getcomposer.org/installer','composer-setup.php');"
+       C:\xampp\php\php.exe composer-setup.php
+       C:\xampp\php\php.exe composer.phar install
+
+  4. Clone repo
+     git clone https://github.com/prayoonsi147-code/NRW_PWA1_Dashboard.git
+     cd NRW_PWA1_Dashboard
+
+  5. ตั้งค่า Git identity
+     git config user.email "prayoonsi147@gmail.com"
+     git config user.name "prayoonsi147-code"
+
+  6. ทดสอบ push
+     ดับเบิลคลิก push_to_github.bat
+     (ครั้งแรกอาจต้อง login GitHub ผ่าน browser)
+
+  7. ถ้า push ติด "file exceeds 100MB"
+     → ดูหัวข้อ "GitHub Push — ปัญหาไฟล์ใหญ่เกิน 100MB" ด้านบน
+
+  8. ถ้า build ทำ index.html เสีย (หน้าว่าง)
+     → กู้คืน: git checkout HEAD~1 -- Dashboard_Leak/index.html
+     → push ด้วย quick_push.bat (ไม่รัน build)
+
+================================================================================
+  Session 5 Work Log (1-2 เม.ย. 2569)
+================================================================================
+
+งานที่ทำ:
+
+  1. ★ แก้ bug GIS api.php — upload validation ใช้ไม่ได้ (4 bugs):
+     - detect_repair_columns() อยู่ใน GET route block → ย้ายมา top-level (ก่อน validate_gis_file)
+     - $PREFIX_MAP ขาด $ → เป็น PREFIX_MAP[$category] 2 จุด (line ~711, ~1390) → เพิ่ม $
+     - Thai regex ผิด: [\u0e00-\u0e7f] → [\x{0e00}-\x{0e7f}] (PCRE ไม่รู้จัก \u)
+     - Pressure branch name = "ปีงบ" แทนชื่อสาขา → เพิ่ม $non_branch_words filter:
+       array('ปีงบ', 'ปีงบประมาณ', 'แรงดัน', 'แรงดันน้ำ') กรองออกก่อน reset()
+
+  2. ★ แก้ GIS manage.html — confirm dialog ล้นจอ (22 ไฟล์):
+     - Modal CSS: max-height:80vh, display:flex, flex-direction:column, overflow-y:auto
+     - Modal width: max-width 400→520px
+     - Upload confirm: เปลี่ยนจากแสดงทุกไฟล์ → compact HTML (MAX_SHOW=5 + summary)
+     - showConfirmDialog(): detect HTML content → ใช้ innerHTML แทน textContent
+
+  3. ★ เขียน push_to_github.bat ใหม่ทั้งหมด — 9-step flow:
+     - Step 1: CHECKPOINT — copy index.html → .checkpoint ทุก 4 Dashboard
+     - Step 2: BUILD — run build_dashboard.php ทุกตัว (ต้องมี PHP/XAMPP)
+     - Step 3: VALIDATE — ตรวจ DOCTYPE + min 1KB, auto-restore จาก checkpoint ถ้า fail
+     - Steps 4-7: Git init/identity/pull+squash/stage
+     - Step 8: Commit + push (goto RESTORE ถ้า fail)
+     - Step 9: RESTORE — คืน .checkpoint → index.html, ลบ .checkpoint
+     - ★ Concept: push built HTML ขึ้น Git แต่ local กลับเป็น index.html เดิม (ไม่มี data ฝัง)
+
+  4. ★ สร้าง Dashboard_Meter/build_dashboard.php (ไฟล์ใหม่):
+     - ฝัง 3 ตัวแปรลง index.html: DEAD_METER, TOTAL_METERS, DEAD_METER_DATE
+     - DEAD_METER: parse จาก METER_*.xlsx (branch code → dead meter count by size)
+     - TOTAL_METERS: parse จาก OIS latest (total meters per branch)
+     - DEAD_METER_DATE: จาก file modification time ล่าสุด
+     - Safety checks: backup ก่อนเขียน, DOCTYPE validation, min size 1KB, 30% shrink protection
+     - ⚠️ มี normalize_size() ใช้ eval() → ควรเปลี่ยนเป็น lookup ในอนาคต
+
+  5. .gitignore: เพิ่ม *.checkpoint
+
+งานค้าง:
+  - เพิ่ม safety checks ให้ PR + GIS build_dashboard.php (backup, DOCTYPE, size validation)
+    → ตอนนี้มีเฉพาะ Leak + Meter เท่านั้นที่มี safety checks ครบ
+  - ทดสอบ build ทุก Dashboard ว่า index.html ไม่พัง
+  - แก้ normalize_size() ใน Meter build ที่ใช้ eval() → เปลี่ยนเป็น lookup table
+
+================================================================================
+  Session 6 Work Log (2 เม.ย. 2569)
+================================================================================
+
+งานที่ทำ:
+
+  1. ★ แก้ Leak Dashboard — P3 tab ไม่แสดงข้อมูลบน GitHub Pages:
+     - สาเหตุ: Dashboard_Leak/build_dashboard.php ฟังก์ชัน process_p3_folder()
+       ใช้ `global $result` ซึ่งเข้าถึง global scope ไม่ใช่ตัวแปร local ของ parent function
+     - แก้: เปลี่ยนจาก `global $result` → pass `&$result` by reference
+       function process_p3_folder($path, $year_key, $cache_dir, $only_files, &$result)
+     - แก้ทั้ง 2 call sites ให้ส่ง $result เป็น argument
+     - เพิ่ม ini_set('memory_limit', '512M')
+     - ผลลัพธ์: P3 embedded (80,212 bytes) → P3 tab ทำงานบน GitHub Pages
+
+  2. ★ แก้ PR Dashboard — ข้อมูล มี.ค.69 ไม่ตรงระหว่าง localhost (13,902) กับ GitHub Pages (5,985):
+     - สาเหตุ 1 (Root Cause): $DATA_DIR ผิด directory
+       OLD: uploaded_data/pr/ (ไฟล์เก่าจาก 27 มี.ค.)
+       NEW: ข้อมูลดิบ/เรื่องร้องเรียน/ (ไฟล์ปัจจุบัน อัพเดตผ่าน manage.html)
+     - สาเหตุ 2: regex `/^const DATA = \{.*\};$/m` ค้นหา "const DATA" แต่ HTML ใช้ "var DATA"
+       → regex ไม่ match → ข้อมูลไม่ถูกแทนที่ (silent failure)
+     - สาเหตุ 3: บรรทัด var DATA ยาว 674,747 ตัวอักษร → PCRE backtrack limit fail
+     - แก้: เปลี่ยนจาก preg_replace → strpos + brace counting
+       ค้นทั้ง 'var DATA' และ 'const DATA', นับ { } depth → หา end position → substr replace
+     - เพิ่ม ini_set('memory_limit', '512M') + ini_set('pcre.backtrack_limit', '10000000')
+     - ไฟล์: Dashboard_PR/build_dashboard.php (line 20 $DATA_DIR, lines ~90-130 replace logic)
+
+  3. ★ แก้ GIS build memory exhaustion:
+     - สาเหตุ: ไฟล์ ค้างซ่อม xlsx ใช้ memory ~536MB → 512MB ไม่พอ
+     - แก้: ini_set('memory_limit', '1024M') ใน Dashboard_GIS/build_dashboard.php
+
+  4. ★ แก้ PR กราฟที่ 2 (Tab 1) — สี legend จาง/อ่านยาก:
+     - แก้ 1: PR2_COLORS array — เอาสีเทาออกหมด (#34495e, #95a5a6, #7f8c8d, #2c3e50)
+       เปลี่ยนเป็นสีสด Material Design (#E91E63, #3F51B5, #D81B60, #7B1FA2 ฯลฯ)
+     - แก้ 2: Chart.defaults.color = '#000' (เปลี่ยนสี text ทั้ง chart เป็นสีดำ)
+     - แก้ 3: Legend กราฟ 2 — color:'#000', font.size:14, font.weight:'bold'
+       ทั้ง branch mode (generateLabels + fontColor:'#000') และ time mode
+     - ไฟล์: Dashboard_PR/index.html (line 771 PR2_COLORS, line 4144 defaults, lines 1816-1828 legend)
+
+  5. GitHub Pages cache delay:
+     - หลัง push สำเร็จ ต้องรอ 1-3 นาที หรือ Hard Refresh (Ctrl+Shift+R) ถึงจะเห็นข้อมูลใหม่
+     - verify ด้วย: git show origin/main:Dashboard_PR/index.html | grep -o "69-03.*" | head -1
+
+★ วิธี Push ขึ้น GitHub Pages (สำหรับ Claude session ใหม่):
+
+  วิธี A — ผ่าน push_to_github.bat (แนะนำ ใช้บนเครื่อง user):
+    1. ดับเบิลคลิก push_to_github.bat ที่ root ของโปรเจค
+    2. Bat จะทำ 9 ขั้นตอนอัตโนมัติ:
+       Step 1: CHECKPOINT — backup index.html → .checkpoint ทุก Dashboard
+       Step 2: BUILD — php build_dashboard.php ทุก Dashboard (ฝัง JSON data ลง HTML)
+       Step 3: VALIDATE — ตรวจ DOCTYPE + min 1KB, restore ถ้า fail
+       Step 4: Git init + remote
+       Step 5: Git identity (prayoonsi147-code)
+       Step 6: Git pull + squash unpushed (soft reset origin/main)
+       Step 7: Git add -A
+       Step 8: Git commit + push
+       Step 9: RESTORE — คืน index.html จาก .checkpoint (local กลับเป็นเดิม)
+    ★ Concept: Push HTML+embedded data ขึ้น Git แต่ local กลับเป็น index.html เดิม (ไม่มี data ฝัง)
+
+  วิธี B — ผ่าน Cowork/Claude (ไม่มี PHP → ต้อง manual):
+    ⚠️ Cowork sandbox ไม่มี XAMPP/PHP → รัน build_dashboard.php ไม่ได้
+    ⚠️ ถ้าต้อง push จาก Cowork จะต้อง:
+      1. แก้ไขไฟล์ source ที่ต้องการ (เช่น index.html)
+      2. บอก user ให้รัน push_to_github.bat บนเครื่องเอง
+    ⚠️ ถ้า push โดยไม่ build → GitHub Pages จะแสดง index.html ที่ไม่มี embedded data
+      (กราฟจะว่างเปล่าบน GitHub Pages เพราะไม่มี API)
+    ★ ข้อยกเว้น: ถ้าแก้แค่ HTML/CSS/JS (ไม่เกี่ยวกับ data) สามารถ push ตรงได้:
+      cd "/path/to/project"
+      git add -A && git commit -m "message" && git push origin main
+
+  วิธี C — Quick push ไม่รัน build (เฉพาะแก้ UI):
+    ถ้าแก้แค่ CSS/JS/HTML layout (ไม่แก้ data) → push ตรงโดยไม่ต้อง build:
+      git add Dashboard_PR/index.html
+      git commit -m "Fix PR chart legend colors"
+      git push origin main
+    ★ ข้อมูล embedded เดิมจะยังอยู่ (ไม่หาย) เพราะไม่ได้ run build script
+
+งานค้าง:
+  - Push การแก้ไข PR index.html ขึ้น GitHub Pages (สี legend + Chart.defaults.color)
+    → ใช้วิธี C ได้เพราะแก้แค่ JS ไม่เกี่ยวกับ data
+  - เพิ่ม safety checks ให้ PR + GIS build_dashboard.php (backup, DOCTYPE, size validation)
+  - แก้ normalize_size() ใน Meter build ที่ใช้ eval()
+  - RL "0 branches with data" → ✅ แก้แล้ว Session 7
+  - AON values ยังเป็น 0 (ปัญหา parser เดิม)
+
+================================================================================
+  Session 7 Work Log (3 เม.ย. 2569)
+================================================================================
+
+งานที่ทำ:
+
+  1. ★ แก้ bug RL ปี 68 ข้อมูลผิดใน WSC-R chart (ภาพรวมเขต):
+     - อาการ: กราฟน้ำสูญเสียจริง ปี 68 แสดง 0.83-11.53% แทนที่จะเป็น 24-27%
+     - สาเหตุหลัก (Root Cause): build_dashboard.php ใช้ $year_str จากชื่อไฟล์
+       (เช่น "2568" จาก RL_2568.xlsx) สำหรับทุก sheet ในไฟล์นั้น
+       แต่ RL_2568.xlsx มี 17 sheets ที่ข้ามปีงบ:
+         - ต.ค.67 - ก.ย.68 = ปีงบ 2568 (12 เดือน)
+         - ต.ค.68 - ก.พ.69 = ปีงบ 2569 (5 เดือน)
+       sheets ปี 69 ถูกเขียนทับ months 0-4 ของปี 68 ด้วยข้อมูลผิด
+     - แก้ไข build_dashboard.php:
+       a) เปลี่ยนจาก single $result → $rl_results[fiscal_year] (multi-FY structure)
+       b) เพิ่ม per-sheet fiscal year calculation:
+          ดึง YY จากชื่อ sheet (เช่น "ต.ค.67" → 67)
+          คำนวณ: mi<=2 (ต.ค.-ธ.ค.) → fy=cal_year+1, mi>=3 (ม.ค.-ก.ย.) → fy=cal_year
+       c) เขียน data ลง $rl_results[$sheet_fy] แทน $result
+       d) อัปเดต cache format รองรับ multi-FY (key "multi_fy")
+     - ไฟล์: Dashboard_Leak/build_dashboard.php (~6 edits, lines 737-950)
+
+  2. ★ เพิ่ม Rate Fallback Calculation (ทั้ง api.php + build_dashboard.php):
+     - ปัญหา: RL_2569.xlsx sheets พ.ย.68 เป็นต้นไป มี column structure ต่าง
+       (มีคอลัมน์ "สะสม" เพิ่ม แต่ไม่มี "อัตรา (%)")
+     - แก้: ถ้าไม่เจอ rate column → คำนวณจาก (supplied-sold-blowoff)/supplied*100
+     - api.php: เพิ่ม rate fallback ที่ line ~1686 (api.php มี per-sheet FY อยู่แล้ว)
+     - build_dashboard.php: เพิ่ม rate fallback หลัง data write loop
+
+  3. ตรวจสอบ + ยืนยันข้อมูลถูกต้อง:
+     - API verified: fy2568 ชลบุรี(พ) ต.ค.=21.09%, พ.ย.=20.51% ตรงกับ Excel
+     - Regional weighted average fy2568: 24-27% ทุกเดือน (ก่อนแก้เป็น 0.83-11.53%)
+     - fy2569: months 0-4 มีค่า (28.29%, 25.19%, 26.63%, 25.45%, 21.77%)
+     - WSC-R chart แสดงข้อมูลถูกต้องบน localhost
+
+งานค้าง:
+  - User ต้องรัน push_to_github.bat เพื่อ rebuild + push ขึ้น GitHub Pages
+  - เพิ่ม safety checks ให้ PR + GIS build_dashboard.php
+  - แก้ normalize_size() ใน Meter build ที่ใช้ eval()
+  - AON values ยังเป็น 0
+
+================================================================================
+  Session 8 Work Log (4 เม.ย. 2569)
+================================================================================
+
+งานที่ทำ:
+
+  1. ★ เพิ่มลบข้อมูลเป็นกลุ่ม (Group Delete) ในหน้าจัดการข้อมูลทุก Dashboard:
+     - ดูตัวอย่างจาก Dashboard_Leak หมวด P3 (มีปุ่ม ✕ บน group header)
+     - Dashboard_PR/manage.html:
+       เพิ่ม deleteYearGroup(type, monthKeys) — ลบทุกเดือนในปีงบฯ ทีเดียว
+       แก้ yearLabel ให้มีปุ่ม ✕ พร้อม onclick เรียก deleteYearGroup
+     - Dashboard_GIS/manage.html:
+       เพิ่ม deleteGroup(slug, filesJson) — ลบทุกไฟล์ในกลุ่มปี
+       แก้ year label ให้มีปุ่ม ✕
+     - Dashboard_Meter/manage.html:
+       เพิ่ม deleteGroup() เหมือน GIS
+       แก้ "สาขา" group label ให้มีปุ่ม ✕
+
+  2. ★ แก้ bug กราฟ "จำนวนข้อร้องเรียนด้านบุคลากร" ว่างเปล่า (ข้อมูลเป็น 0 ทั้งหมด):
+     - อาการ: กราฟด้านบุคลากรแสดงค่า 0 ทุกสาขา ทั้งที่ Excel มีข้อมูลจริง
+     - สาเหตุหลัก (Root Cause): Non-breaking space (\xa0, UTF-8: \xC2\xA0) ใน Excel cells
+       เช่น cell เก็บ "\xa01" (non-breaking space + เลข 1) เป็น string type
+       PHP is_numeric("\xa01") → FALSE, trim() ไม่ตัด \xa0, floatval("\xa01") → 0
+     - มี 2 parser ที่มี bug เดียวกัน:
+       a) Dashboard_PR/api.php → parse_num(): แก้ใช้ preg_replace('/[\xC2\xA0\s,]+/', '', ...)
+       b) Dashboard_PR/build_dashboard.php → clean_num(): เดิมใช้ single-quote '\xa0'
+          (PHP single quotes = literal 4 chars ไม่ใช่ byte) → แก้เป็น preg_replace เหมือนกัน
+     - หลังแก้ + ล้าง cache (.cache/pr_data.json) + rebuild:
+       ด้านบุคลากร เพิ่มจาก 3 เรื่อง → 7 เรื่อง (0.09%)
+       chart-staff1 มีข้อมูล [9, 1, 1, 1, 0, ...] (ไม่ใช่ 0 หมดเหมือนก่อน)
+
+  3. ตรวจสอบ + ยืนยัน:
+     - PR Report summary: 7 เรื่อง 0.09% ด้านบุคลากร ✓
+     - Chart.js data verified: chart-staff1 มี non-zero data ✓
+     - API cache regenerated: 217 non-zero ด้านบุคลากร records (จากเดิม 4) ✓
+
+ไฟล์ที่แก้:
+  - Dashboard_PR/api.php (parse_num + deleteYearGroup support)
+  - Dashboard_PR/build_dashboard.php (clean_num)
+  - Dashboard_PR/manage.html (deleteYearGroup + ปุ่ม ✕)
+  - Dashboard_GIS/manage.html (deleteGroup + ปุ่ม ✕)
+  - Dashboard_Meter/manage.html (deleteGroup + ปุ่ม ✕)
+
+งานค้าง:
+  - ★ User ต้องรัน push_to_github.bat เพื่อ rebuild + push ขึ้น GitHub Pages
+  - แก้ JS error: updateLSUsageBar is not defined (line 6758 ใน rebuilt index.html)
+  - เพิ่ม safety checks ให้ PR + GIS build_dashboard.php
+  - แก้ normalize_size() ใน Meter build ที่ใช้ eval()
+  - AON values ยังเป็น 0
+
+================================================================================
+Session 8-9 (4 เม.ย. 2569): GIS Pending Upload Refactor + Dashboard Fix
+================================================================================
+
+สิ่งที่ทำ:
+  1. Refactor GIS pending upload — ไม่รวมไฟล์อีกต่อไป:
+     - เปลี่ยนจาก merge ทุกไฟล์เป็น ค้างซ่อม_MM-YY_to_MM-YY.xlsx 1 ไฟล์
+       → เป็นบันทึกแยกเดือน ค้างซ่อม_MM-YY.xlsx (เช่น ค้างซ่อม_01-69.xlsx)
+     - detect_pending_month() — ReadFilter อ่านแค่ 50 แถวแรก หาเดือนที่มากสุด
+     - validate_gis_file() สำหรับ pending ใช้ ReadFilter อ่าน 15 แถว (ไม่โหลดทั้งไฟล์)
+     - shutdown handler จับ PHP memory crash → return JSON error
+
+  2. แก้ find_pending_files() + open_pending_db() ใน api.php:
+     - รองรับทั้ง format เก่า (MM-YY_to_MM-YY) และใหม่ (ค้างซ่อม_MM-YY.xlsx)
+     - รวมหลายไฟล์ต่อปีงบฯ เป็น SQLite เดียว (ค้างซ่อม_fy_XXXX.sqlite)
+     - SQLite cache auto-invalidate เมื่ออัปโหลดไฟล์ใหม่
+
+  3. แก้ read_pending_data() ใน build_dashboard.php:
+     - รองรับหลายไฟล์ต่อปีงบฯ (array แทน single path)
+     - อ่าน Excel ทุกไฟล์แล้วรวม records
+
+  4. แก้ GIS Dashboard index.html ว่างเปล่า (charts ไม่แสดง):
+     - ไฟล์ถูกตัด 654 บรรทัด (5092→4438) — thresholdLinePlugin,
+       pressureInit, pd3Initialized หายไป
+     - กู้คืนจาก git HEAD กลับมาครบ 5092 บรรทัด
+
+ไฟล์ที่แก้:
+  - Dashboard_GIS/api.php (find_pending_files, open_pending_db, build_pending_sqlite,
+    detect_pending_month, validate_gis_file, upload routes)
+  - Dashboard_GIS/build_dashboard.php (read_pending_data — multi-file support)
+  - Dashboard_GIS/index.html (restored from git — ไม่ได้แก้ content)
+  - Dashboard_GIS/manage.html (hint text update)
+
+งานค้าง:
+  - ★ User ต้องรัน push_to_github.bat เพื่อ rebuild + push
+  - ทดสอบ pending-chart, pending-table API หลังแก้ multi-file
+  - แก้ JS error: updateLSUsageBar (PR index.html)
+  - AON values ยังเป็น 0
+
+================================================================================
+★★★ MAPPING: ชื่อกราฟบนหน้าจอ ↔ ตัวแปร/ฟังก์ชันในโค้ด ★★★
+(ต้องดู mapping นี้ทุกครั้งก่อนแก้โค้ดกราฟ)
+================================================================================
+
+--- Dashboard_Leak Tab 3: น้ำสูญเสีย(บริหาร) [mainTab-rlcompare] ---
+
+หน้าจอ                                                | canvas ID  | init function          | cachedMonths
+------------------------------------------------------|------------|------------------------|------------------
+กราฟที่ 1 : ข้อมูลน้ำสูญเสีย (บริหาร) - รายหน่วยงาน   | rlcChart3  | rlc3InitControls()     | rlc3CachedMonths
+กราฟที่ 2 : น้ำสูญเสีย (บริหาร) - เทียบระหว่างสาขา     | rlcChart2  | rlc2PopulateControls() | rlc2GetAllMonths()
+กราฟที่ 3 : อัตราน้ำสูญเสีย / ปริมาณน้ำสูญเสีย (บริหาร)| rlcChart1  | rlcPopulateControls()  | (single month)
+กราฟที่ 4 : % น้ำจ่ายฟรี รายสาขา                       | rlcChart4  | rlc4InitControls()     | rlc4CachedMonths
+กราฟที่ 5 : เปรียบเทียบ % น้ำจ่ายฟรี เทียบระหว่างสาขา  | rlcChart5  | rlc5InitControls()     | (single month)
+
+⚠ หมายเหตุ: ชื่อตัวแปร (rlcChart1-5) ไม่ตรงกับหมายเลขกราฟบนหน้าจอ!
+  กราฟที่ 1 บนจอ = rlcChart3, กราฟที่ 3 บนจอ = rlcChart1
+
+================================================================================

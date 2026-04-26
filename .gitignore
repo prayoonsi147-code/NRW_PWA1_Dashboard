@@ -41,3 +41,14 @@ prompt_history.txt
 *.7z
 index.html.bak
 quick_push.bat
+
+# Composer dependencies (regenerate locally with: php composer.phar install)
+# composer.lock เก็บ track ไว้เพื่อ reproducible builds
+vendor/
+
+# Backup snapshot ที่ install_php74.bat สร้างก่อนเปลี่ยน vendor
+backup_php74_install/
+
+# Logs
+upload_log.json
+**/upload_log.json

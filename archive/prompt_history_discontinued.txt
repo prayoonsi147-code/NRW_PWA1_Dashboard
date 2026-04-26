@@ -1,0 +1,1160 @@
+================================================================================
+  ประวัติคำสั่ง Prompt — โปรเจค Dashboard น้ำสูญเสีย กปภ.ข.1
+  ไฟล์: Dashboard_น้ำสูญเสีย/index.html + build_dashboard.py
+  วันที่เริ่ม: 12 มีนาคม 2569
+================================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Session: 12 มี.ค. 2569
+เป้าหมาย: สร้างตาราง KPI ติดตามเป้าหมายน้ำสูญเสีย (Card 5 ใน Tab WSC-R)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+--- Prompt 1: สำรวจโครงสร้าง ---
+คำสั่ง: "ตรวจดูโครงสร้างทั้งหมด อ่าน Readme และมาทำงานกันต่อ"
+ผลลัพธ์: อ่านโครงสร้างโปรเจค, README, build_dashboard.py, dashboard.html
+
+--- Prompt 2: ศึกษา Tab WSC-R ---
+คำสั่ง: "มาทำงานกันที่ tab wsc-r อธิบายโครงสร้าง tab นี้หน่อย"
+ผลลัพธ์: อธิบายโครงสร้าง WSC-R tab (Chart 1-4, ข้อมูล RL, OIS, MNF)
+
+--- Prompt 3: เพิ่มข้อมูล KPI (ครั้งที่ 1) ---
+คำสั่ง: "ผมเพิ่มข้อมูลดิบ ใน Folder เกณฑ์วัดน้ำสูญเสีย ชื่อไฟล์ KPI_Leak- ตามด้วยปีงบประมาณ คุณลองอ่านดูข้อมูล แล้วอธิบายผม"
+ผลลัพธ์: อ่าน KPI_Leal-2569.xlsx (21 สาขา) จาก Folder เกณฑ์วัดน้ำสูญเสีย
+
+--- Prompt 4: เพิ่มข้อมูล KPI (ครั้งที่ 2) ---
+คำสั่ง: (เหมือน Prompt 3 แต่มีไฟล์ใหม่ใน Folder เกณฑ์ชี้วัด)
+ผลลัพธ์: อ่าน KPI_Leak-2569.xlsx (22 สาขา) จาก Folder เกณฑ์ชี้วัด
+
+--- Prompt 5: อธิบายวิธีคิดคะแนน ---
+คำสั่ง: "คะแนน ระดับ 1-5 นั้น มีวิธีคิดคะแนนคือ กรณี น้ำสูญเสียเกินเกณฑ์ 5 ให้ได้คะแนน 5
+         กรณี อยู่ระหว่างเกณฑ์ ให้ใช้วิธีเทียบบัญญัติไตรยางค์ (Interpolate)
+         กรณี น้ำสูญเสียต่ำกว่าเกณฑ์ 1 ให้ได้คะแนน 1 เข้าใจมั้ย"
+ผลลัพธ์: Claude ยืนยันความเข้าใจ สร้างฟังก์ชัน kpiCalcScore()
+
+--- Prompt 6: ยืนยัน ---
+คำสั่ง: "ถูกต้อง"
+ผลลัพธ์: ยืนยันวิธีคิดคะแนน
+
+--- Prompt 7: สร้างตาราง KPI (คำสั่งหลัก) ---
+คำสั่ง: "[แนบรูปตาราง] ให้สร้าง ตาราง ที่มีหน้าตาแบบรูปที่แนบ ไว้เป็นกราฟที่ 5
+         โดยเปิดเป็น Card แยกออกมาใหม่ ต่อจากกราฟที่มีอยู่เดิม ใน TAB WSC-R
+         ถ้าไม่เข้าใจข้อมูลช่องไหน ให้ถามก่อน"
+ผลลัพธ์: Claude ถามคำถามชี้แจง → สร้าง Card 5 พร้อมตาราง KPI ใน WSC-R tab
+สิ่งที่สร้าง:
+  - Card 5 HTML (id="wscR5TableWrap")
+  - ฟังก์ชัน wscR5Update() — สร้างตารางจากข้อมูล KPI, OIS, RL
+  - ฟังก์ชัน kpiCalcScore() — คำนวณคะแนน interpolation
+  - ฟังก์ชัน kpiFmt(), kpiFmtVol(), kpiFmtDiff() — จัดรูปแบบตัวเลข
+  - ฟังก์ชัน kpiScoreColor(), kpiRateColor() — กำหนดสีตามเงื่อนไข
+  - KPI file parser ใน build_dashboard.py
+  - normalize_kpi_branch() — map ชื่อสาขา KPI → RL
+  - ปุ่ม Export Excel
+
+--- Prompt 8: ตอบคำถามชี้แจงสูตร ---
+คำสั่ง: (ตอบคำถามของ Claude)
+  - อัตราน้ำสูญเสียสะสม → "จาก OIS (เฉลี่ย)"
+  - ลบ.ม./เดือน → "จาก RL file"
+  - % vs %สะสม → "ใช่ ถูกต้อง" (% = เดือนล่าสุด, %สะสม = เฉลี่ยสะสม)
+ผลลัพธ์: Claude นำไปใช้ในการสร้างตาราง
+
+--- Prompt 9: แก้สูตรอัตราน้ำสูญเสียสะสม ---
+คำสั่ง: "ไม่ถูก อัตราน้ำสูญเสียสะสม ในช่วงเวลาใด หมายถึง ให้เอา
+         (ผลรวมของ ปริมาณน้ำจำหน่าย หักออกด้วยปริมาณน้ำจ่ายฟรี) หารด้วย ปริมาณน้ำผลิตจ่ายสุทธิ
+         สำหรับน้ำสูญเสียจริง น้ำจ่ายฟรี คือ น้ำ Blow off ลองใหม่"
+ผลลัพธ์: แก้สูตรจาก "เฉลี่ย % รายเดือน" เป็น "(ΣS − ΣD − ΣB) ÷ ΣS × 100"
+  - แก้ทั้ง 4 จุด: OIS สาขา, RL สาขา, OIS เขต, RL เขต
+
+--- Prompt 10: ปรับสีตามเงื่อนไข ---
+คำสั่ง: "ค่าเกณฑ์ 3 อยากได้ตัวอักษร สีเขียว
+         ค่าคะแนน ถ้าต่ำกว่า 3 ให้พื้นสีแดงอ่อน ถ้าสูงกว่าหรือเท่ากับ 3 ให้พื้นสีเขียว
+         ค่า %น้ำสูญเสียจริง ถ้าเกินเป้าหมายเกิดจริง ให้เป็นสีแดงอ่อน น้อยกว่าหรือเท่ากับให้เป็นสีเขียว"
+ผลลัพธ์: แก้ 3 จุด — เกณฑ์ 3 สีเขียว, คะแนน เขียว/แดงอ่อน, % เขียว/แดงอ่อน
+
+--- Prompt 11: เปลี่ยนเป็นเขียวจาง ---
+คำสั่ง: "แก้ไขสีเขียวให้ใช้ สีเขียวจาง"
+ผลลัพธ์: เปลี่ยน #27ae60 → #d4edda (พื้น) + #155724 (ตัวอักษร) ทั้ง 3 จุด
+
+--- Prompt 12: ถามเรื่อง Bar ---
+คำสั่ง: "Bar สีต่าง ๆ หน้าชื่อหน่วยงาน หมายถึงอะไร"
+ผลลัพธ์: อธิบาย — ความยาว = สัดส่วน ลบ.ม., สี = ตามคะแนน KPI
+
+--- Prompt 13: ลบ Bar ---
+คำสั่ง: "เอา Bar นี้ออก"
+ผลลัพธ์: ลบโค้ด Bar หน้าชื่อสาขา
+
+--- Prompt 14: ถามแนวทางแยกโซน ---
+คำสั่ง: "ถ้าต้องการแยก ค่าต่าง ๆ ที่เป็นของ OIS กับ ค่าจริง ให้เห็นชัดเจน มีแนวทางยังไงบ้าง ช่วยคิดหน่อย"
+ผลลัพธ์: เสนอ 4 แนวทาง (สี header / พื้นจาง / เส้นหนา / ผสม)
+
+--- Prompt 15: ใช้แนวทางผสม ---
+คำสั่ง: "ลองดูแนวที่ 4 แต่ไม่อยากให้เปลี่ยนพื้นสีของ คะแนน และ %น้ำสูญเสียจริง ที่ตั้งเงื่อนไขไว้ทีแรก"
+ผลลัพธ์: ทำแนวผสม —
+  - Header: น้ำเงินเข้ม (OIS) / เขียว teal (ค่าจริง)
+  - เส้นคั่นหนา 3px ระหว่างโซน
+  - พื้นจาง: ฟ้าอ่อน (OIS) / เขียวอ่อน (ค่าจริง)
+  - คงสีเงื่อนไขของ คะแนน และ % ไว้
+
+--- Prompt 16: เพิ่ม Header ลำดับ/สาขา + เส้นขอบ ---
+คำสั่ง: "สร้าง Header ให้ด้วย คอลัมป์ แรก เป็น 'ลำดับ' ถัดไป เป็น 'ชื่อสาขา' และใส่พื้นสีฟ้า
+         และเพิ่มเส้นขอบหนารอบตารางทั้งตาราง"
+ผลลัพธ์: เพิ่ม Row 0 header "ลำดับ"/"ชื่อสาขา" พื้นฟ้า + เส้นขอบ 3px รอบตาราง
+
+--- Prompt 17: แก้ Export Excel ---
+คำสั่ง: "ปุ่ม Export เป็น Excel ขึ้นว่าไม่มีข้อมูล แก้ไขด้วย"
+ผลลัพธ์: เพิ่ม case 'wscr5' ใน getChartData() ให้อ่านข้อมูลจากตาราง HTML
+
+--- Prompt 18: Excel มีสีเหมือนหน้าเว็บ ---
+คำสั่ง: "ตารางที่ Export Excel อยากให้มีลักษณะ พื้นสีต่าง ๆ เหมือนที่แสดง ในหน้าเว็บทำได้มั้ย"
+ผลลัพธ์: สร้างฟังก์ชัน exportExcelWscR5() เฉพาะ — Excel มีสีครบ:
+  - Header 3 แถว สี 3 โทน (ฟ้า/น้ำเงิน/teal)
+  - พื้นจางโซน OIS/ค่าจริง
+  - คะแนน เขียวจาง/แดงอ่อน ตามเงื่อนไข
+  - % เขียวจาง/แดงอ่อน ตามเป้าหมาย
+  - ผลต่าง สีเขียว/แดง
+  - เส้นขอบหนารอบตารางและคั่นโซน
+
+--- Prompt 19: ถามชื่อส่วน Card Header ---
+คำสั่ง: "[แนบรูป] ส่วนตรงนี้ เรียกว่าอะไร"
+ผลลัพธ์: อธิบาย — เป็น Card Header (<h3> ใน <div class="card-header">)
+
+================================================================================
+  สรุปสิ่งที่สร้าง/แก้ไขทั้งหมดใน Session นี้:
+================================================================================
+
+ไฟล์ที่แก้ไข:
+  1. build_dashboard.py — เพิ่ม KPI parser, normalize, embed data
+  2. dashboard.html — เพิ่ม Card 5, ตาราง KPI, Export Excel styled
+
+ฟังก์ชันที่สร้างใหม่:
+  - Python: process_kpi_file(), _to_float(), normalize_kpi_branch(), build_kpi_embedded_data()
+  - JS: wscR5Update(), kpiCalcScore(), kpiFmt(), kpiFmtVol(), kpiFmtDiff()
+  - JS: kpiScoreColor(), kpiRateColor(), exportExcelWscR5()
+
+ข้อมูลใหม่:
+  - const KPI = {...} (22 สาขา ปี 2569)
+
+================================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Session: 12 มี.ค. 2569 (ต่อ — Cowork mode)
+เป้าหมาย: เพิ่ม PowerPoint export ตาราง KPI, เส้นเป้าหมายกราฟ 3-4, แก้ Header, rename โปรเจ็ค
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Prompt 1: (ต่อจาก session ก่อน) เพิ่มปุ่ม Export PowerPoint ในตาราง KPI
+ผลลัพธ์: สร้างฟังก์ชัน exportPPTX_WscR5() + เพิ่มปุ่ม PPTX ใน export-bar
+
+Prompt 2: กราฟที่ 3 และ 4 Tab WSC-R ให้เพิ่มกราฟเส้นเป้าหมาย (ค่าจริง) ของแต่ละสาขา
+ผลลัพธ์: เพิ่ม line dataset จาก KPI.a ในฟังก์ชัน wscRBranchCompare
+
+Prompt 3: แก้ไขรูปแบบเส้นเป้าหมาย ให้เป็นเส้นตรงแยกแต่ละสาขา (แท่งแรก-แท่งสุดท้าย)
+ผลลัพธ์: เปลี่ยนจาก line dataset เป็น custom plugin branchTargetLines วาดเส้นแนวนอนแยกรายสาขา
+
+Prompt 4: ย้ายตัวเลขเป้ามาอยู่ใต้เส้นและตรงกลาง
+ผลลัพธ์: แก้ textAlign='center', textBaseline='top', xCenter=(x1+x2)/2
+
+Prompt 5: เปลี่ยนสีเส้นและ font เป้าหมายเป็นสีดำ
+ผลลัพธ์: เปลี่ยน strokeStyle/fillStyle จาก #e74c3c เป็น #000000
+
+Prompt 6: เปลี่ยน Header — ชื่อหลัก "Dash Board น้ำสูญเสีย" / ชื่อรอง "งานน้ำสูญเสีย กองระบบจำหน่าย กปภ.ข.1"
+ผลลัพธ์: แก้ h1, p ใน header + title tab
+
+Prompt 7: สอบถามวิธี Update GitHub (upload index.html ทับผ่านเว็บ)
+ผลลัพธ์: แนะนำขั้นตอน Add file → Upload files → Commit changes
+
+Prompt 8: สลับตำแหน่งปุ่ม Excel กับ PowerPoint ในตาราง KPI
+ผลลัพธ์: สลับลำดับปุ่มใน export-bar (PPTX ก่อน Excel)
+
+Prompt 9: Title tab เปลี่ยนเป็น "Dashboard น้ำสูญเสีย - กปภ.ข.1" (ไม่เว้นวรรค)
+ผลลัพธ์: แก้ <title> tag
+
+Prompt 10: Header ชื่อหลักเปลี่ยนเป็น "Dashboard น้ำสูญเสีย" (ไม่เว้นวรรค)
+ผลลัพธ์: แก้ <h1> tag
+
+Prompt 11: Rename โฟลเดอร์ "รายงานประจำเดือน" → "Dashboard_น้ำสูญเสีย"
+ผลลัพธ์: mv โฟลเดอร์ + แก้ PROJECT_README.md, build_dashboard.py
+
+Prompt 12: Rename ไฟล์ dashboard.html → index.html + แก้โค้ดที่อ้างถึง
+ผลลัพธ์: mv ไฟล์ + replace all ใน PROJECT_README.md (10 จุด), build_dashboard.py (7 จุด)
+
+================================================================================
+  สรุปสิ่งที่สร้าง/แก้ไขทั้งหมดใน Session นี้:
+================================================================================
+
+ไฟล์ที่แก้ไข:
+  1. index.html — เพิ่มปุ่ม PPTX ตาราง KPI, สร้าง exportPPTX_WscR5(),
+     เพิ่ม branchTargetLines plugin กราฟ 3-4, แก้ Header/Title,
+     สลับปุ่ม Excel/PPTX
+  2. PROJECT_README.md — rename โปรเจ็ค + เปลี่ยน dashboard.html → index.html
+  3. build_dashboard.py — เปลี่ยนชื่อโปรเจ็ค + dashboard.html → index.html
+
+โครงสร้างที่เปลี่ยน:
+  - โฟลเดอร์: รายงานประจำเดือน → Dashboard_น้ำสูญเสีย
+  - ไฟล์หลัก: dashboard.html → index.html
+
+ฟังก์ชันที่สร้างใหม่:
+  - JS: exportPPTX_WscR5() — Export ตาราง KPI เป็น PowerPoint
+  - JS plugin: branchTargetLines — วาดเส้นเป้าหมายแยกรายสาขาในกราฟ 3-4
+
+================================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Session: 13 มี.ค. 2569 (Cowork mode)
+เป้าหมาย: สร้าง PPTX จาก WSC-R tab ให้เหมือนหน้าเว็บ, สร้าง Dashboard_PR, สร้างหน้า Landing Page
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+--- Prompt 1: สร้าง PPTX จาก WSC-R tab ---
+คำสั่ง: "สร้าง PowerPoint จาก WSC-R tab โดยแต่ละ Card = 1 Slide ให้เหมือนหน้าเว็บ"
+ผลลัพธ์: เสนอ 2 แนวทาง → ผู้ใช้เลือก "แนวทาง 2" (server-side rendering ไม่เปิด browser)
+
+--- แนวทางที่ลอง (PPTX จาก WSC-R) ---
+
+แนวทาง A: Server-side rendering ด้วย Node.js
+  - ใช้ @napi-rs/canvas + Chart.js + pptxgenjs
+  - ติดตั้ง @fontsource/noto-sans-thai สำหรับ Thai fonts
+  - สร้าง render_cards.js วาดกราฟ 4 ใบเป็น PNG แล้วประกอบเป็น PPTX
+  - ผลลัพธ์: WSC-R_Dashboard.pptx (361KB)
+  - ปัญหา: ผู้ใช้ reject — "แล้วมันเหมือน หน้า Web ตรงไหน งง"
+  - สาเหตุ: server-side canvas rendering สร้างกราฟใหม่จาก data ไม่ใช่ capture จากหน้าเว็บจริง
+
+แนวทาง B: Chrome MCP screenshot approach
+  - สร้างไฟล์ card1.html - card4.html (standalone HTML + Chart.js + embedded data)
+  - เปิดใน Chrome ผ่าน MCP → render Chart.js จริง → capture ด้วย html2canvas
+  - ปัญหา: ไม่สามารถส่งข้อมูลภาพกลับมาได้
+    * base64 → ถูก block "[BLOCKED: Base64 encoded data]"
+    * hex encoding → ถูก block เช่นกัน
+    * JSON byte array → ถูก truncate เมื่อเกิน ~10000 bytes
+    * สร้าง PPTX ใน browser → timeout (html2canvas scale:2 + pptxgenjs หนักเกิน)
+    * file:// protocol → Chrome MCP ไม่รองรับ
+  - ข้อค้นพบ: Dashboard มีปุ่ม export PPTX ในตัวอยู่แล้ว (ใช้ html2canvas + pptxgenjs)
+
+สรุปสถานะ PPTX: เสนอ 3 ทางเลือกให้ผู้ใช้ ยังไม่ได้เลือก:
+  1. ปรับปรุง server-rendered PPTX ให้สวยขึ้น
+  2. ผู้ใช้กดปุ่ม export ในหน้าเว็บเอง
+  3. เพิ่มปุ่ม "Export All WSC-R to PPTX" ใน Dashboard
+
+--- Prompt 2: สร้าง Dashboard งานลูกค้าสัมพันธ์ ---
+คำสั่ง: สร้าง Dashboard ใหม่สำหรับงานลูกค้าสัมพันธ์ใน Dashboard_PR/
+ผลลัพธ์: สร้าง Dashboard_PR/ ด้วย build_dashboard.py pipeline, ธีมสีส้ม
+
+--- Prompt 3: สร้างหน้า Landing Page ---
+คำสั่ง: สร้างหน้า index.html หลักสำหรับ กองระบบจำหน่าย
+ผลลัพธ์: สร้าง index.html ที่ root มี 4 cards link ไปยัง sub-dashboards
+
+--- Prompt 4: ย้ายไฟล์ + บันทึกประวัติ ---
+คำสั่ง: "อย่าลืมบันทึกประวัติ Prompt นะ ย้าย Readme กับประวัติ Prompt มาไว้กับ Main เลยก็ได้"
+ผลลัพธ์: cp PROJECT_README.md และ prompt_history.txt ไปที่ main workspace level
+
+================================================================================
+  สรุปสิ่งที่สร้าง/แก้ไขทั้งหมดใน Session นี้:
+================================================================================
+
+ไฟล์ที่สร้างใหม่:
+  1. pptx_work/render_cards.js — Server-side Chart.js → PNG → PPTX renderer
+  2. pptx_work/wscr_data.json — ข้อมูล WSC-R สำหรับ rendering
+  3. pptx_work/card1.html - card4.html — Standalone HTML cards สำหรับ Chrome rendering
+  4. Dashboard_PR/ — Customer Relations Dashboard (build_dashboard.py + template)
+  5. index.html (root) — Landing page กองระบบจำหน่าย 4 cards
+
+ไฟล์ที่ย้าย:
+  - PROJECT_README.md → main workspace level (copy)
+  - prompt_history.txt → main workspace level (copy)
+
+งานค้าง:
+  - PPTX ที่เหมือนหน้าเว็บ WSC-R — ยังไม่สำเร็จ (ผู้ใช้ยังไม่ได้เลือกทางเลือก)
+
+================================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Session: 15 มี.ค. 2569 (ต่อเนื่อง)
+เป้าหมาย: ปรับปรุง Dashboard_PR (Tab ข้อร้องเรียน) เพิ่มฟีเจอร์ และสร้าง Card ข้อร้องเรียนเพิ่ม
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+--- Prompt: แสดงค่าแท่งแรก-สุดท้ายแนวตั้ง ---
+คำสั่ง: "ให้แสดงค่า แท่งแรก กับแท่งสุดท้าย ตัวอักษรแนวตั้ง"
+ผลลัพธ์: เพิ่ม datalabels per-dataset แสดงเฉพาะ dataset แรก (เดือนแรก) และสุดท้าย (เดือนสุดท้าย)
+         rotation: -90, อัปเดต toggleDataLabels, ctxChartToggleValues, syncDataLabels ให้สอดคล้อง
+
+--- Prompt: สีตัวเลขตรงกับแท่ง ---
+คำสั่ง: "อักษร ให้เป็นสีเดียวกับ แท่งที่แสดงค่า"
+ผลลัพธ์: เปลี่ยน datalabels color ใช้ ds.backgroundColor แทนสีตายตัว ทุกฟังก์ชัน
+
+--- Prompt: Tooltip แสดงแท่งเดียว ---
+คำสั่ง: "เวลาเอา pointer วางบนแท่งกราฟ ให้แสดงเฉพาะข้อมูลของแท่งนั้นแท่งเดียว"
+ผลลัพธ์: เปลี่ยน interaction mode จาก index → nearest + intersect:true
+         tooltip title แสดง ชื่อหน่วยงาน + เดือน
+
+--- Prompt: Caption แกน X วางแนวราบ ---
+คำสั่ง: "Caption ของแกน x วางแนวราบ"
+ผลลัพธ์: maxRotation:0, minRotation:0 ใน x.ticks
+
+--- Prompt: ปุ่มตัวเลือกยาวเกินไป ---
+คำสั่ง: "ทำไม ปุ่มตัวเลือก กราฟ ถึงยาวอย่างนั้น"
+ผลลัพธ์: แก้ .ymt CSS จาก display:flex → display:inline-flex + width:fit-content
+
+--- Prompt: ลูกศรจาง 70% ---
+คำสั่ง: "ลูกศร ให้สีจางลง สัก 70%"
+ผลลัพธ์: เพิ่ม ctx.globalAlpha=0.3 ใน arrowPlugin
+
+--- Prompt: เปลี่ยน Caption หน่วยงาน ---
+คำสั่ง: "เปลี่ยน Caption ตรงหน่วยงานให้แสดงเป็น ภาพรวมเขต 1 เท่านี้ก็พอ"
+ผลลัพธ์: replace all "(ภาพรวมเขต 1 – ระยอง)" → "(ภาพรวมเขต 1)"
+
+--- Prompt: ลบ dropdown หมวดข้อร้องเรียน ---
+คำสั่ง: "เอาออกก่อน ไม่ต้องมี แต่ Fix ให้ Card ที่ 2 เป็นเรื่องของ ปริมาณน้ำเลย"
+ผลลัพธ์: ลบ HTML dropdown prCategory, fix getSelectedCategory() return 'ด้านปริมาณน้ำ' ตายตัว
+         ลบ prInitControls() populate category, fix prSharedUpdate() ใช้ catName ตายตัว
+
+--- Prompt: สร้าง 4 Card ใหม่ ---
+คำสั่ง: "สร้าง Card แบบเดียวกับ Card ที่ 2 ทุกประการ สร้างต่อท้ายไป 4 Card
+         เปลี่ยนแค่ข้อมูลแกน y: ท่อแตกรั่ว(น้ำเงิน), คุณภาพน้ำ(ชมพู), การบริการ(เขียว), บุคคลากร(ม่วง)"
+ผลลัพธ์: สร้าง 4 Card ใหม่ (Card 3-6) แต่ละ Card มี:
+  - HTML: card title, toggle กราฟ/ตาราง, 2 charts + 2 tables + export bars, info div
+  - JS: buildXxxChart(), calcXxxPercent(), xxxSharedUpdate(), xxxSetDisplay(),
+        xxxUpdateDisplay(), xxxBuildTable() — แต่ละ card มีสีตามโทนที่กำหนด
+  - Card 3: ด้านท่อแตกรั่ว — สีน้ำเงิน (#90caf9 / #1565c0)
+  - Card 4: ด้านคุณภาพน้ำ — สีชมพู (#f48fb1 / #c2185b)
+  - Card 5: ด้านการบริการ — สีเขียว (#a5d6a7 / #2e7d32)
+  - Card 6: ด้านบุคลากร — สีม่วง (#ce93d8 / #7b1fa2)
+  - อัปเดต prSharedUpdate() ให้เรียก xxxSharedUpdate() ทุก card เมื่อเปลี่ยนหน่วยงาน
+
+--- Prompt: เส้นตารางแนวตั้งทุกกราฟ ---
+คำสั่ง: "ทุกกราฟ ให้มีเส้นตารางแนวตั้ง เพื่อแบ่งให้ชัดระหว่างสาขา"
+ผลลัพธ์: เปลี่ยน grid:{display:false} → grid:{display:true,color:'rgba(0,0,0,0.06)'} ทุกกราฟ
+
+--- Prompt: Card บุคลากร แกน Y เป็นจำนวนเรื่อง ---
+คำสั่ง: "Card ที่เป็นด้านบุคคลากร แกน y เปลี่ยนเป็นจำนวนเรื่อง ไม่ใช่ % ต่อลูกค้า"
+ผลลัพธ์: แก้ calcStaffPercent → calcStaffCount (return จำนวนเรื่อง), แก้ tooltip, axis, title, table
+
+--- Prompt: เพิ่ม Card สรุป 5 ด้าน ---
+คำสั่ง: (ส่งรูปกราฟแท่งสรุป 5 ด้าน) "เพิ่ม Card เป็นตารางตามรูป"
+ผลลัพธ์: สร้าง Card สรุปข้อร้องเรียน 5 ด้าน วางบนสุด — กราฟแท่ง 5 สี แสดงจำนวน+% ของเดือนล่าสุด
+  - เพิ่ม Toggle กราฟ/ตาราง + ปุ่ม Export Excel ตามคำขอ
+
+--- Prompt: เพิ่ม Dropdown ปีงบประมาณ ---
+คำสั่ง: "Card แรก เพิ่มตัวเลือก ปีงบประมาณ เป็น List box และให้ทุกกราฟใน Tab นี้ แสดงกราฟปีงบฯ ที่เลือก"
+ผลลัพธ์: เพิ่ม dropdown ปีงบฯ (ทั้งหมด/2568/2569) ใน Control Card
+  - สร้าง ACTIVE_MONTHS, updateActiveMonths(), getMonthColors()
+  - อัปเดตทุก build function ใช้ ACTIVE_MONTHS แทน MONTHS
+
+--- Prompt: สลับลำดับ dropdown ---
+คำสั่ง: "เอาตัวเลือกหน่วยงาน ซ้ายสุด"
+ผลลัพธ์: สลับลำดับ หน่วยงาน → ปีงบฯ → ซ่อนปุ่มตัวเลือก
+
+--- Prompt: เปลี่ยนชื่อ Tab ---
+คำสั่ง: "แก้ไขชื่อ TAB เป็น รายงานข้อร้องเรียน"
+ผลลัพธ์: เปลี่ยน "ข้อร้องเรียน" → "รายงานข้อร้องเรียน"
+
+--- Prompt: สร้าง Tab ข้อมูลข้อร้องเรียน ---
+คำสั่ง: "แทรก TAB ไว้แรกสุด ชื่อ ข้อมูลข้อร้องเรียน ใน TAB เป็นกราฟ 2 กราฟ
+  กราฟ 1: ข้อมูลข้อร้องเรียนภาพรวมเขต — ตัวเลือก หน่วยงาน/รายการ/มุมมองเวลา/รูปแบบปี/ช่วงเวลา/ประเภทกราฟ/โหมด
+  กราฟ 2: ข้อมูลข้อร้องเรียนเปรียบเทียบสาขา — ตัวเลือก checkbox สาขา/รายการ/แกน X/มุมมองเวลา/รูปแบบปี/ช่วงเวลา/ประเภทกราฟ/โหมด
+  ดูแบบจาก OIS tab ของ Dashboard น้ำสูญเสีย"
+ผลลัพธ์: สร้าง Tab ใหม่ "ข้อมูลข้อร้องเรียน" วางแรกสุด (active by default) ประกอบด้วย:
+  กราฟ 1 — 41 JS functions, 33 metric options (3 base + 10 categories × 3 variants)
+    ตัวเลือก: หน่วยงาน(23), รายการ(33), มุมมอง(เดือน/ปี), ปี(งบ/ปฏิทิน), ช่วงเวลา, ประเภทกราฟ(4), โหมด(เปรียบเทียบ/ต่อเนื่อง/ตาราง)
+  กราฟ 2 — checkbox 22 สาขา (22 สี), สาขาเดียว/บางสาขา/ทุกสาขา, แกน X (เวลา/สาขา)
+  Export: PNG, PPTX, Excel, clipboard ทั้ง 2 กราฟ
+
+================================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Session: 17 มี.ค. 2569 (Cowork mode — Dashboard_GIS)
+เป้าหมาย: สร้าง Dashboard_GIS (งานแผนที่แนวท่อ / Pipeline Mapping KPI)
+ไฟล์: Dashboard_GIS/index.html + Dashboard_GIS/build_dashboard.py
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+หมายเหตุ: Session นี้ต่อเนื่องจากหลาย session ก่อนหน้า (context ถูก compact)
+Dashboard_GIS สร้างขึ้นแล้วก่อนหน้า session นี้ โดยมี:
+  - Card 1: KPI จุดซ่อมท่อ (กราฟ dual-axis: แท่ง+เส้น KPI)
+  - Card 2: สรุปภาพรวม KPI (กราฟแท่งกลุ่ม 2 แถว แยกสาขา)
+  - Tab bar, data table, threshold lines, bottom summary section
+
+--- Prompt 1: แก้ chart-container class ให้ Card 2 ---
+คำสั่ง: (ต่อจาก context compact) ตรวจสอบและแก้ไข chart customization features
+ผลลัพธ์:
+  - เพิ่ม class="chart-container" ให้ div ของ sumChart1 และ sumChart2
+  - แก้ Font Popup ให้ apply ทั้ง sumChart1+sumChart2 พร้อมกัน (ฟังก์ชัน _getFpCharts())
+  - ตรวจสอบ HTML validity ผ่าน
+
+--- Prompt 2: เพิ่ม feature Scroll ปรับ scale แกน ---
+คำสั่ง: "แล้ว feature การ Scroll ปรับ scale แกนล่ะ"
+ผลลัพธ์: เพิ่มระบบปรับแกนครบตาม Dashboard_Leak:
+  - Axis settings store (axisSettings{}) + axisEnforcer plugin
+  - Scroll zoom บนแกน Y (ZOOM_FACTOR=0.1)
+  - Click-drag pan บนแกน Y
+  - Double-click → dialog ตั้งค่า Min/Max/Interval + ปุ่ม Reset
+  - CSS: .axis-dlg-overlay, .axis-dlg (รองรับ dark mode)
+  - ทำงานกับทุก chart (gisChart, sumChart1, sumChart2)
+
+--- Prompt 3: การแสดงผลตัวเลขบนแกนบนกราฟ ให้ดูข้อตกลง ---
+คำสั่ง: "การแสดงผลตัวเลข บนแกน บนกราฟ ให้ดูข้อตกลงด้วย"
+ผลลัพธ์: แก้ไขการแสดงผลตัวเลขตามข้อตกลง README:
+  Card 1 (gisChart):
+    - แกน Y ซ้าย (จำนวนงาน): toLocaleString('th-TH') + ค่า<100→ทศนิยม 2, ≥100→comma
+    - แกน Y ขวา (KPI %): toLocaleString('th-TH') + 1 ทศนิยม + '%'
+    - Data labels: KPI→xx.x%, จำนวนงาน→th-TH locale + ทศนิยมตามขนาด
+  Card 2 (sumChart1, sumChart2):
+    - แกน Y: เปลี่ยนจาก v+'' เป็น xx% ด้วย th-TH locale
+    - Tooltip: toLocaleString('th-TH', 2 ทศนิยม) + '%' + null→'ไม่มีข้อมูล'
+    - Data labels: xx.x% ด้วย th-TH locale
+  Toggle แสดงค่า (context menu): formatter เดียวกัน + รองรับ dark mode
+
+--- Prompt 4: แท่งกราฟชิดกัน + เส้นแกนตั้ง ---
+คำสั่ง: "แท่งของกราฟ ทั้งหมดใน Tab นี้ ให้วางชิดกันเลย และ เพิ่มเส้นแกนตั้ง แบ่งระหว่าง สาขาให้ชัดเจน"
+ผลลัพธ์:
+  - barPercentage:1.0, categoryPercentage:0.92 (ทุกกราฟ)
+  - เปิด grid x-axis: display:true, color:'rgba(0,0,0,0.1)', offset:true
+
+--- Prompt 5: ลดความกว้างแท่ง 50% ---
+คำสั่ง: "ลดความกว้างแทงลงสัก สัก 50% เพื่อเพิ่มช่องว่างระหว่าง สาขาให้กว้างขึ้น"
+ผลลัพธ์: เปลี่ยน categoryPercentage จาก 0.92 เป็น 0.5 ทุกกราฟ
+
+--- Prompt 6: กราฟ 2-3 เพิ่มความกว้าง 20% ---
+คำสั่ง: "กราฟแรก สวยแล้ว กราฟ 2-3 เพิ่มความกว้างสัก 20%"
+ผลลัพธ์: เปลี่ยน categoryPercentage ของ sumChart1/sumChart2 จาก 0.5 เป็น 0.7
+  (กราฟแรก gisChart คงเดิมที่ 0.5)
+
+--- Prompt 7: กราฟ 2-3 max y เท่ากับ 100% ---
+คำสั่ง: "กราฟ 2-3 max y เท่ากับ 100%"
+ผลลัพธ์: เปลี่ยน y:{max:110} เป็น y:{max:100} ใน makeChartConfig()
+
+--- Prompt 8: อ่าน README, ข้อตกลง, ประวัติ Prompt + บันทึก ---
+คำสั่ง: "อ่าน Readme, ข้อตกลง, ประวัติ Prompt, ดูโครงสร้างให้เคลียร์ แล้วมาทำงานกันต่อ พร้อมบันทึกประวัติ Prompt และ Readme ด้วย"
+ผลลัพธ์: อ่าน PROJECT_README.md + prompt_history.txt + โครงสร้าง → บันทึกประวัติ
+
+================================================================================
+  สรุปสิ่งที่สร้าง/แก้ไขทั้งหมดใน Session นี้:
+================================================================================
+
+ไฟล์ที่แก้ไข:
+  1. Dashboard_GIS/index.html — เพิ่ม/แก้ไข:
+     - chart-container class สำหรับ Card 2 charts
+     - _getFpCharts() — font popup apply ทั้ง sumChart1+sumChart2
+     - Axis scroll/zoom/pan/double-click system (axisSettings, axisEnforcer plugin, showAxisDialog)
+     - CSS: .axis-dlg-overlay, .axis-dlg (dark mode ready)
+     - Number formatting: th-TH locale, ทศนิยมตามข้อตกลง, tooltip null handling
+     - Bar spacing: barPercentage:1.0, categoryPercentage ปรับตามกราฟ
+     - X-axis grid lines แบ่งสาขา
+     - Y-axis max:100 สำหรับ Card 2
+
+โครงสร้างปัจจุบัน Dashboard_GIS/index.html:
+  Tab: KPI จุดซ่อมท่อ (tab เดียว)
+    Card 1: KPI จุดซ่อมท่อ
+      - canvas: gisChart (dual-axis: แท่ง Y-left จำนวนงาน + เส้น Y-right KPI%)
+      - controls: เลือกเดือน, เกณฑ์วัด, เกณฑ์ติดตาม, ประเภทกราฟ
+      - export: show values, font, PNG, Excel, PPTX
+      - data table + KPI summary
+    Card 2: สรุปภาพรวม KPI
+      - canvas: sumChart1 (แถว 1: ภาพรวมเขต + สาขา 1-10)
+      - canvas: sumChart2 (แถว 2: สาขา 11-22)
+      - threshold lines: เกณฑ์ กปภ. (แดง) + เกณฑ์ติดตาม (เขียว)
+      - export: show values, font, PNG, Excel, PPTX
+      - bottom summary section
+
+Chart Customization Features (ทุกกราฟ):
+  - Right-click dataset → สี, ชนิดกราฟ, เส้นประ, ความหนา
+  - Right-click พื้นที่ว่าง → สีพื้นหลัง
+  - Font popup (A) → ขนาด Font X/Y/DataLabel/Legend + rotation
+  - Scroll zoom แกน Y
+  - Click-drag pan แกน Y
+  - Double-click แกน → dialog Min/Max/Interval
+
+================================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Session: 17 มี.ค. 2569 (Cowork mode — Dashboard_PR ปรับปรุง UI/UX + Dashboard_Leak/GIS)
+เป้าหมาย: แก้ไข UI/UX หลายจุดใน Dashboard_PR Tab 1-3, เพิ่มฟีเจอร์ใหม่, ปรับปรุง Dashboard_Leak/GIS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+--- Prompt 1: กราฟเส้นไม่เริ่มจากจุดเริ่มต้น ---
+คำสั่ง: "กราฟเส้น ทำไปเส้นไม่เริ่มจากจุดเริ่มต้น"
+ผลลัพธ์: แก้ x-axis offset จาก true เป็น (chartType==='bar') — bar มี offset, line/area ไม่มี
+
+--- Prompt 2: แกน X ให้ดูข้อตกลง ---
+คำสั่ง: "แกน x คือช่วงเวลานะ การใช้ข้อความ แทนช่วงเวลา ไปดูข้อตกลงด้วย"
+ผลลัพธ์: แก้ AON_MONTH_LABELS จาก hardcoded "ตุลาคม 2568" เป็น fmtMonthYear() format "ต.ค.68"
+
+--- Prompt 3: Toggle เลือกสาขาเป็นรูปแบบเดียวกัน ---
+คำสั่ง: [แนบรูป toggle] "ต้วเลือก Toggle เลือกสาขา ขอเป็นรูปแบบนี้"
+ผลลัพธ์: เปลี่ยนจาก custom .aon2-tab เป็น .toggle-group + .toggle-btn pattern
+
+--- Prompt 4: Checkbox สาขาเรียงต่อกัน ---
+คำสั่ง: "Check box สาขาให้เรียงต่อกันเลย ไม่ต้องจัด Grid เปลืองพื้นที่"
+ผลลัพธ์: เปลี่ยนจาก grid เป็น flex-wrap layout
+
+--- Prompt 5: การเรียงตัวเลือกดูข้อตกลง ---
+คำสั่ง: "การเรียบตัวเลือก ดูข้อตกลง"
+ผลลัพธ์: เพิ่ม "กราฟพื้นที่" (area) chart type + เรียงตามข้อตกลง: เส้นโค้ง → เส้นตรง → แท่ง → พื้นที่
+
+--- Prompt 6: ตัวเลือกโหมดต่อท้ายประเภทกราฟ ---
+คำสั่ง: "ตัวเลือก โหมด ให้มาต่อท้ายประเภท กราฟ"
+ผลลัพธ์: จัดเรียง controls: ช่วงเวลา → ประเภทกราฟ → โหมด(กราฟ/ตาราง)
+
+--- Prompt 7: ตรวจสอบปุ่มซ่อนทุก Card ---
+คำสั่ง: [แนบรูป collapse button] "ตรวจสอบทุก Card ใน Dashboard ทั้ง 3 อัน มีปุ่มซ่อนหรือยัง"
+ผลลัพธ์: เพิ่ม collapse button (▲/▼) ให้ทุก Card ที่ยังไม่มี — Dashboard_PR 11 cards ทั้ง 3 tabs
+
+--- Prompt 8: ปุ่มซ่อนให้ฟังก์ชันเหมือนกันทุก Card ---
+คำสั่ง: "ปุ่มนี้ คือ ปุ่มอะไรกันแน่ ซ่อนเครื่องมือ หรือ ซ่อนกราฟ ให้ฟังชั่นเหมือนกันทุก Card"
+ผลลัพธ์: standardize ทุก collapse button ให้ซ่อน card-body ทั้งหมด (controls + chart + export)
+
+--- Prompt 9: ปุ่มซ่อนตัวเลือกทั้งหน้า ---
+คำสั่ง: "ถ้าผมต้องการให้มี ปุ่นซ่อนตัวเลือก (Control) ทั้งหน้า ควรออกแบบยังไงดี"
+ผลลัพธ์: เพิ่มปุ่ม "👁 ซ่อนตัวเลือก" บน Tab Bar + CSS body.hide-controls + toggleGlobalControls()
+
+--- Prompt 10: เปลี่ยนชื่อกราฟ Tab 3 ---
+คำสั่ง: "เปลี่ยนชื่อ กราฟแรก TAB 3 เป็น 'กราฟที่ 1 : PWA ALWAYS-ON ภาพรวมทั้งเขต เดือน xxxx'
+         เปลี่ยนชื่อ กราฟที่ 2 TAB 3 เป็น 'กราฟที่ 2 : PWA ALWAYS-ON ช่วง เดือนXXXX ถึง XXXX'"
+ผลลัพธ์: สร้าง dynamic title ด้วย id aonChartTitle / aon2ChartTitle + aon2UpdateTitle()
+
+--- Prompt 11: เอาตัวเลือกปีงบประมาณออก เพิ่มตัวเลือกเดือน ---
+คำสั่ง: "เอาตัวเลือก ปีงบประมาณออก เพิ่มตัวเลือก เดือน"
+ผลลัพธ์: แทนที่ fiscal year selector ด้วย "เดือนที่แสดง" + "ย้อนหลังถึง" (เดือนเดียวกันปีก่อน / กำหนดเอง)
+
+--- Prompt 12: ข้อมูลมีถึงปี 2566 ---
+คำสั่ง: "ข้อมูลเรามีถึงปี 2566 ทำไปตัวเลือก มีแค่ปี 68-69"
+ผลลัพธ์: เปลี่ยนจาก MONTHS (13 เดือน) เป็น ALL_MONTHS (39 เดือน: 66-01 ถึง 69-03)
+
+--- Prompt 13: จำ Tab ที่กำลังทำงาน ---
+คำสั่ง: "ให้จำว่ากำลังทำงานอยู่ใน TAB ไหน หากกด รีเฟซ F5 ให้อยู่ตำแหน่ง TAB ที่กำลังทำงาน"
+ผลลัพธ์: เพิ่ม sessionStorage tab persistence + restore on load
+
+--- Prompt 14: ความกว้าง Card ให้มี Limit เหมือน Dashboard GIS ---
+คำสั่ง: "ความกว้างของ แต่ละ Card ให้มี Limit เหมือน กับ Dashboard GIS"
+ผลลัพธ์: เปลี่ยน .container max-width จาก 100% เป็น 1400px ทั้ง Dashboard_PR และ Dashboard_Leak
+
+--- Prompt 15: Tooltip กราฟ 2 Tab 3 แสดงเฉพาะชุดเดียว ---
+คำสั่ง: "กราฟที่ 2 TAB ที่ 3 เวลาเอา Pointer วางบนข้อมูล ให้ขึ้นแสดงมาแค่เฉพาะชุดข้อมูลนั้น ๆ"
+ผลลัพธ์: เปลี่ยน interaction mode จาก index → nearest + intersect:true
+
+--- Prompt 16: กราฟเพี้ยนเมื่อ F5 ที่ Tab อื่น ---
+คำสั่ง: "ตอนนี้เวลาทำงานที่ TAB ที่ไม่ใช่ TAB1 เวลากด รีเฟซ แล้วกราฟเพี้ยน"
+ผลลัพธ์: แก้ session restore — ย้ายจาก IIFE ก่อน hooks ไปท้ายสุด script
+  - เพิ่ม Chart.resize() ใน switchMainTab เมื่อสลับ tab
+  - เพิ่ม "already active" check สำหรับ AON chart 2
+
+--- Prompt 17: Dashboard Leak ปุ่มซ่อนตัวเลือกบน Tab Bar ---
+คำสั่ง: "Dashboard Leak ให้มีปุ่น ซ่อนเครื่องมือ บน TAB Bar เหมือน Dashboard PR"
+ผลลัพธ์: เพิ่ม CSS body.hide-controls + ปุ่ม globalCtrlToggle + toggleGlobalControls() ใน Dashboard_Leak
+
+--- Prompt 18: ยกเลิกปุ่มซ่อนเดิม Tab WSC-R ---
+คำสั่ง: "TAB WSC-R ยกเลิกปุ่ม ซ่อนปุ่มตัวเลือกเดิม และให้ใช้ปุ่มที่เพิ่งสร้างใหม่แทน"
+ผลลัพธ์: ลบ control-group "ซ่อนปุ่มตัวเลือก" (แสดง/ซ่อน) + เพิ่ม .wscr-option ใน CSS hide-controls
+
+--- Prompt 19: Dashboard GIS ปุ่มซ่อนตัวเลือก ---
+คำสั่ง: "สร้างปุ่น ซ่อนตัวเลือกแบบนี้ให้ Dashboard gis ด้วย"
+ผลลัพธ์: เพิ่ม CSS body.hide-controls + ปุ่ม globalCtrlToggle + toggleGlobalControls() ใน Dashboard_GIS
+
+--- Prompt 20: Header Dashboard PR สีส้มเข้มขึ้น ---
+คำสั่ง: "Header Dashboard PR สีส้มโทนเข้มกว่านี้นิด มันแสบตา"
+ผลลัพธ์: เปลี่ยนสี primary จาก #e65100/#ff9800/#bf360c เป็น #c43e00/#e67c00/#8f2800
+
+================================================================================
+  สรุปสิ่งที่สร้าง/แก้ไขทั้งหมดใน Session นี้:
+================================================================================
+
+ไฟล์ที่แก้ไข:
+  1. Dashboard_PR/index.html — แก้ไขหลายจุด:
+     - X-axis offset dynamic (bar=true, line/area=false)
+     - AON_MONTH_LABELS dynamic ด้วย fmtMonthYear()
+     - Toggle สาขา → .toggle-group + .toggle-btn pattern
+     - Checkbox flex-wrap layout
+     - เพิ่ม area chart type + เรียงตามข้อตกลง
+     - จัดเรียง controls: ช่วงเวลา → ประเภทกราฟ → โหมด
+     - Collapse buttons ทุก Card (11 cards ทั้ง 3 tabs)
+     - Global toggle "ซ่อนตัวเลือก" บน Tab Bar
+     - Dynamic card titles Tab 3
+     - Month range selector แทนที่ fiscal year (Tab 2)
+     - ALL_MONTHS 39 เดือน แทน MONTHS 13 เดือน
+     - sessionStorage tab persistence + restore ท้ายสุด script
+     - max-width:1400px
+     - Tooltip nearest+intersect กราฟ 2 Tab 3
+     - Chart.resize() เมื่อสลับ tab
+     - สี Header เข้มขึ้น (#c43e00/#e67c00/#8f2800)
+  2. Dashboard_Leak/index.html:
+     - max-width:1400px
+     - ปุ่ม globalCtrlToggle + CSS hide-controls + toggleGlobalControls()
+     - ลบปุ่ม "ซ่อนปุ่มตัวเลือก" เดิมใน Tab WSC-R
+     - เพิ่ม .wscr-option ใน CSS hide-controls
+  3. Dashboard_GIS/index.html:
+     - ปุ่ม globalCtrlToggle + CSS hide-controls + toggleGlobalControls()
+
+================================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Session: 18 มี.ค. 2569 (ต่อเนื่องจาก session ก่อน — context compacted)
+เป้าหมาย: (1) Dashboard_Leak WSC-R สีกราฟ (2) Dashboard_PR Tab Always-On กราฟใหม่+ตัวเลือก (3) Upload ข้อมูลผู้ใช้
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[งานก่อน Compaction — สรุปจาก Context Summary]
+
+--- Prompt (ก่อน Compact): WSC-R สีกราฟ ---
+คำสั่ง: Dashboard_Leak TAB WSC-R "กราฟความเคลื่อนไหว %น้ำสูญเสีย" เปลี่ยนสีเป็นสีเดียวกันทุกแท่ง
+         + ข้ามปีงบประมาณให้สีอ่อน + ภาพรวมเขตให้เด่นกว่า (สีเข้ม+Font ใหญ่+หนา)
+ผลลัพธ์: wscRBranchCompare() — สี uniform theme:
+         branch ปัจจุบัน=#2980b9, ก่อนหน้า=#a8d4f0
+         regional ปัจจุบัน=#1e3a5f, ก่อนหน้า=#8ba7c4
+         X-axis font scriptable: ภาพรวมเขต=13px bold #1e3a5f
+         Data labels สีคงที่ #1e3a5f
+
+--- Prompt (ก่อน Compact): Always-On กราฟที่ 2 ใหม่ ---
+คำสั่ง: Tab Always-On แทรกกราฟใหม่ต่อจากกราฟที่ 1 (เปรียบเทียบกับเดือนก่อน)
+         + Legend ด้านล่าง
+ผลลัพธ์: Card 2 ใหม่ (aonCmpChart) — dual-dataset bar (เดือนก่อน=สีอ่อน, ปัจจุบัน=สีเต็ม)
+         ฟังก์ชัน aonCmpRender(), aonCmpGetPrevMonth(), aonCmpBuildTable()
+
+--- Prompt (ก่อน Compact): กราฟที่ 3 ตัวเลือกเพิ่ม ---
+คำสั่ง: กราฟที่ 3 เพิ่มตัวเลือกแกน X (ช่วงเวลา/สาขา) + ตัวชี้วัด + Default แกน X=สาขา กราฟแท่ง
+         + แกน X=สาขา ใช้สีโทนเดียวไล่น้ำหนัก (ฟ้าปกติ/แดงต่ำกว่าเกณฑ์)
+         + แกน X=ช่วงเวลา ใช้สีเดิม + เส้นกรอบแดงถ้าต่ำกว่าเกณฑ์
+ผลลัพธ์: aon2Render() — HSL gradient (hue 210=ฟ้า, hue 0=แดง) + per-bar borderColor/borderWidth
+         select#aon2XAxis, input#aon2Threshold
+
+--- Prompt (ก่อน Compact): แก้ไข datalabels toggle ---
+คำสั่ง: ทั้ง 3 กราฟ กรณีเลือก "ไม่แสดงค่า" แต่ค่ายังคงแสดงอยู่
+ผลลัพธ์: toggleDataLabels() — unchecked = display:false ทุก dataset
+         Charts 1-2 default datalabels:{display:false}
+
+[งานหลัง Compaction — Session นี้]
+
+--- Prompt 1: เพิ่ม Upload ข้อมูล ---
+คำสั่ง: "ในส่วนของ แหล่งข้อมูล ให้มีปุ่มให้ ผู้ใช้ Upload ข้อมูล ด้วยตัวเองได้มั้ย"
+         → ยืนยัน: ทั้ง Excel+CSV, ในส่วนแหล่งข้อมูลเดิม, มีผลทุก Tab
+ผลลัพธ์:
+  - เพิ่ม SheetJS CDN (xlsx.full.min.js) สำหรับอ่าน Excel
+  - HTML: กล่อง Upload 2 ช่อง (PR + AON) พร้อม drag & drop ใน info-section
+  - JS: handleUploadPR(), handleUploadAON(), refreshAllAfterUpload()
+  - รองรับ template format (แบบฟอร์มกำหนดเอง)
+
+--- Prompt 2: ใช้รูปแบบไฟล์ดิบแทน template ---
+คำสั่ง: "ถ้าผมไม่ได้ใช้แบบฟอร์มที่ให้ Download แต่ Upload ไฟล์ที่มีรูปแบบเดียวกับในโฟลเดอร์ข้อมูลดิบ
+         แค่บอกว่ามันเป็นของปีไหน เดือนไหน ได้มั้ย"
+ผลลัพธ์:
+  - ศึกษาโครงสร้างไฟล์ดิบทั้ง 2 ประเภท:
+    * PR: ร้องเรียน_YY-MM.xlsx (header แถว 5-6, data แถว 7-28, 10 หมวดหมู่)
+    * AON: .xls หลาย Sheet, คอลัมน์ "always on ..." = % (0-1 scale)
+  - ปรับ UI: เพิ่มตัวเลือกปี/เดือน + โหมด auto/manual
+  - เขียน parser ใหม่สำหรับ raw format
+  - ลบปุ่ม Download Template ออก
+  - BRANCH_NAME_MAP: แปลง "สาขาXXX" → "XXX"
+
+--- Prompt 3: PR อ่านอัตโนมัติเหมือน AON ---
+คำสั่ง: "ของข้อร้องเรียน อ่านอัตโนมัติ เหมือน AON ไม่ได้หรือ"
+ผลลัพธ์:
+  - PR เปลี่ยนเป็น auto mode (default):
+    * detectPRMonthFromFilename(): อ่าน YY-MM จากชื่อไฟล์
+    * detectPRMonthFromRow3(): อ่านจาก "ระหว่างเดือน XXX พ.ศ. YYYY" ในแถวที่ 3
+    * THAI_FULL_MONTH_MAP: map ชื่อเดือนเต็ม → ตัวเลข
+  - ทั้ง PR และ AON มี UI เหมือนกัน: default=อัตโนมัติ, fallback=ระบุเดือนเอง
+
+--- Prompt 4: เลือกหลายไฟล์พร้อมกัน ---
+คำสั่ง: "สามารถเลือกครั้งละหลาย file ได้มั้ย"
+ผลลัพธ์:
+  - file input เพิ่ม attribute "multiple"
+  - PR: แยก processSinglePRFile() → loop ทุกไฟล์ sequential (Promise chain)
+  - AON: แยก processSingleAONFile() → loop ทุกไฟล์ sequential
+  - สถานะสรุปรวม: "สำเร็จ: 66 สาขา จาก 3 ไฟล์ (69-04, 69-05, 69-06)"
+  - ไฟล์ผิดพลาดไม่กระทบไฟล์อื่น
+
+--- Prompt 5: คำแนะนำการตั้งชื่อไฟล์ ---
+คำสั่ง: "แสดงคำแนะนำว่า ตั้งชื่อไฟล์ให้สื่อสารกับคุณให้เข้าใจ จะใช้ชื่อว่าอย่างไร ให้ยกตัวอย่าง"
+ผลลัพธ์:
+  - เพิ่ม <details> "คำแนะนำการตั้งชื่อไฟล์" ในส่วน Upload
+  - PR: ตัวอย่าง ร้องเรียน_69-04.xlsx, PR_69-05.xlsx ฯลฯ
+  - AON: อธิบายว่าชื่อไฟล์อะไรก็ได้ ขอให้มี Sheet + "always on" column
+  - สรุป + เลือกหลายไฟล์ (Ctrl+คลิก)
+
+--- Prompt 6: Checkpoint ---
+คำสั่ง: "ช่วยจำ Checkpoint จุดนี้ไว้ บันทึกประวัติ Prompt และบันทึก Readme ด้วย"
+
+สรุปสิ่งที่เปลี่ยนแปลงใน Session นี้:
+  1. Dashboard_Leak/index.html:
+     - wscRBranchCompare(): สี uniform theme + FY differentiation + regional prominence
+  2. Dashboard_PR/index.html:
+     - เพิ่ม SheetJS CDN
+     - Card 2 ใหม่ (aonCmpChart): เปรียบเทียบเดือนก่อน
+     - กราฟที่ 3: ตัวเลือก X-axis (สาขา/ช่วงเวลา) + threshold + conditional colors
+     - แก้ datalabels toggle ทั้ง 3 กราฟ
+     - ส่วน "อัปโหลดข้อมูล" ใน info-section:
+       * 2 ช่อง: PR (auto จากชื่อไฟล์/แถว3) + AON (auto จาก Sheet/column)
+       * รองรับหลายไฟล์พร้อมกัน (multiple)
+       * Parser อ่านรูปแบบไฟล์ดิบจริง (GUI_019 + PWA Always-on)
+       * คำแนะนำการตั้งชื่อไฟล์ (<details>)
+       * refreshAllAfterUpload(): rebuild ทุก select/chart/table ทุก Tab
+       * BRANCH_NAME_MAP, THAI_FULL_MONTH_MAP, THAI_MONTH_MAP
+
+================================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Session: 18 มี.ค. 2569 (Cowork mode — manage.html ปรับปรุง UI/UX)
+เป้าหมาย: ปรับปรุง manage.html ให้ประหยัดพื้นที่ + UI/UX ดีขึ้น + Dark mode
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+--- Prompt 1: จัดการข้อมูล ประหยัดพื้นที่ + แยกสี ---
+คำสั่ง: "ส่วนจัดการข้อมูล ออกแบบให้ประหยัดพื้นที่กว่านี้ และแยกสีแต่ละหมวดให้ชัดเจน"
+ผลลัพธ์:
+  - จัดกลุ่ม Chip ตามปี (year-group) — badge ปีนำหน้า + chip เดือนย่อขนาดเล็ก
+  - PR ใช้โทนส้ม (pr-chip, pr-year, pr-title)
+  - AON ใช้โทนน้ำเงิน (aon-chip, aon-year, aon-title)
+
+--- Prompt 2: Upload Section Tab แยกหมวด ---
+คำสั่ง: "ส่วนโหลดข้อมูล ทำไงให้ไม่เปลืองพื้นที่ เผื่ออนาคตมีหมวดเพิ่ม"
+ผลลัพธ์:
+  - รวม 2 กล่อง Upload เป็นกล่องเดียว ใช้ Tab สลับ PR/AON
+  - Tab แสดงจำนวนเดือน (tab-count) + สีต่างกัน (PR=ส้ม, AON=น้ำเงิน)
+  - switchUploadTab() + updateTabCounts()
+  - รองรับเพิ่ม Tab อนาคตง่าย
+
+--- Prompt 3: ลบ Summary Card ---
+คำสั่ง: "ไม่ต้องมีแล้ว เพราะมีตัวเลขบอกที่ tab แล้ว"
+ผลลัพธ์: ลบกล่อง Summary (PR 39 / AON 5) ออก เหลือ hidden span
+
+--- Prompt 4: คำแนะนำรูปแบบไฟล์ใน Drop Zone ---
+คำสั่ง: "เพิ่มคำแนะนำกรณีอัตโนมัติ ตั้งชื่อไฟล์ยังไง ยกตัวอย่างให้ชัด"
+ผลลัพธ์:
+  - <details open> "คำแนะนำรูปแบบไฟล์" ใน Drop Zone ทั้ง PR และ AON
+  - PR: รูปแบบ GUI_019, ชื่อไฟล์ YY-MM, ตัวอย่าง ร้องเรียน_69-01.xlsx
+  - AON: ชื่อไฟล์อะไรก็ได้, อ่าน Sheet อัตโนมัติ, ตัวอย่าง Sheet ต.ค.68
+
+--- Prompt 5: ตัวเลือกเดือน/ปี inline ---
+คำสั่ง: "ตัวเลือกเดือน/ปี ควรไปอยู่บรรทัดเดียวกับ option box"
+ผลลัพธ์: mode-selector + manual-controls อยู่แถวเดียวกัน (flex inline)
+
+--- Prompt 6: ลบปุ่ม Edit เหลือแค่ Delete ---
+คำสั่ง: "เอาปุ่ม Edit ออก ถ้าจะแก้ให้ Upload ใหม่"
+ผลลัพธ์:
+  - ลบ chip-edit ออก เหลือแค่ chip-delete (✕)
+  - Upload ซ้ำเดือนเดิม = เขียนทับ (replace)
+
+--- Prompt 7: เตือนก่อนเขียนทับ ---
+คำสั่ง: "ควรจะแจ้งเตือนก่อนทับข้อมูลเดิม"
+ผลลัพธ์:
+  - ตรวจ cachedData ก่อน upload (manual=รู้ mk, auto=regex YY-MM จากชื่อไฟล์)
+  - ถ้ามีเดือนซ้ำ → dialog "⚠️ ยืนยันเขียนทับข้อมูลเดิม" ปุ่มสีแดง
+  - ถ้าเดือนใหม่ → dialog ปกติ
+
+--- Prompt 8: ลบปุ่มล้างข้อมูลทั้งหมด ---
+คำสั่ง: "เอาปุ่มนี้ออกก่อน"
+ผลลัพธ์: comment ออก (เก็บไว้เผื่ออนาคต)
+
+--- Prompt 9: Error message ภาษาผู้ใช้ ---
+คำสั่ง: "ถ้าอ่านไฟล์ไม่เข้าใจ ให้ขึ้นว่า ไฟล์นี้ไม่ใช่รูปแบบที่รองรับ..."
+ผลลัพธ์:
+  - ทุกไฟล์ fail → "ไฟล์นี้ไม่ใช่รูปแบบที่รองรับ ไม่สามารถ Upload ได้ กรุณาตรวจสอบอีกครั้ง"
+  - บางไฟล์ fail → "บางไฟล์ไม่สามารถ Upload ได้: ชื่อไฟล์ — กรุณาตรวจสอบอีกครั้ง"
+  - Log บันทึก error ทางเทคนิคไว้ด้วย
+
+--- Prompt 10: เปลี่ยน Theme สีเข้ม ---
+คำสั่ง: "เปลี่ยน Theme ให้ใช้สีเดียวกับ Dashboard PR สีนี้แสบตา"
+ผลลัพธ์: replace #e65100→#c43e00, #ff6d00→#e67c00 ทั้งไฟล์
+
+--- Prompt 11: Dark Mode ---
+คำสั่ง: "เพิ่มปุ่ม Dark mode ให้ทำงานสัมพันธ์กับ Dashboard PR"
+ผลลัพธ์:
+  - ปุ่ม ☀/☽ toggle ใน Header (theme-toggle, theme-switch)
+  - ใช้ localStorage('pr_theme') ตัวเดียวกับ Dashboard PR
+  - body.dark CSS ครบทุกส่วน (โทนน้ำตาลเข้มเดียวกับ Dashboard PR)
+
+--- Prompt 12: คำแนะนำเปิด default ---
+คำสั่ง: "คำแนะนำรูปแบบไฟล์ Default ไม่ต้องซ่อน"
+ผลลัพธ์: เพิ่ม open attribute ใน <details> ทั้ง PR และ AON
+
+--- Prompt 13: ปุ่มเปิดโฟลเดอร์ ---
+คำสั่ง: "สร้างปุ่มเพื่อเปิดโฟลเดอร์ข้อมูล"
+ผลลัพธ์:
+  - ปุ่ม "📂 เปิดโฟลเดอร์ข้อมูล" ข้างหัวข้อ "จัดการข้อมูล"
+  - API endpoint /api/open-folder → os.startfile() (Windows)
+  - หมายเหตุ: ใช้ได้เฉพาะ localhost ถ้าขึ้น server จริงต้องเปลี่ยนวิธี
+
+================================================================================
+  สรุป Design Pattern: manage.html (สำหรับใช้ซ้ำกับ Dashboard อื่น)
+================================================================================
+
+โครงสร้างหน้า manage.html:
+  1. Header — ชื่อ + ปุ่มกลับ Dashboard + ปุ่ม Dark/Light toggle
+  2. Upload Section (Tabbed) — Tab แยกหมวดข้อมูล + จำนวนเดือน
+     - แต่ละ Tab: mode selector (อัตโนมัติ/ระบุเอง inline) + Drop Zone + คำแนะนำ (open) + ปุ่ม Upload
+  3. จัดการข้อมูล — ปุ่มเปิดโฟลเดอร์ + Chips จัดกลุ่มตามปี (แยกสีตามหมวด)
+  4. บันทึกการอัปโหลด — Log พร้อม timestamp
+
+ฟีเจอร์สำคัญ:
+  - Upload ซ้ำ = เขียนทับ + เตือนก่อน (⚠️ dialog สีแดง)
+  - Error → ข้อความภาษาผู้ใช้ (ไม่แสดง technical error ตรง)
+  - Dark mode sync ผ่าน localStorage('XXXX_theme')
+  - Theme สีตรงกับ Dashboard หลัก
+  - ปุ่มเปิดโฟลเดอร์ (localhost only)
+  - รองรับเพิ่มหมวดข้อมูลอนาคต (เพิ่ม Tab)
+
+Server (Flask) endpoints:
+  - GET  /              → serve index.html
+  - GET  /manage.html   → serve manage.html
+  - GET  /api/ping      → health check
+  - GET  /api/data      → ข้อมูลทั้งหมด (JSON)
+  - POST /api/upload/XX → upload ไฟล์ (auto-detect + parse + save)
+  - DELETE /api/data/XX/<mk> → ลบข้อมูลเดือน
+  - POST /api/open-folder → เปิด File Explorer (localhost only)
+
+================================================================================
+  บันทึกข้อควรจำ: manage.html + server สำหรับทุก Dashboard
+================================================================================
+
+เมื่อสร้างระบบจัดการข้อมูล (manage.html + server.py) ให้ Dashboard ใดก็ตาม
+ต้องทำสิ่งเหล่านี้ครบทุกครั้ง:
+
+1. สร้าง server.py — Flask server, port ไม่ซ้ำกัน
+   - PR = 5000, Leak = 5001, GIS = 5002, Meter = 5003
+
+2. สร้าง manage.html — ใช้ Design Pattern เดียวกัน เปลี่ยนแค่:
+   - Theme สี (ตรงกับ Dashboard หลัก)
+   - Tab หมวดข้อมูล (ตามประเภทข้อมูลของ Dashboard นั้น)
+   - localStorage key สำหรับ Dark mode (ตรงกับ Dashboard หลัก)
+
+3. manage.html ต้องมี redirect script ที่ <head>:
+   <script>
+     if (location.protocol === 'file:') {
+       location.href = 'http://localhost:PORT/manage.html';
+     }
+   </script>
+   ** ข้อสำคัญ: ถ้าเปิด manage.html เป็น file:// จะเรียก API ไม่ได้
+   ต้อง redirect ไป localhost อัตโนมัติ **
+
+4. Dashboard index.html — เพิ่มปุ่ม "จัดการแหล่งข้อมูล"
+   - href="manage.html" (ลิงก์ปกติ)
+   - อยู่ใน Header ข้าง Dark mode toggle
+
+5. ปุ่ม "← หน้าหลัก" ใน Dashboard index.html:
+   - ใช้ smart pattern: ถ้า file:// ใช้ href="../index.html"
+     ถ้า localhost ใช้ fetch('/api/open-main') เปิดไฟล์ตรง
+   - เพราะ Flask server serve เฉพาะ folder ตัวเอง
+     ลิงก์ ../index.html ผ่าน Flask จะไม่ทำงาน
+
+6. start_server.bat — อัปเดตให้มี option เปิด server ใหม่
+   - port ไม่ซ้ำกัน
+   - Option "Main + All" เปิดหน้าหลัก + server ทั้งหมด
+
+สถานะการสร้าง manage system:
+  ✅ Dashboard_PR   — server.py (port 5000) + manage.html (สีส้ม #c43e00)
+  ✅ Dashboard_Leak  — server.py (port 5001) + manage.html (สีน้ำเงิน #1e3a5f)
+  ✅ Dashboard_GIS   — server.py (port 5002) + manage.html (สี teal #004d40)
+  ✅ Dashboard_Meter  — server.py (port 5003) + manage.html (สีม่วง #4a148c)
+
+================================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Session: 19 มี.ค. 2569 (Cowork mode — manage.html ทุก Dashboard)
+เป้าหมาย: ปรับปรุง manage.html PR + สร้างระบบจัดการข้อมูลให้ทุก Dashboard
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+--- ปรับปรุง manage.html Dashboard PR ---
+
+Prompt 1: จัดการข้อมูล ประหยัดพื้นที่ + แยกสี
+  → Chips จัดกลุ่มตามปี (year-group) + PR=ส้ม, AON=น้ำเงิน
+
+Prompt 2: Upload Section เป็น Tab แยกหมวด
+  → รวม 2 กล่อง Upload เป็นกล่องเดียว ใช้ Tab สลับ + จำนวนเดือนบน Tab
+
+Prompt 3: ลบ Summary Card (มีตัวเลขบน Tab แล้ว)
+
+Prompt 4: เพิ่มคำแนะนำรูปแบบไฟล์ใน Drop Zone ทั้ง PR และ AON (open by default)
+
+Prompt 5: ตัวเลือกเดือน/ปี inline กับ radio button
+
+Prompt 6: ลบปุ่ม Edit เหลือแค่ Delete (upload ซ้ำ = เขียนทับ)
+
+Prompt 7: เตือนก่อนเขียนทับ — dialog ⚠️ ปุ่มสีแดง
+
+Prompt 8: ลบปุ่มล้างข้อมูลทั้งหมด
+
+Prompt 9: Error message ภาษาผู้ใช้ "ไฟล์นี้ไม่ใช่รูปแบบที่รองรับ..."
+
+Prompt 10: เปลี่ยน Theme สีเข้มตรงกับ Dashboard PR (#c43e00/#e67c00)
+
+Prompt 11: Dark Mode sync กับ Dashboard PR (localStorage 'pr_theme')
+
+Prompt 12: คำแนะนำเปิด default (open)
+
+Prompt 13: ปุ่มเปิดโฟลเดอร์ข้อมูล (os.startfile, localhost only)
+
+Prompt 14: ปุ่มหน้าหลัก smart pattern (file:// = href, localhost = API)
+
+Prompt 15: เปลี่ยน uploaded_data → ข้อมูลดิบ/ (รวมเป็นโฟลเดอร์เดียว เหมือน Leak)
+
+--- สร้างระบบจัดการข้อมูล Dashboard Leak ---
+
+Prompt 16: ลบ toggle "แหล่งข้อมูล แสดง/ซ่อน" → เพิ่มปุ่ม "จัดการแหล่งข้อมูล"
+  → สร้าง server.py (port 5001) + manage.html (สีน้ำเงิน)
+  → 8 Tab: OIS, Real Leak, MNF, P3, Activities, หน่วยไฟ, เกณฑ์ชี้วัด, KPI น้ำสูญ
+  → แยกสีทุกหมวด + คำแนะนำเฉพาะหมวด + Tab สีเปลี่ยนตาม category
+  → ปุ่มกลับไป Dashboard (ไม่ใช่หน้าหลัก)
+
+--- สร้างระบบจัดการข้อมูล Dashboard GIS ---
+
+Prompt 17: สร้าง server.py (port 5002) + manage.html (สี teal #004d40)
+  → 1 Tab: ลงข้อมูลซ่อมท่อ (รองรับเพิ่ม Tab อนาคต)
+  → ลบ toggle เดิม + เพิ่มปุ่มจัดการแหล่งข้อมูล
+
+--- สร้างระบบจัดการข้อมูล Dashboard Meter ---
+
+Prompt 18: สร้าง server.py (port 5003) + manage.html (สีม่วง #4a148c)
+  → 1 Tab: มาตรวัดน้ำผิดปกติ (รองรับเพิ่ม Tab อนาคต)
+  → ลบ toggle เดิม + เพิ่มปุ่มจัดการแหล่งข้อมูล
+
+--- แก้ไขเพิ่มเติมทุก Dashboard ---
+
+Prompt 19: ลบปุ่ม "สร้าง Dashboard ใหม่" ออกจาก Leak, GIS, Meter
+
+Prompt 20: manage.html redirect script — ถ้าเปิดเป็น file:// → redirect ไป localhost อัตโนมัติ
+
+Prompt 21: ปุ่ม "หน้าหลัก" smart pattern ทุก Dashboard (file:// = href, localhost = API)
+
+Prompt 22: แสดงวันที่อัปเดตล่าสุดหลังชื่อหมวดทุก Dashboard (จาก mtime ไฟล์)
+
+Prompt 23: Auto-rename ไฟล์ upload ทุก Dashboard (PREFIX_รหัส.ext)
+  → PR: PR_69-01.xlsx, AON_69-01.xls
+  → Leak: OIS_2569.xls, RL_2569.xlsx, MNF_2569.xlsx, EU_2569.xlsx, KPI_2569.xlsx
+  → GIS: GIS_690218.xlsx
+  → Meter: METER_1102.xlsx
+
+Prompt 24: Rename ไฟล์เดิมทั้งหมด 65 ไฟล์ให้ตรงกับ format ใหม่
+
+--- อัปเดต start_server.bat ---
+
+  → 6 ตัวเลือก: PR / Leak / GIS / Meter / All / Main + All
+  → Port: PR=5000, Leak=5001, GIS=5002, Meter=5003
+  → เพิ่ม chcp 65001 รองรับ UTF-8
+
+--- อัปเดต .gitignore ---
+
+  → เพิ่ม **/data.json และ **/uploaded_data/
+
+================================================================================
+  สรุปไฟล์ที่สร้าง/แก้ไขทั้งหมดใน Session นี้:
+================================================================================
+
+ไฟล์ที่สร้างใหม่:
+  1. Dashboard_Leak/server.py — Flask server port 5001
+  2. Dashboard_Leak/manage.html — จัดการข้อมูล สีน้ำเงิน 8 หมวด
+  3. Dashboard_GIS/server.py — Flask server port 5002
+  4. Dashboard_GIS/manage.html — จัดการข้อมูล สี teal 1 หมวด
+  5. Dashboard_Meter/server.py — Flask server port 5003
+  6. Dashboard_Meter/manage.html — จัดการข้อมูล สีม่วง 1 หมวด
+
+ไฟล์ที่แก้ไข:
+  1. Dashboard_PR/manage.html — ปรับ UI ทั้งหมด (Tab, Chips, Dark mode, etc.)
+  2. Dashboard_PR/server.py — เปลี่ยน path เป็น ข้อมูลดิบ/ + last_modified
+  3. Dashboard_Leak/index.html — ลบ toggle + เพิ่มปุ่มจัดการแหล่งข้อมูล
+  4. Dashboard_GIS/index.html — ลบ toggle + เพิ่มปุ่มจัดการแหล่งข้อมูล + smart back
+  5. Dashboard_Meter/index.html — ลบ toggle + เพิ่มปุ่มจัดการแหล่งข้อมูล + smart back
+  6. start_server.bat — 6 ตัวเลือก รองรับ 4 Dashboard
+  7. .gitignore — เพิ่ม data.json + uploaded_data/
+
+ไฟล์ที่ rename (65 ไฟล์):
+  - Leak: 42 ไฟล์ (OIS 13 + RL 2 + MNF 1 + P3 22 + ACT 1 + EU 1 + KPI 2)
+  - GIS: 5 ไฟล์
+  - Meter: 22 ไฟล์
+
+================================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Session: 19 มี.ค. 2569 (Cowork mode — Dashboard GIS + แก้ไขทั่วไป)
+เป้าหมาย: แก้ปุ่มจัดการแหล่งข้อมูล, เพิ่ม Tab แรงดันน้ำ + งานค้างซ่อม, เรียงลำดับ P3
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+--- แก้ไขทั่วไป (ทุก Dashboard) ---
+
+Prompt 1: ปุ่มจัดการแหล่งข้อมูลเปิด Tab เดิมใน Chrome
+  → เพิ่ม onclick ตรวจ protocol: file:// → location.href ไป localhost ใน Tab เดิม
+
+Prompt 2: ปุ่มจัดการแหล่งข้อมูลขึ้น 404 บน GitHub Pages
+  → เพิ่มตรวจ hostname: ถ้าไม่ใช่ localhost → alert แจ้งให้ใช้งานบนเครื่อง Local
+  → แก้ทั้ง 4 Dashboard: PR (port 5000), Leak (5001), GIS (5002), Meter (5003)
+
+--- Dashboard Leak — Tab P3 ---
+
+Prompt 3: ตาราง P3 เรียงตาม OIS
+  → แก้ branchKeys ให้เรียงตาม RLC_STD_BRANCHES (ตัด "(พ)" เมื่อเปรียบเทียบ)
+
+Prompt 4: หมายเหตุสาขาที่ไม่มีรายงานจุดแรงดันอ่อน
+  → เพิ่ม <p> ใต้ตาราง แสดงจำนวน + รายชื่อสาขาที่ไม่อยู่ในตาราง
+
+Prompt 5: หมายเหตุสีเขียว
+  → เปลี่ยน color จาก var(--sub2) เป็น #16a34a
+
+Prompt 6: ตัวเลือกหน่วยงาน Tab P3 เรียงตาม OIS
+  → แก้ p3GetBranches() ให้เรียงตาม RLC_STD_BRANCHES
+
+Prompt 7: ซ่อนข้อมูลค่าศูนย์ Default unchecked
+  → ลบ attribute "checked" จาก p3HideZero checkbox
+
+--- Dashboard GIS — Tab แรงดันน้ำ (ใหม่) ---
+
+Prompt 8: สร้างหมวดข้อมูลแรงดันน้ำ + Tab ใหม่
+  → สร้างโฟลเดอร์ ข้อมูลดิบ/แรงดันน้ำ/
+  → เพิ่ม category 'pressure' ใน server.py + manage.html (Tab สีน้ำเงิน #1565c0)
+  → สร้าง Tab "แรงดันน้ำ" ใน Dashboard GIS index.html
+  → กราฟแท่ง 22 สาขา + เส้นเกณฑ์ (threshold) เส้นประ
+  → ตัวเลือกประเภทกราฟ, เกณฑ์ปรับได้, export bar ครบ
+  → ลงทะเบียน getChartObj + switchMainTab
+
+Prompt 9: Parse ข้อมูลจาก 22 ไฟล์ Excel แรงดันน้ำ
+  → อ่าน pwa_pressure_*.xlsx ทั้ง 22 ไฟล์ คำนวณเฉลี่ยรายสาขาต่อเดือน
+  → Embed เป็น PRESSURE_DATA + PRESSURE_MONTHS (5 เดือน: 68-10 ถึง 69-02)
+  → แก้ pressureInit ใช้ PRESSURE_MONTHS แทน MONTHS
+
+Prompt 10: Default min Y = 0
+  → เปลี่ยน beginAtZero:false เป็น min:0
+
+Prompt 11: แท่งต่ำกว่าเกณฑ์เป็นสีแดง
+  → สร้าง barColors array เทียบค่ากับ threshold: ต่ำกว่า = #e53935, ปกติ = #00838f
+
+Prompt 12: เส้นเกณฑ์สีแดงหนาขึ้น
+  → เปลี่ยน strokeStyle เป็น #e53935, lineWidth เป็น 3
+
+Prompt 13: Default แสดงค่า + สีตัวอักษรตามกราฟ
+  → เพิ่ม checked ใน pressureShowValues
+  → datalabels color เป็น function ตรวจ threshold (แดง/teal)
+
+Prompt 14: แสดงค่าเกณฑ์บนเส้น
+  → เพิ่ม fillText "เกณฑ์ X.XX" สีแดง เหนือเส้นเกณฑ์ด้านซ้าย
+
+--- Dashboard GIS — Toggle กราฟ/ตาราง ---
+
+Prompt 15: Toggle กราฟ/ตาราง ทุก Card ทุก Tab
+  → Card 1 (KPI): gisToggleView สลับ gisChartWrap ↔ gisTableContainer
+  → Card 2 (สรุป): sumToggleView สลับ sumChartsWrap ↔ sumTableContainer + sumBuildTable()
+  → Card แรงดันน้ำ: pressureToggleView + pressureBuildTable()
+  → ทุก Card มีปุ่ม กราฟ/ตาราง ใน card-header ใช้ .ymt/.ymb pattern
+
+--- Dashboard GIS — Tab งานค้างซ่อม (ใหม่) ---
+
+Prompt 16: สร้างหมวดซ่อมท่อค้างระบบ + Tab งานค้างซ่อม
+  → สร้างโฟลเดอร์ ข้อมูลดิบ/ซ่อมท่อค้างระบบ/ (มีไฟล์อยู่แล้ว)
+  → เพิ่ม category 'pending' ใน server.py + manage.html (Tab สีส้ม #e65100)
+  → Parse ไฟล์ งานซ่อม_กปภ_เขต1.xlsx → สะสมรายเดือนรายสาขา
+  → จับสาขาจากคอลัมน์ "สถานที่เกิดเหตุ" (ไม่มีคอลัมน์สาขาโดยตรง)
+  → Embed PENDING_REPAIR_DATA + PENDING_MONTHS (6 เดือน)
+  → กราฟเส้น/แท่ง + checkbox สาขา + เส้นภาพรวม + export bar ครบ
+  → Toggle กราฟ/ตาราง, ลงทะเบียน getChartObj
+
+Prompt 17: เพิ่มตัวเลือกแกน X (ช่วงเวลา/สาขา) + checkbox 22 สาขาครบ
+  → เพิ่ม dropdown แกน X
+  → checkbox ครบ 22 สาขา + ไม่ระบุ (เรียงตาม OIS) แต่ละสาขามีสีเฉพาะ
+  → โหมดช่วงเวลา: ช่วงเดือน (จาก-ถึง) กรองเดือน
+  → โหมดสาขา: แกน X = สาขา, แท่ง 1 ชุดต่อเดือนที่เลือก
+
+Prompt 18: ตัวเลือกสาขา 3 โหมด + โหมดสาขาเป็นช่วงเดือน
+  → สาขาเดียว (dropdown) / บางสาขา (checkbox) / ทุกสาขา
+  → แกน X = สาขา: ช่วงเดือน (จาก-ถึง) + แต่ละสาขามีหลายแท่งตามเดือน
+  → สีแท่งแยกตามเดือน (MONTH_COLORS palette)
+
+Prompt 19: Legend อยู่ใต้กราฟ
+  → เปลี่ยน legend position จาก 'top' เป็น 'bottom'
+
+Prompt 20: Default แกน X = สาขา
+  → เพิ่ม selected ใน option value="branch"
+
+Prompt 21: นับทุกแถว (รวมแถว "แก้ไข")
+  → Re-parse ไม่กรอง type "แก้ไข" ออก → 547 แถว (เดิม 411)
+  → Embed ข้อมูลใหม่: มี.ค.69 total=547, ชลบุรี 226, พัทยา 44, ไม่ระบุ 136
+
+หมายเหตุ: ข้อมูลงานค้างซ่อมจับสาขาจากสถานที่เกิดเหตุ (free text)
+  มี 136/547 แถวที่จับสาขาไม่ได้ → "ไม่ระบุ" (ปัญหาจากไฟล์ไม่มีคอลัมน์สาขา)
+
+================================================================================
+  สรุปไฟล์ที่สร้าง/แก้ไขทั้งหมดใน Session นี้:
+================================================================================
+
+ไฟล์ที่แก้ไข:
+  1. Dashboard_PR/index.html — ปุ่มจัดการแหล่งข้อมูล smart onclick (localhost/file/GitHub)
+  2. Dashboard_Leak/index.html — ปุ่มจัดการแหล่งข้อมูล smart onclick
+     + P3 ตาราง/dropdown เรียงตาม OIS + หมายเหตุสีเขียว + p3HideZero unchecked
+  3. Dashboard_GIS/index.html — ปุ่มจัดการแหล่งข้อมูล smart onclick
+     + Tab แรงดันน้ำ (กราฟ+ตาราง+เกณฑ์+export)
+     + Tab งานค้างซ่อม (กราฟเส้น/แท่ง+3 โหมดสาขา+ช่วงเดือน+export)
+     + Toggle กราฟ/ตาราง ทุก Card (3 cards)
+     + Embed PRESSURE_DATA (22 สาขา 5 เดือน) + PENDING_REPAIR_DATA (547 งาน 6 เดือน)
+  4. Dashboard_GIS/server.py — เพิ่ม category pressure + pending
+  5. Dashboard_GIS/manage.html — เพิ่ม Tab แรงดันน้ำ + ซ่อมท่อค้างระบบ
+  6. Dashboard_Meter/index.html — ปุ่มจัดการแหล่งข้อมูล smart onclick
+
+โฟลเดอร์ที่สร้าง:
+  - Dashboard_GIS/ข้อมูลดิบ/แรงดันน้ำ/ (มีไฟล์ 22 สาขาอยู่แล้ว)
+
+================================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Session: 20 มี.ค. 2569 (Cowork mode — manage.html ปรับปรุง + Dashboard_Leak WSC-R)
+เป้าหมาย: ปรับปรุง manage.html PR/Leak + สร้างกราฟปริมาณน้ำสูญเสียจริง WSC-R
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+--- ปรับปรุง manage.html Dashboard PR ---
+
+Prompt 1-12: (ดู Session 19 มี.ค. — manage.html PR ปรับ UI ทั้งหมด)
+
+Prompt 13: เปลี่ยน uploaded_data → ข้อมูลดิบ/ (PR ใช้โครงสร้างเดียวกับ Leak)
+
+--- สร้างระบบจัดการข้อมูล Dashboard Leak/GIS/Meter ---
+
+Prompt 14-18: สร้าง server.py + manage.html ให้ Leak/GIS/Meter (ดู Session 19 มี.ค.)
+
+--- ปรับปรุง manage.html Leak ---
+
+Prompt: แยกสีหมวด Tab upload + chip ตาม category color
+Prompt: คำแนะนำ upload เฉพาะหมวด + ปุ่มกลับไป Dashboard (ไม่ใช่หน้าหลัก)
+Prompt: Tab สีเปลี่ยนตาม category (switchTab dynamic color)
+
+--- Dashboard_Leak WSC-R — กราฟปริมาณน้ำสูญเสียจริง (ใหม่) ---
+
+Prompt: แทรก Card ใหม่ต่อจากกราฟ %น้ำสูญเสีย — "กราฟความเคลื่อนไหว ปริมาณน้ำสูญเสียจริง"
+  → สร้าง wscRBranchCompareVol() — เหมือน wscRBranchCompare แต่ใช้ metricKey='v'
+  → Canvas: wscRChart3V (กลุ่ม 1), wscRChart4V (กลุ่ม 2)
+  → แกน Y: ลบ.ม. (comma format), ไม่ใช่ %
+  → Register: getChartObj, CTX_CHART_TYPE_MAP, CTX_CHART_UPDATE_MAP, _srcCanvasMap
+  → Export Excel: wscr3v, wscr4v
+
+Prompt: แก้ wscRInit ให้เรียก wscRSharedUpdate() (แทนเรียกทีละตัว — root cause ที่กราฟไม่ขึ้น)
+Prompt: wscRSharedUpdate ครอบ try-catch ทุก function call + volume charts ใน setTimeout
+Prompt: เอาภาพรวมเขตออกจากกราฟ volume (ค่าสูงเกินทำให้สาขาอื่นเล็ก)
+Prompt: Sync max Y ของกราฟ volume ทั้ง 2 ชุด (wscRVolSyncYAxis)
+Prompt: เปลี่ยนโทนสีแท่งเป็นม่วง (#7b1fa2 full, #ce93d8 light, #4a148c label)
+Prompt: เพิ่มเส้นเกณฑ์ปริมาณ = เกณฑ์% × น้ำผลิตจ่ายเฉลี่ย (เส้นปะดำ + label)
+Prompt: แกน Y step 200,000
+
+--- Dashboard_Leak WSC-R — กราฟที่ 1 ---
+
+Prompt: เพิ่มเส้นเกณฑ์ OIS ระดับ 3 (สีเขียว) และ 5 (สีแดง) เป็นเส้นปะ
+  → อ่านจาก KPI[selYear][branch].l[2] (ระดับ 3) และ .l[4] (ระดับ 5)
+  → เปลี่ยนตามสาขาที่เลือกอัตโนมัติ
+
+Prompt: กราฟพื้นที่ปีก่อน — ลบเส้นขอบ (borderWidth:0, borderColor จาง)
+
+================================================================================
+  งานค้าง / กำลังทำอยู่:
+================================================================================
+
+1. กราฟพื้นที่ปีก่อน (WSC-R Chart 1) — Aong ขอเปลี่ยน opacity เป็น 60%
+   ยังไม่ได้แก้ (ค่าปัจจุบัน: #93c5fdB3 = 70%, #f97316B3 = 70%)
+   hex 60% = 99 → เปลี่ยนเป็น #93c5fd99 และ #f9731699
+
+2. ตรวจสอบ scale sync ของกราฟ volume — อาจต้องปรับ rounding
+
+================================================================================
+  สรุปไฟล์ที่แก้ไขใน Session นี้:
+================================================================================
+
+  1. Dashboard_PR/manage.html — ปรับ UI ทั้งหมด (Tab, Chips, Dark mode, etc.)
+  2. Dashboard_PR/server.py — เปลี่ยน path เป็น ข้อมูลดิบ/
+  3. Dashboard_Leak/manage.html — แยกสีหมวด + Tab dynamic color + คำแนะนำ
+  4. Dashboard_Leak/index.html — WSC-R:
+     - เพิ่ม Card กราฟปริมาณน้ำสูญเสียจริง (wscRChart3V/4V, สีม่วง)
+     - แก้ wscRInit → wscRSharedUpdate()
+     - wscRSharedUpdate try-catch + setTimeout
+     - เส้นเกณฑ์ปริมาณ (volTargetPlugin)
+     - เส้นเกณฑ์ OIS ระดับ 3/5 ในกราฟ 1 (wscR1ThresholdPlugin)
+     - กราฟพื้นที่ปีก่อน: borderWidth:0, opacity 70%
+  5. Dashboard_GIS/index.html — ลบ toggle + เพิ่มปุ่มจัดการแหล่งข้อมูล
+  6. Dashboard_Meter/index.html — ลบ toggle + เพิ่มปุ่มจัดการแหล่งข้อมูล
+  7. start_server.bat — 6 ตัวเลือก
+  8. .gitignore — เพิ่ม data.json + uploaded_data/
+
+================================================================================
